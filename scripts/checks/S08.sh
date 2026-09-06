@@ -28,6 +28,8 @@ kind: Deployment
 metadata:
   name: $DEPLOY_NAME
   namespace: $NAMESPACE
+  annotations:
+    jit.infra/redis: '$ANNOTATION'
 spec:
   replicas: 1
   selector:
@@ -41,8 +43,6 @@ spec:
       containers:
       - name: pause
         image: gcr.io/google_containers/pause:3.5
-annotations:
-  jit.infra/redis: '$ANNOTATION'
 EOF
 
 # Wait for claim
@@ -75,6 +75,8 @@ kind: Deployment
 metadata:
   name: $DEPLOY_NAME
   namespace: $NAMESPACE
+  annotations:
+    jit.infra/redis: '$ANNOTATION'
 spec:
   replicas: 1
   selector:
@@ -88,8 +90,6 @@ spec:
       containers:
       - name: pause
         image: gcr.io/google_containers/pause:3.5
-annotations:
-  jit.infra/redis: '$ANNOTATION'
 EOF
 
 COUNT=$(kubectl get infraclaim -n "$NAMESPACE" -o name | grep "$CLAIM_NAME" | wc -l | tr -d ' ')
