@@ -1,0 +1,63 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: infraclaims.jit.io
+spec:
+  group: jit.io
+  names:
+    kind: InfraClaim
+    plural: infraclaims
+    singular: infraclaim
+    shortNames:
+    - ic
+  scope: Namespaced
+  versions:
+  - name: v1alpha1
+    served: true
+    storage: true
+    schema:
+      openAPIV3Schema:
+        type: object
+        properties:
+          spec:
+            type: object
+            properties:
+              module:
+                type: string
+              moduleVersion:
+                type: string
+              params:
+                type: object
+              softDeleteTTL:
+                type: string
+          status:
+            type: object
+            properties:
+              phase:
+                type: string
+              referencedBy:
+                type: array
+                items:
+                  type: string
+              expiresAt:
+                type: string
+              outputsSecret:
+                type: string
+              endpoint:
+                type: string
+              message:
+                type: string
+    subresources:
+      status: {}
+    additionalPrinterColumns:
+    - name: PHASE
+      type: string
+      jsonPath: .status.phase
+    - name: EXPIRES
+      type: string
+      jsonPath: .status.expiresAt
+    - name: REFS
+      type: string
+      jsonPath: .status.referencedBy
+  conversion:
+    strategy: None
