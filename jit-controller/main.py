@@ -141,6 +141,37 @@ def ensure_ready(api, ns, name, module):
         pass
 
 
+def list_referencing_deployments(namespace, module):
+    """List Deployment names in the namespace that annotate jit.infra/<module>."""
+    apps = client.AppsV1Api()
+    deploys = apps.list_namespaced_deployment(namespace)
+    refs = []
+    for d in deploys.items:
+        annotations = d.metadata.annotations or {}
+        if f"jit.infra/{module}" in annotations:
+            refs.append(d.metadata.name)
+    return sorted(refs)
+
+
+@kopf.timer("jit.io", "v1alpha1", "infraclaims", interval=30, initial_delay=True)
+def resync_referenced_by(body, namespace, name, logger, **kwargs):
+    """Periodic resync: recompute referencedBy from live Deployments."""
+    load_kube()
+    module = body.get("spec", {}).get("module")
+    if not module:
+        return
+    refs = list_referencing_deployments(namespace, module)
+    patch = {"status": {"referencedBy": refs}}
+    api = client.CustomObjectsApi()
+    try:
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name, patch
+        )
+        logger.info(f"Resync {name}: referencedBy={refs}")
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to patch referencedBy on {name}: {e}")
+
+
 @kopf.on.delete("jit.io", "v1alpha1", "infraclaims")
 def handle_claim_delete(body, namespace, name, **kwargs):
     load_kube()
