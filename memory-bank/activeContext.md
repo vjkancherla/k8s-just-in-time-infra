@@ -1,16 +1,21 @@
-Updated: 2026-09-06
+Updated: 2026-09-07
 
 ## Current focus
-S08 checkpoint passing with polling operator.
+S09: Resync computes `referencedBy`
+
+## Current work
+S08 checkpoint passed. Kopf controller now correctly creates InfraClaims on annotated Deployments.
 
 ## Recent changes
-- Operator switched from kopf to simple polling implementation
-- Controller creates InfraClaim with ownerRef → Namespace UID and finalizer jit.infra/teardown
-- Finalizer cleanup handling added to allow claim deletion
-- Checkpoint verifies claim creation, phase Ready, ownerRef, secret existence
+- Fixed KUBERNETES_SERVICE_HOST env var override (was pointing to wrong host IP)
+- Added verify_ssl=False to kubernetes client config for k3d self-signed certs
+- Set priority=100 on custom login ConnectionInfo to beat built-in handler
+- Created jit-controller/Dockerfile
+- Fixed requirements.txt (was kopf==0.10.2, now kopf>=1.44)
+- Added kopf.run(namespaces=["default"]) to fix cluster-wide warning
 
 ## Next step
-Commit passing state and stop for S08 review
+Implement S9: periodic resync (30s) that computes status.referencedBy from live Deployments.
 
 ## Blocked
-None
+none
