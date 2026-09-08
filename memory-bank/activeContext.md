@@ -1,21 +1,21 @@
-Updated: 2026-09-07
+Updated: 2026-09-08
 
 ## Current focus
-S09: Resync computes `referencedBy`
+S10 complete; S11 not started.
 
 ## Current work
-S08 checkpoint passed. Kopf controller now correctly creates InfraClaims on annotated Deployments.
+S10 (soft delete — orphan and expiry) implemented and checkpoint PASS.
 
 ## Recent changes
-- Fixed KUBERNETES_SERVICE_HOST env var override (was pointing to wrong host IP)
-- Added verify_ssl=False to kubernetes client config for k3d self-signed certs
-- Set priority=100 on custom login ConnectionInfo to beat built-in handler
-- Created jit-controller/Dockerfile
-- Fixed requirements.txt (was kopf==0.10.2, now kopf>=1.44)
-- Added kopf.run(namespaces=["default"]) to fix cluster-wide warning
+- S10: resync timer now handles Ready↔Orphaned transitions + TTL sweep
+- S10: parse_ttl for softDeleteTTL (s/m/h/d), destroy_infra calls runner DELETE
+- S10: cleanup_k8s_resources removes Secret/Service/EndpointSlice
+- S10: ensure_ready clears expiresAt on resurrection
+- S10: added logging.basicConfig, requests dep, PYTHONDONTWRITEBYTECODE=1
 
 ## Next step
-Implement S9: periodic resync (30s) that computes status.referencedBy from live Deployments.
+S11: hard delete — namespace deletion destroys immediately, regardless of expiry.
+Claim has ownerRef → Namespace, so GC deletes it; finalizer handler runs destroy.
 
 ## Blocked
 none

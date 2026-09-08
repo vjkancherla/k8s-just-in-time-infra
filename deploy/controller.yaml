@@ -24,6 +24,8 @@ spec:
           value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         - name: REQUESTS_CA_BUNDLE
           value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        - name: RUNNER_URL
+          value: "http://172.19.0.10:8080"
 ---
 apiVersion: v1
 kind: ConfigMap

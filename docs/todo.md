@@ -39,9 +39,9 @@ A step with one box ticked is not done. One step per session.
 
 ## Stage C - Control plane, fake provisioner
 
-- [x] check  - [ ] review  **S8** CRD + claim creation, ownerRef → Namespace, finalizer
-- [ ] check  - [ ] review  **S9** Resync computes `referencedBy`
-- [ ] check  - [ ] review  **S10** Soft delete: orphan, expiry, resurrection
+- [x] check  - [x] review  **S8** CRD + claim creation, ownerRef → Namespace, finalizer
+- [x] check  - [ ] review  **S9** Resync computes `referencedBy`
+- [x] check  - [ ] review  **S10** Soft delete: orphan, expiry, resurrection
 - [ ] check  - [ ] review  **S11** Hard delete: namespace destroys immediately
 - [ ] check  - [ ] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
 

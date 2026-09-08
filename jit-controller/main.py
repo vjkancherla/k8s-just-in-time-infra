@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 import json
 import logging
+import os
+import re
+from datetime import datetime, timedelta, timezone
+
 import kopf
+import requests
 from kubernetes import client, config
 
 GROUP = "jit.io"
@@ -9,7 +14,10 @@ VERSION = "v1alpha1"
 PLURAL = "infraclaims"
 FINALIZER = "jit.infra/teardown"
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("jit-controller")
+
+RUNNER_URL = os.environ.get("RUNNER_URL", "")
 
 
 def load_kube():
@@ -132,7 +140,7 @@ def ensure_ready(api, ns, name, module):
             except client.exceptions.ApiException as e:
                 if e.status != 409:
                     raise
-            patch = {"status": {"phase": "Ready", "outputsSecret": secret_name}}
+            patch = {"status": {"phase": "Ready", "outputsSecret": secret_name, "expiresAt": ""}}
             api.patch_namespaced_custom_object_status(
                 GROUP, VERSION, ns, PLURAL, name, patch
             )
@@ -153,23 +161,135 @@ def list_referencing_deployments(namespace, module):
     return sorted(refs)
 
 
+def parse_ttl(ttl_str):
+    """Parse a softDeleteTTL string like '2m', '30d', '1h' into a timedelta."""
+    m = re.match(r"^(\d+)(s|m|h|d)$", ttl_str.strip())
+    if not m:
+        return timedelta(days=30)
+    val = int(m.group(1))
+    unit = m.group(2)
+    return timedelta(seconds={"s": val, "m": val * 60, "h": val * 3600, "d": val * 86400}[unit])
+
+
+def destroy_infra(namespace, module):
+    """Call the runner to destroy infrastructure. Returns True on success."""
+    if not RUNNER_URL:
+        logger.warning("RUNNER_URL not set, skipping destroy")
+        return False
+    workspace = namespace
+    url = f"{RUNNER_URL}/v1/runs/{workspace}"
+    try:
+        r = requests.delete(url, timeout=120)
+        return r.status_code in (200, 404)
+    except Exception as e:
+        logger.warning(f"Runner destroy failed for {workspace}/{module}: {e}")
+        return False
+
+
+def cleanup_k8s_resources(namespace, module):
+    """Delete Secret, Service, EndpointSlice for a JIT module."""
+    core = client.CoreV1Api()
+    secret_name = f"jit-{module}"
+    svc_name = f"jit-{module}"
+    ep_name = f"jit-{module}"
+    for kind, delete_fn, name in [
+        ("Secret", core.delete_namespaced_secret, secret_name),
+        ("Service", core.delete_namespaced_service, svc_name),
+    ]:
+        try:
+            delete_fn(name, namespace)
+            logger.info(f"Deleted {kind} {name} in {namespace}")
+        except client.exceptions.ApiException as e:
+            if e.status != 404:
+                logger.warning(f"Failed to delete {kind} {name}: {e}")
+    # EndpointSlice uses different API
+    disco = client.DiscoveryV1Api()
+    try:
+        disco.delete_namespaced_endpoint_slice(ep_name, namespace)
+        logger.info(f"Deleted EndpointSlice {ep_name} in {namespace}")
+    except client.exceptions.ApiException as e:
+        if e.status != 404:
+            logger.warning(f"Failed to delete EndpointSlice {ep_name}: {e}")
+
+
+def remove_finalizer_and_delete(namespace, name, finalizer):
+    """Remove the finalizer from a claim and delete it."""
+    api = client.CustomObjectsApi()
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+        finalizers = obj.get("metadata", {}).get("finalizers", [])
+        if finalizer in finalizers:
+            new_finalizers = [f for f in finalizers if f != finalizer]
+            api.patch_namespaced_custom_object(
+                GROUP, VERSION, namespace, PLURAL, name,
+                {"metadata": {"finalizers": new_finalizers}},
+            )
+        api.delete_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+        logger.info(f"Deleted claim {name} after TTL expiry")
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to delete claim {name}: {e}")
+
+
 @kopf.timer("jit.io", "v1alpha1", "infraclaims", interval=30, initial_delay=True)
 def resync_referenced_by(body, namespace, name, logger, **kwargs):
-    """Periodic resync: recompute referencedBy from live Deployments."""
+    """Periodic resync: recompute referencedBy, handle orphaning and TTL sweep."""
     load_kube()
     module = body.get("spec", {}).get("module")
     if not module:
         return
-    refs = list_referencing_deployments(namespace, module)
-    patch = {"status": {"referencedBy": refs}}
+
     api = client.CustomObjectsApi()
-    try:
-        api.patch_namespaced_custom_object_status(
-            GROUP, VERSION, namespace, PLURAL, name, patch
-        )
-        logger.info(f"Resync {name}: referencedBy={refs}")
-    except client.exceptions.ApiException as e:
-        logger.warning(f"Failed to patch referencedBy on {name}: {e}")
+    refs = list_referencing_deployments(namespace, module)
+    status = body.get("status", {}) or {}
+    phase = status.get("phase", "")
+    ttl_str = body.get("spec", {}).get("softDeleteTTL", "30d")
+
+    if refs:
+        # References exist: ensure Ready, clear expiresAt
+        patch = {"status": {"referencedBy": refs, "phase": "Ready", "expiresAt": ""}}
+        try:
+            api.patch_namespaced_custom_object_status(
+                GROUP, VERSION, namespace, PLURAL, name, patch)
+            logger.info(f"Resync {name}: referencedBy={refs}, phase=Ready")
+        except client.exceptions.ApiException as e:
+            logger.warning(f"Failed to patch {name}: {e}")
+    else:
+        # No references
+        if phase != "Orphaned":
+            # Transition to Orphaned, set expiresAt
+            ttl = parse_ttl(ttl_str)
+            expires = (datetime.now(timezone.utc) + ttl).isoformat()
+            patch = {"status": {"referencedBy": refs, "phase": "Orphaned",
+                                "expiresAt": expires}}
+            try:
+                api.patch_namespaced_custom_object_status(
+                    GROUP, VERSION, namespace, PLURAL, name, patch)
+                logger.info(f"Resync {name}: Orphaned, expiresAt={expires}")
+            except client.exceptions.ApiException as e:
+                logger.warning(f"Failed to patch {name}: {e}")
+        else:
+            # Already Orphaned — check TTL
+            patch = {"status": {"referencedBy": refs}}
+            try:
+                api.patch_namespaced_custom_object_status(
+                    GROUP, VERSION, namespace, PLURAL, name, patch)
+            except client.exceptions.ApiException:
+                pass
+
+            expires_at = status.get("expiresAt")
+            if expires_at and expires_at != "":
+                try:
+                    exp = datetime.fromisoformat(expires_at)
+                    if exp.tzinfo is None:
+                        exp = exp.replace(tzinfo=timezone.utc)
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid expiresAt on {name}: {expires_at}")
+                    return
+                if datetime.now(timezone.utc) > exp:
+                    logger.info(f"TTL expired on {name}, sweeping")
+                    destroy_infra(namespace, module)
+                    cleanup_k8s_resources(namespace, module)
+                    remove_finalizer_and_delete(namespace, name, FINALIZER)
 
 
 @kopf.on.delete("jit.io", "v1alpha1", "infraclaims")
