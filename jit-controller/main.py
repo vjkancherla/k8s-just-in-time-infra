@@ -18,6 +18,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname
 logger = logging.getLogger("jit-controller")
 
 RUNNER_URL = os.environ.get("RUNNER_URL", "")
+RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "")
 
 
 def load_kube():
@@ -140,13 +141,31 @@ def ensure_ready(api, ns, name, module):
             except client.exceptions.ApiException as e:
                 if e.status != 409:
                     raise
-            patch = {"status": {"phase": "Ready", "outputsSecret": secret_name, "expiresAt": ""}}
+            patch = {"status": {"phase": "Ready", "outputsSecret": secret_name}}
             api.patch_namespaced_custom_object_status(
                 GROUP, VERSION, ns, PLURAL, name, patch
             )
+            clear_status_field(ns, name, "expiresAt")
             logger.info(f"InfraClaim {name} phase set to Ready")
     except client.exceptions.ApiException:
         pass
+
+
+def clear_status_field(namespace, name, field_path):
+    """Remove a field from status using JSON Patch (strategic merge can't remove fields)."""
+    api = client.CustomObjectsApi()
+    patch = [{"op": "remove", "path": f"/status/{field_path}"}]
+    try:
+        api.api_client.call_api(
+            f"/apis/{GROUP}/{VERSION}/namespaces/{namespace}/{PLURAL}/{name}/status",
+            "PATCH", body=patch,
+            header_params={"Content-Type": "application/json-patch+json"},
+            auth_settings=["BearerToken"],
+        )
+    except Exception as e:
+        # Field may already be absent — that's fine
+        if "not found" not in str(e).lower() and "404" not in str(e):
+            logger.warning(f"Failed to clear status.{field_path} on {name}: {e}")
 
 
 def list_referencing_deployments(namespace, module):
@@ -178,8 +197,11 @@ def destroy_infra(namespace, module):
         return False
     workspace = namespace
     url = f"{RUNNER_URL}/v1/runs/{workspace}"
+    headers = {}
+    if RUNNER_TOKEN:
+        headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
     try:
-        r = requests.delete(url, timeout=120)
+        r = requests.delete(url, timeout=120, headers=headers)
         return r.status_code in (200, 404)
     except Exception as e:
         logger.warning(f"Runner destroy failed for {workspace}/{module}: {e}")
@@ -246,16 +268,25 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
 
     if refs:
         # References exist: ensure Ready, clear expiresAt
-        patch = {"status": {"referencedBy": refs, "phase": "Ready", "expiresAt": ""}}
+        patch = {"status": {"referencedBy": refs, "phase": "Ready"}}
         try:
             api.patch_namespaced_custom_object_status(
                 GROUP, VERSION, namespace, PLURAL, name, patch)
+            clear_status_field(namespace, name, "expiresAt")
             logger.info(f"Resync {name}: referencedBy={refs}, phase=Ready")
         except client.exceptions.ApiException as e:
             logger.warning(f"Failed to patch {name}: {e}")
     else:
         # No references
-        if phase != "Orphaned":
+        if phase == "Deleting":
+            # Committed to destruction — retry the destroy+cleanup
+            logger.info(f"Resync {name}: retrying destroy (Deleting)")
+            if destroy_infra(namespace, module):
+                cleanup_k8s_resources(namespace, module)
+                remove_finalizer_and_delete(namespace, name, FINALIZER)
+            else:
+                logger.warning(f"Destroy retry failed for {name}, will retry next tick")
+        elif phase != "Orphaned":
             # Transition to Orphaned, set expiresAt
             ttl = parse_ttl(ttl_str)
             expires = (datetime.now(timezone.utc) + ttl).isoformat()
@@ -268,14 +299,17 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
             except client.exceptions.ApiException as e:
                 logger.warning(f"Failed to patch {name}: {e}")
         else:
-            # Already Orphaned — check TTL
-            patch = {"status": {"referencedBy": refs}}
-            try:
-                api.patch_namespaced_custom_object_status(
-                    GROUP, VERSION, namespace, PLURAL, name, patch)
-            except client.exceptions.ApiException:
-                pass
+            # Already Orphaned — update refs (skip if unchanged)
+            existing_refs = sorted(status.get("referencedBy", []) or [])
+            if refs != existing_refs:
+                patch = {"status": {"referencedBy": refs}}
+                try:
+                    api.patch_namespaced_custom_object_status(
+                        GROUP, VERSION, namespace, PLURAL, name, patch)
+                except client.exceptions.ApiException:
+                    pass
 
+            # Check TTL
             expires_at = status.get("expiresAt")
             if expires_at and expires_at != "":
                 try:
@@ -287,9 +321,20 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                     return
                 if datetime.now(timezone.utc) > exp:
                     logger.info(f"TTL expired on {name}, sweeping")
-                    destroy_infra(namespace, module)
-                    cleanup_k8s_resources(namespace, module)
-                    remove_finalizer_and_delete(namespace, name, FINALIZER)
+                    # Transition to Deleting, then attempt destroy
+                    try:
+                        api.patch_namespaced_custom_object_status(
+                            GROUP, VERSION, namespace, PLURAL, name,
+                            {"status": {"phase": "Deleting"}})
+                    except client.exceptions.ApiException:
+                        pass
+                    if destroy_infra(namespace, module):
+                        cleanup_k8s_resources(namespace, module)
+                        remove_finalizer_and_delete(namespace, name, FINALIZER)
+                    else:
+                        logger.warning(
+                            f"Destroy failed for {name}, claim stays Deleting — "
+                            "will retry next tick")
 
 
 @kopf.on.delete("jit.io", "v1alpha1", "infraclaims")

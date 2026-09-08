@@ -26,6 +26,8 @@ spec:
           value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
         - name: RUNNER_URL
           value: "http://172.19.0.10:8080"
+        - name: RUNNER_TOKEN
+          value: "s6-secret-token-2026"
 ---
 apiVersion: v1
 kind: ConfigMap

@@ -121,7 +121,7 @@ done
 [[ "$PHASE" == "Ready" ]] || fail "claim should be Ready after re-deploy, phase=$PHASE"
 
 EXPIRES_AFTER=$(kubectl get infraclaim "$CLAIM_NAME" -n "$NAMESPACE" -o jsonpath='{.status.expiresAt}' 2>/dev/null || echo "")
-[[ -z "$EXPIRES_AFTER" || "$EXPIRES_AFTER" == "null" || "$EXPIRES_AFTER" == '""' ]] || fail "expiresAt should be cleared after resurrection, got: '$EXPIRES_AFTER'"
+[[ -z "$EXPIRES_AFTER" || "$EXPIRES_AFTER" == "null" ]] || fail "expiresAt should be cleared after resurrection, got: '$EXPIRES_AFTER'"
 
 SECRET_AFTER=$(kubectl get secret "jit-redis" -n "$NAMESPACE" -o jsonpath='{.metadata.uid}' 2>/dev/null || echo "")
 [[ "$SECRET_AFTER" == "$SECRET_BEFORE" ]] || fail "Secret should be the same (not recreated), before=$SECRET_BEFORE after=$SECRET_AFTER"
