@@ -27,7 +27,19 @@ spec:
         - name: RUNNER_URL
           value: "http://172.19.0.10:8080"
         - name: RUNNER_TOKEN
-          value: "s6-secret-token-2026"
+          valueFrom:
+            secretKeyRef:
+              name: jit-runner-token
+              key: token
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: jit-runner-token
+  namespace: default
+type: Opaque
+stringData:
+  token: "s6-secret-token-2026"
 ---
 apiVersion: v1
 kind: ConfigMap

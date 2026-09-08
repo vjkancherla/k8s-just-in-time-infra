@@ -266,8 +266,9 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
     phase = status.get("phase", "")
     ttl_str = body.get("spec", {}).get("softDeleteTTL", "30d")
 
-    if refs:
+    if refs and phase != "Deleting":
         # References exist: ensure Ready, clear expiresAt
+        # (but NOT if committed to destruction — no resurrection from Deleting)
         patch = {"status": {"referencedBy": refs, "phase": "Ready"}}
         try:
             api.patch_namespaced_custom_object_status(
