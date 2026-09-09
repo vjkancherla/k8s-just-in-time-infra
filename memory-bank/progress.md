@@ -1,15 +1,19 @@
-Updated: 2026-09-08
+Updated: 2026-09-09
 
 ## Working
-none this session (S10 done, S11 not started).
+none this session (S12 done).
 
 ## Done (verified)
 - S0-S8: All prior checkpoints pass
 - S09: checkpoint PASS → committed 5d02813, review CLEAR
-- S10: checkpoint PASS — orphan + expiry + resurrection + TTL sweep verified
+- S10: checkpoint PASS → committed 1063f4d, findings addressed in 6d1554e
+  - Deleting phase, destroy guard, redundant patch, JSON Patch expiresAt, RUNNER_TOKEN
+- S11: checkpoint PASS → committed 96312f7
+  - hard delete: destroy_infra+cleanup in handle_claim_delete, WATCH_NAMESPACES env var
+- S12: checkpoint PASS — no code change, only checkpoint script (resync already handles restart)
 
 ## In progress
-none — S11 (hard delete: namespace) not started.
+none — S13 (IPAM) not started. Gate: Stage C done when S8-S12 all pass.
 
 ## Blocked
 none
@@ -26,3 +30,4 @@ none
 - k3d image import is flaky on first attempt; retry once if it fails
 - Python __pycache__ can persist across image layers; use PYTHONDONTWRITEBYTECODE=1
 - logging.getLogger() without basicConfig has no handlers when running via python (not kopf CLI)
+- kopf Body object is not a plain dict; pass plain dicts to kubernetes client patch calls

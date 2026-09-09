@@ -1,21 +1,20 @@
-Updated: 2026-09-08
+Updated: 2026-09-09
 
 ## Current focus
-S10 complete; S11 not started.
+S12 complete; S13 not started.
 
 ## Current work
-S10 (soft delete — orphan and expiry) implemented and checkpoint PASS.
+S12 checkpoint script verifies controller restart resilience: scale to 0, delete Deployment, scale back to 1, claim becomes Orphaned within resync interval. No code changes to main.py needed — resync timer already handles this.
 
 ## Recent changes
-- S10: resync timer now handles Ready↔Orphaned transitions + TTL sweep
-- S10: parse_ttl for softDeleteTTL (s/m/h/d), destroy_infra calls runner DELETE
-- S10: cleanup_k8s_resources removes Secret/Service/EndpointSlice
-- S10: ensure_ready clears expiresAt on resurrection
-- S10: added logging.basicConfig, requests dep, PYTHONDONTWRITEBYTECODE=1
+- S12: scripts/checks/S12.sh — restart resilience checkpoint (scale-to-0, delete, scale-back)
+- S11: handle_claim_delete calls destroy_infra + cleanup_k8s_resources
+- S11: WATCH_NAMESPACES env var for configurable namespace watching
+- S10: Deleting phase, destroy guard, JSON Patch expiresAt, RUNNER_TOKEN
 
 ## Next step
-S11: hard delete — namespace deletion destroys immediately, regardless of expiry.
-Claim has ownerRef → Namespace, so GC deletes it; finalizer handler runs destroy.
+S13: IPAM — allocate/release IPs for infra modules.
+Gate: Stage C done when S8-S12 all pass with fake provisioner.
 
 ## Blocked
 none
