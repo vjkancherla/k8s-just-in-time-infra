@@ -42,12 +42,12 @@ A step with one box ticked is not done. One step per session.
 - [x] check  - [x] review  **S8** CRD + claim creation, ownerRef → Namespace, finalizer
 - [x] check  - [ ] review  **S9** Resync computes `referencedBy`
 - [x] check  - [x] review  **S10** Soft delete: orphan, expiry, resurrection
-- [x] check  - [ ] review  **S11** Hard delete: namespace destroys immediately
-- [ ] check  - [ ] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
+- [x] check  - [x] review  **S11** Hard delete: namespace destroys immediately
+- [ ] check  - [x] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
 
 ## Stage D - Join the planes
 
-- [ ] check  - [ ] review  **S13** IPAM: a block of 10 per namespace
+- [x] check  - [x] review  **S13** IPAM: a block of 10 per namespace
 - [ ] check  - [ ] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
 
 ## Stage E - The app
