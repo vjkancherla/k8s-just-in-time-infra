@@ -47,6 +47,8 @@ spec:
                 type: string
               message:
                 type: string
+              allocatedIP:
+                type: string
     subresources:
       status: {}
     additionalPrinterColumns:

@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import kopf
 import requests
+from ipam import allocate_block, release_block
 from kubernetes import client, config
 
 GROUP = "jit.io"
@@ -123,6 +124,16 @@ def ensure_claim(api, ns, ns_uid, name, spec):
         if e.status != 409:
             raise
         logger.info(f"InfraClaim {name} already exists in {ns}")
+
+    # IPAM: allocate a block for this namespace (idempotent — returns existing).
+    base_ip = allocate_block(ns)
+    if base_ip:
+        try:
+            api.patch_namespaced_custom_object_status(
+                GROUP, VERSION, ns, PLURAL, name,
+                {"status": {"allocatedIP": base_ip}})
+        except client.exceptions.ApiException:
+            pass
 
 
 def ensure_ready(api, ns, name, module):
@@ -332,6 +343,7 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                     if destroy_infra(namespace, module):
                         cleanup_k8s_resources(namespace, module)
                         remove_finalizer_and_delete(namespace, name, FINALIZER)
+                        release_block(namespace)
                     else:
                         logger.warning(
                             f"Destroy failed for {name}, claim stays Deleting — "
@@ -362,6 +374,8 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
             )
         except client.exceptions.ApiException:
             pass
+
+    release_block(namespace)
 
 
 if __name__ == "__main__":
