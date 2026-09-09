@@ -1,19 +1,21 @@
 Updated: 2026-09-09
 
 ## Current focus
-S12 complete; S13 not started.
+S13 complete; S14 not started.
 
 ## Current work
-S12 checkpoint script verifies controller restart resilience: scale to 0, delete Deployment, scale back to 1, claim becomes Orphaned within resync interval. No code changes to main.py needed — resync timer already handles this.
+S13 IPAM: ConfigMap-backed block allocation (10 IPs from 172.19.0.100-199 per namespace). allocate_block in ensure_claim, release_block in hard-delete + resync sweep. allocatedIP on claim status.
 
 ## Recent changes
-- S12: scripts/checks/S12.sh — restart resilience checkpoint (scale-to-0, delete, scale-back)
+- S13: jit-controller/ipam.py — ConfigMap-backed IPAM
+- S13: count fixed (allocate_block increments on idempotent path) + 10 unit tests — fd001ba, review CLEAR
+- S13: allocatedIP field on InfraClaim CRD status
+- S13: release_block after finalizer removal in handle_claim_delete
+- S12: scripts/checks/S12.sh — restart resilience checkpoint
 - S11: handle_claim_delete calls destroy_infra + cleanup_k8s_resources
-- S11: WATCH_NAMESPACES env var for configurable namespace watching
-- S10: Deleting phase, destroy guard, JSON Patch expiresAt, RUNNER_TOKEN
 
 ## Next step
-S13: IPAM — allocate/release IPs for infra modules.
+S14: Real provisioning via the runner; Secret + Service + EndpointSlice.
 Gate: Stage C done when S8-S12 all pass with fake provisioner.
 
 ## Blocked

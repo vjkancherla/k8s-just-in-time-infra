@@ -8,11 +8,11 @@ jit-controller/main.py (modified), jit-controller/Dockerfile (modified),
 deploy/crd/infraclaim.yaml (modified), scripts/checks/S13.sh (new)
 **Code under test:** jit-controller/ipam.py (new), jit-controller/main.py (S13 hunks)
 
-## Verdict: CONCERNS → ADDRESSED (fd001ba)
+## Verdict: CLEAR (pending human tick)
 
-The step's goal is met and the checkpoint passes with a fresh, independent run. Two
-related concerns were raised about the `count`-tracking logic. Both addressed in
-`fd001ba` (see below).
+Re-reviewed after the implementer addressed both earlier CONCERNS (commit `fd001ba`).
+Both fixes verified below. Per protocol the human ticks the review box; this CLEAR means
+the concerns are closed and the step's evidence holds.
 
 ## Checkpoint (fresh run this session)
 
@@ -24,7 +24,8 @@ PASS: re-created claim got block 172.19.0.100
 PASS: S13 IPAM verified
 ```
 
-Exit 0. Unit tests: `python3 -m pytest jit-controller/test_ipam.py` → **9 passed**.
+Exit 0. Unit tests: `python3 -m pytest jit-controller/test_ipam.py` → **19 passed**
+(9 original + 10 new for the allocate/release state machine).
 
 ## Why the pass is genuine (not vacuous)
 
@@ -53,7 +54,7 @@ call. Unit test `test_two_claims_one_namespace` exercises this exact sequence.
 ### 2. Unit tests cover `_base_ip`/`_free_offsets` but not the `allocate_block`/
 ### `release_block` state machine.
 
-**ADDRESSED in fd001ba.** Added10 unit tests across `TestAllocateBlock` (6 tests),
+**ADDRESSED in fd001ba.** Added 10 unit tests across `TestAllocateBlock` (6 tests),
 `TestReleaseBlock` (3 tests), and `TestAllocateReleaseLifecycle` (1 test). All mock
 `_read_allocations`/`_write_allocations` to isolate the k8s boundary. The lifecycle test
 specifically covers the two-claims-one-namespace sequence that would have caught Concern 1.

@@ -1,7 +1,7 @@
 Updated: 2026-09-09
 
 ## Working
-none this session (S12 done).
+none this session (S13 done).
 
 ## Done (verified)
 - S0-S8: All prior checkpoints pass
@@ -11,9 +11,14 @@ none this session (S12 done).
 - S11: checkpoint PASS → committed 96312f7
   - hard delete: destroy_infra+cleanup in handle_claim_delete, WATCH_NAMESPACES env var
 - S12: checkpoint PASS — no code change, only checkpoint script (resync already handles restart)
+- S13: checkpoint PASS → committed 7ef9931, review CLEAR (findings addressed in fd001ba)
+  - IPAM: ConfigMap-backed blocks of 10 from 172.19.0.100-199
+  - allocatedIP on claim status, release_block in resync sweep + hard delete
+  - count fixed: allocate_block increments count on idempotent path (freed on Nth release)
+  - 10 new unit tests for allocate_block/release_block state machine (19 total, all pass)
 
 ## In progress
-none — S13 (IPAM) not started. Gate: Stage C done when S8-S12 all pass.
+none — S14 (runner provisioning) not started. Gate: Stage C done when S8-S12 all pass.
 
 ## Blocked
 none
@@ -31,3 +36,4 @@ none
 - Python __pycache__ can persist across image layers; use PYTHONDONTWRITEBYTECODE=1
 - logging.getLogger() without basicConfig has no handlers when running via python (not kopf CLI)
 - kopf Body object is not a plain dict; pass plain dicts to kubernetes client patch calls
+- release_block must be called AFTER finalizer removal in handle_claim_delete — if it throws before, handler fails, claim gets stuck with KopfFinalizerMarker
