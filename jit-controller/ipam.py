@@ -79,12 +79,14 @@ def allocate_block(namespace: str) -> str | None:
     """Allocate an IP block for *namespace*. Returns base IP string or None.
 
     Idempotent: if the namespace already holds a block, returns the existing
-    base IP without incrementing the claim count.
+    base IP and increments the claim count.
     """
     allocations = _read_allocations()
 
-    # Already allocated — return existing.
+    # Already allocated — increment count and return existing.
     if namespace in allocations:
+        allocations[namespace]["count"] = allocations[namespace].get("count", 0) + 1
+        _write_allocations(allocations)
         return allocations[namespace]["base_ip"]
 
     free = _free_offsets(allocations)
