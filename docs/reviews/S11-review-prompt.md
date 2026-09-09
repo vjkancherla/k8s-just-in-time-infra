@@ -3,7 +3,7 @@
 **Step:** S11
 **Goal:** namespace deletion destroys now, regardless of expiry.
 
-**Commit range:** (will be filled after commit)
+**Commit range:** 96312f7
 
 **Files changed:**
 - jit-controller/main.py
