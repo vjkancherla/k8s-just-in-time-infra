@@ -31,6 +31,8 @@ spec:
             secretKeyRef:
               name: jit-runner-token
               key: token
+        - name: WATCH_NAMESPACES
+          value: "default"
 ---
 apiVersion: v1
 kind: Secret

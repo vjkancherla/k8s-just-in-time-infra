@@ -339,16 +339,26 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
 
 
 @kopf.on.delete("jit.io", "v1alpha1", "infraclaims")
-def handle_claim_delete(body, namespace, name, **kwargs):
+def handle_claim_delete(body, namespace, name, logger, **kwargs):
+    """Hard-delete handler: destroy infra immediately when claim is deleted
+    (e.g. namespace deletion via GC), regardless of TTL."""
     load_kube()
+    module = body.get("spec", {}).get("module")
+    if module:
+        logger.info(f"Hard delete triggered for {name} in {namespace}, destroying infra")
+        destroy_infra(namespace, module)
+        cleanup_k8s_resources(namespace, module)
+    else:
+        logger.warning(f"Claim {name} has no module in spec, skipping infra cleanup")
+
     api = client.CustomObjectsApi()
     finalizers = body.get("metadata", {}).get("finalizers", [])
     if FINALIZER in finalizers:
         new_finalizers = [f for f in finalizers if f != FINALIZER]
-        body["metadata"]["finalizers"] = new_finalizers
         try:
             api.patch_namespaced_custom_object(
-                GROUP, VERSION, namespace, PLURAL, name, body
+                GROUP, VERSION, namespace, PLURAL, name,
+                {"metadata": {"finalizers": new_finalizers}},
             )
         except client.exceptions.ApiException:
             pass
@@ -356,4 +366,6 @@ def handle_claim_delete(body, namespace, name, **kwargs):
 
 if __name__ == "__main__":
     load_kube()
-    kopf.run(namespaces=["default"])
+    watch_ns_env = os.environ.get("WATCH_NAMESPACES", "default")
+    namespaces = [ns.strip() for ns in watch_ns_env.split(",") if ns.strip()]
+    kopf.run(namespaces=namespaces)
