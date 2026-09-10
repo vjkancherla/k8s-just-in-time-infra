@@ -20,6 +20,12 @@ RUNNER_IP="172.19.0.10"
 CLUSTER_NET="k3d-voting-app"
 MODULES_ROOT="$SCRIPT_DIR/jit-modules"
 DOCKER_SOCKET="/var/run/docker.sock"
+# A directory both the runner container and the Docker daemon can see. The runner
+# passes it to tofu as TF_VAR_share_dir so the pgadmin module can bind-mount its
+# servers.json into the pgadmin container; the daemon cannot read a file that only
+# exists inside the runner's own filesystem (S17).
+SHARE_DIR="${JIT_SHARE_DIR:-$HOME/.jit-host-share}"
+mkdir -p "$SHARE_DIR"
 
 if [[ -f "$SCRIPT_DIR/deploy/.env" ]]; then
   JIT_RUNNER_TOKEN="$(grep -E '^JIT_RUNNER_TOKEN=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
@@ -41,19 +47,22 @@ case "${1:-}" in
     # the check to containers explicitly.
     if docker container inspect "$CONTAINER" >/dev/null 2>&1; then
       echo "Runner already running."
+      echo "  (config or module changes need 'down' first: the container's mounts are fixed at creation)"
       exit 0
     fi
-    echo "Starting runner at $RUNNER_IP..."
+    echo "Starting runner at $RUNNER_IP (shared dir $SHARE_DIR)..."
     docker run -d \
       --name "$CONTAINER" \
       --network "$CLUSTER_NET" \
       --ip "$RUNNER_IP" \
       -v "$DOCKER_SOCKET:/var/run/docker.sock:ro" \
       -v "$MODULES_ROOT:/opt/jit-modules:ro" \
+      -v "$SHARE_DIR:$SHARE_DIR" \
       -e "JIT_RUNNER_TOKEN=$JIT_RUNNER_TOKEN" \
       -e "DOCKER_HOST=unix:///var/run/docker.sock" \
       -e "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
       -e "MINIO_BUCKET=$MINIO_BUCKET" \
+      -e "JIT_SHARE_DIR=$SHARE_DIR" \
       -p 8100:8080 \
       "$IMAGE"
     echo "Runner started at $RUNNER_IP."

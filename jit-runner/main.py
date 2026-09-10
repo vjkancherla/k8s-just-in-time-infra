@@ -7,6 +7,7 @@ Bearer token auth from JIT_RUNNER_TOKEN env var.
 """
 
 import asyncio
+import logging
 import os
 import shutil
 import subprocess
@@ -17,6 +18,19 @@ from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
+
+# The runner had no logger of its own, so a destroy could remove the wrong
+# container without a word anywhere - the access log records the workspace, not
+# the module. This is the only way to answer "which workspace-module did that
+# request actually hit?".
+logger = logging.getLogger("jit-runner")
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter(
+        "%(asctime)s %(name)s %(levelname)s %(message)s"))
+    logger.addHandler(_handler)
+logger.setLevel(logging.INFO)
+logger.propagate = False
 
 # ---------------------------------------------------------------------------
 # Config
@@ -71,7 +85,14 @@ class RunResponse(BaseModel):
 
 
 class DestroyRequest(BaseModel):
-    module: str = "redis"
+    # None means "the caller did not name a module". Only then may the runner fall
+    # back to the workspace's single cached run. An *explicit* module must always
+    # win: the TTL sweep destroys a claim and kopf's delete handler then destroys it
+    # again (removing the finalizer deletes the object, which fires the handler), and
+    # on the second call the cache no longer holds that module - so the old
+    # "single remaining candidate" fallback resolved the postgres retry to redis and
+    # removed a container that was still referenced and Ready. Found by S17's J6.
+    module: Optional[str] = None
     params: Dict[str, str] = {}
 
 
@@ -97,6 +118,11 @@ def _tofu_env() -> dict:
     env["AWS_ACCESS_KEY_ID"] = MINIO_ACCESS_KEY
     env["AWS_SECRET_ACCESS_KEY"] = MINIO_SECRET_KEY
     env["AWS_DEFAULT_REGION"] = "us-east-1"
+    # Modules that need a file the Docker daemon can also read (pgadmin's
+    # servers.json is bind-mounted into the container) take it from var.share_dir.
+    # Tofu reads TF_VAR_<name> from the environment, and an unused TF_VAR_ is
+    # ignored, so this reaches the modules that declare it and no others.
+    env["TF_VAR_share_dir"] = os.environ.get("JIT_SHARE_DIR", "/tmp")
     # Docker socket path (Rancher Desktop on macOS)
     if "DOCKER_HOST" not in env:
         if os.path.exists("/Users/vkancherla/.rd/docker.sock"):
@@ -263,12 +289,20 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
 
     # Keyed by (workspace, module): a namespace can hold several modules, so destroy
     # must target the requested one rather than whichever was cached.
+    requested = body.module if body else None
+    key = None
+    entry = None
     with _runs_lock:
-        key = (workspace, body.module if body else None)
-        entry = _runs.get(key)
-        if entry is None:
+        if requested:
+            key = (workspace, requested)
+            entry = _runs.get(key)
+        if entry is None and requested is None:
             candidates = [k for k in _runs if k[0] == workspace]
             if len(candidates) == 1:
+                # Only reachable when the caller named no module at all.
+                logger.warning(
+                    f"Destroy {workspace}: the request named no module, falling "
+                    f"back to the workspace's only cached run ({candidates[0][1]})")
                 key = candidates[0]
                 entry = _runs[key]
 
@@ -276,10 +310,16 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
         work_dir = entry["dir"]
         module = entry["module"]
         params = entry.get("params", {})
-    elif body:
+        logger.info(f"Destroy {workspace}: resolved from the cached run "
+                    f"({workspace}/{module}); removing container "
+                    f"{workspace}-{module}-{module}")
+    elif body and body.module:
         # No in-memory entry — use provided module/params
         module = body.module
         params = body.params
+        logger.info(f"Destroy {workspace}: no cached run for "
+                    f"{workspace}/{module}; using the request's params and "
+                    f"removing container {workspace}-{module}-{module}")
         work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
         module_src = Path(MODULES_ROOT) / module
         if not module_src.is_dir():
