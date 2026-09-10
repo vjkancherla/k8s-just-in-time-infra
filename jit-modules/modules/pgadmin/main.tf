@@ -24,7 +24,10 @@ locals {
       "servers" : [
         {
           "Name" : var.name,
-          "Host" : var.postgres_url,
+          # pgAdmin wants the host and the port as separate fields. The controller
+          # passes postgres_url as "<ip>:<port>", so split it rather than handing
+          # pgAdmin a host of "172.19.0.102:5432".
+          "Host" : split(":", var.postgres_url)[0],
           "Port" : var.postgres_port,
           "Username" : var.postgres_user,
           "Password" : var.postgres_password,
@@ -37,7 +40,7 @@ locals {
 
 resource "local_file" "pgadmin_servers" {
   content  = local.servers_json
-  filename = "/tmp/pgadmin-servers-${var.name}.json"
+  filename = "${var.share_dir}/pgadmin-servers-${var.name}.json"
 }
 
 resource "docker_container" "pgadmin" {
@@ -59,6 +62,11 @@ resource "docker_container" "pgadmin" {
     "PGADMIN_DEFAULT_PASSWORD=${var.pgadmin_password}",
   ]
 
+  # The registration file is bind-mounted, so the path must resolve on the Docker
+  # daemon as well as on the machine running tofu. When the source does not exist
+  # on the daemon's filesystem, Docker silently creates an empty *directory* at
+  # the destination and pgAdmin starts with no server registered - which is what
+  # happened until S17 (see var.share_dir).
   volumes {
     host_path      = abspath(local_file.pgadmin_servers.filename)
     container_path = "/pgadmin4/servers.json"

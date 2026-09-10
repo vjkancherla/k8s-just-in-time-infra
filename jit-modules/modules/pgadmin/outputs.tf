@@ -3,6 +3,11 @@ output "address" {
   value       = var.ip
 }
 
+output "port" {
+  description = "The port pgAdmin's web UI listens on *inside* the container. The controller writes this into the jit-pgadmin Service, so a missing output made the Service advertise redis's default 6379 (found in S16, fixed in S17)."
+  value       = 80
+}
+
 output "http_port" {
   description = "The host port pgAdmin's web UI is reachable on."
   value       = var.http_port

@@ -19,6 +19,20 @@ variable "http_port" {
   default     = 5050
 }
 
+variable "share_dir" {
+  description = <<-EOT
+    Directory used to hand pgAdmin its servers.json, which must be visible to
+    BOTH the process running tofu and the Docker daemon (the container bind-mounts
+    the file). The two are not the same filesystem here: tofu runs inside the
+    jit-runner container while the daemon is the host, so the /tmp default only
+    works when tofu runs directly on the daemon's host. The runner supplies its
+    own shared directory through TF_VAR_share_dir (deploy/runner.sh), which is why
+    no caller has to pass this.
+  EOT
+  type        = string
+  default     = "/tmp"
+}
+
 variable "postgres_url" {
   description = "PostgreSQL connection URL (host:port/db) for pgAdmin to register."
   type        = string
