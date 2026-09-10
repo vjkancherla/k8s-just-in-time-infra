@@ -57,6 +57,37 @@ the failure readable.
 
 ---
 
+## S16 review — CONCERNS, decisions (`docs/reviews/S16-findings.md`)
+
+No blockers. Both concerns were **fixed in this step**, not deferred to S17.
+
+**1. The helpers' silent-empty pattern. Fix.** `psql_q` and `redis_q` return the empty
+string on any failure, so two failed reads compare equal: R3 could pass on `"" == ""`, and
+R8's drain assertion had the same shape. Keeping the helpers non-fatal is still right —
+verify.sh has no `set -e`, and one unreadable dependency must not abort the other sixteen
+checks — so the guard belongs in the comparisons: R2, R3, R6 and R8 now assert their reads
+are non-empty and name the container when they are not. R4, R7 and R16 compare against
+literals and fail on their own. Demonstrated by running `verify.sh` with
+`REDIS_CONTAINER` / `POSTGRES_CONTAINER` pointed at non-existent containers
+(`/tmp/s16-negative.log`): those checks now FAIL with a readable reason instead of
+comparing empties. S17's `verify-jit.sh` runs under `set -euo pipefail` and should fail
+fast instead of carrying the pattern over.
+
+**A guard is not a fix if it skips the cleanup.** The first version of R8's guard returned
+early on an unreadable read — and R8's scale-back-to-1 lived inside the branch it skipped,
+so the worker was left at **0 replicas** with nothing consuming the queue. The negative
+test caught it (`worker desired=0` after the run); the restore now sits outside the
+branches and runs on the failure paths too, and the re-run ends `worker desired=1 ready=1`.
+When a check pauses something to observe it, its early exits are part of the change.
+
+**2. build-plan.md's "eleven unaffected" was stale. Fix.** The real split is eleven
+invalidated (the seven rows in S16's table plus R3, R4, R6 and R7, which broke through the
+shared helpers and R7's direct `kubectl exec "$PGPOD"`) and six unaffected (R1, R5,
+R12-R15). S16's section was corrected in place with a dated note; the "Do not change R1,
+R3-R7, R12-R15" sentence was wrong about R3-R7 for the same reason.
+
+---
+
 ## Carried forward — do not lose these
 
 **A module output that does not exist cannot be defaulted away.**

@@ -55,6 +55,14 @@ POSTGRES_CONTAINER="${POSTGRES_CONTAINER:-${NS}-postgres-postgres}"
 psql_q() { docker exec "$POSTGRES_CONTAINER" psql -U postgres -d voting -t -A -c "$1" 2>/dev/null; }
 redis_q() { docker exec "$REDIS_CONTAINER" redis-cli "$@" 2>/dev/null; }
 
+# Both helpers return the empty string when the container is gone or the query
+# fails. That is deliberate - this script has no `set -e`, so one unreadable
+# dependency must not abort the other sixteen checks - but it means two failed
+# reads compare **equal**: R3 once measured two empty tallies and passed.
+# So every check below that compares two helper reads asserts both are non-empty
+# first and names the container in the failure (S16 review, concern 1). Checks
+# that compare against a literal (R4, R7, R16) fail on their own.
+
 # Fetch the two option labels from the rendered vote page.
 vote_html="$(curl -sk --compressed "$VOTE_URL/")"
 mapfile -t OPTS < <(printf '%s\n' "$vote_html" | grep -o 'name="choice" value="[^"]*"' | sed -E 's/.*value="([^"]*)".*/\1/')
@@ -79,7 +87,9 @@ done
 before_len="$(redis_q LLEN votes)"
 vote_code2="$(curl -sk --compressed -o /dev/null -w '%{http_code}' -X POST "$VOTE_URL/vote" -d "choice=${OPTS[0]}" -c /tmp/vcookies.txt)"
 after_len="$(redis_q LLEN votes)"
-if [[ "$vote_code2" =~ ^(2|3)[0-9][0-9]$ && "$after_len" -gt "$before_len" ]]; then
+if [[ -z "$before_len" || -z "$after_len" ]]; then
+  fail "R2" "redis LLEN unreadable (before='${before_len}' after='${after_len}')"
+elif [[ "$vote_code2" =~ ^(2|3)[0-9][0-9]$ && "$after_len" -gt "$before_len" ]]; then
   pass "R2" "POST /vote -> 200, redis LLEN ${before_len} -> ${after_len}"
 else
   fail "R2" "code=${vote_code2}, LLEN ${before_len} -> ${after_len}"
@@ -96,7 +106,9 @@ total1="$(psql_q 'SELECT COUNT(*) FROM votes')"
 curl -sk --compressed -o /dev/null -X POST "$VOTE_URL/vote" -d "choice=${OPTS[1]}" -b /tmp/vcookies-r3.txt
 sleep 3
 total2="$(psql_q 'SELECT COUNT(*) FROM votes')"
-if [[ "$total1" == "$total2" ]]; then
+if [[ -z "$total1" || -z "$total2" ]]; then
+  fail "R3" "tally unreadable from $POSTGRES_CONTAINER (before='${total1}' after='${total2}')"
+elif [[ "$total1" == "$total2" ]]; then
   pass "R3" "tally unchanged after re-vote (${total1})"
 else
   fail "R3" "tally ${total1} -> ${total2}"
@@ -130,7 +142,7 @@ start="$(date +%s)"
 r6_ok=0
 while [[ $(( $(date +%s) - start )) -le 5 ]]; do
   after_total="$(psql_q 'SELECT COUNT(*) FROM votes')"
-  if [[ "$after_total" -gt "$before_total" ]]; then r6_ok=1; break; fi
+  if [[ -n "$after_total" && -n "$before_total" && "$after_total" -gt "$before_total" ]]; then r6_ok=1; break; fi
   sleep 0.5
 done
 if [[ "$r6_ok" == "1" ]]; then
@@ -161,15 +173,27 @@ done
 before_total8="$(psql_q 'SELECT COUNT(*) FROM votes')"
 curl -sk --compressed -o /dev/null -X POST "$VOTE_URL/vote" -d "choice=${OPTS[1]}" -c /tmp/vcookies-r8.txt
 queued="$(redis_q LLEN votes)"
-if [[ "$queued" -lt 1 ]]; then
+drain_expected=0
+if [[ -z "$queued" ]]; then
+  fail "R8" "redis LLEN unreadable from $REDIS_CONTAINER during the worker outage"
+elif [[ "$queued" -lt 1 ]]; then
   fail "R8" "no vote queued during worker outage"
 else
-  kubectl scale deployment "${RELEASE}-worker" -n "$NS" --replicas=1 >/dev/null 2>&1 || true
-  kubectl rollout status deployment "${RELEASE}-worker" -n "$NS" --timeout=120s >/dev/null 2>&1 || true
+  drain_expected=1
+fi
+
+# Restore the worker on *every* path, including the two failures above. This check
+# pauses the consumer, so an early return would leave the app with no consumer for
+# the rest of the run - the drain comparison cannot be the only thing that scales
+# it back up (S16 review, concern 1).
+kubectl scale deployment "${RELEASE}-worker" -n "$NS" --replicas=1 >/dev/null 2>&1 || true
+kubectl rollout status deployment "${RELEASE}-worker" -n "$NS" --timeout=120s >/dev/null 2>&1 || true
+
+if [[ "$drain_expected" == "1" ]]; then
   sleep 5
   after_total8="$(psql_q 'SELECT COUNT(*) FROM votes')"
   drained="$(redis_q LLEN votes)"
-  if [[ "$after_total8" -gt "$before_total8" && "$drained" == "0" ]]; then
+  if [[ -n "$before_total8" && -n "$after_total8" && "$after_total8" -gt "$before_total8" && "$drained" == "0" ]]; then
     pass "R8" "queued vote (${queued}) drained to postgres after restart"
   else
     fail "R8" "before=${before_total8} after=${after_total8} remaining=${drained}"

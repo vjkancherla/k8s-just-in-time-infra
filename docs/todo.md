@@ -59,6 +59,9 @@ A step with one box ticked is not done. One step per session.
     `PASS: no StatefulSet and no PVC in default`.
   - Deploying the migrated app into `default` made `scripts/checks/S00.sh` fail honestly
     (`FAIL: voting-app-redis not ready`, exit 1) — see the flags below.
+  - After the review's CONCERNS (no blockers): the helper reads are guarded so two failed
+    reads cannot agree, and R8's worker restore runs on every path. Re-run after the fix
+    → exit 0, 17 PASS (`/tmp/s16-postfix2.log`); negative test `/tmp/s16-negative2.log`.
 - [ ] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
 
 ## Notes carried from the app's own docs
@@ -80,6 +83,16 @@ A step with one box ticked is not done. One step per session.
   The pgadmin module exposes no `port` output and listens on 80, so `jit-pgadmin`
   advertises 6379 (redis's default). No R-check touches pgAdmin, so nothing notices.
   *(found in S16)*
+- **S17:** `app/scripts/verify.sh` is still `default`-shaped outside its namespace support:
+  R14 scans Services cluster-wide and R15 lists pods without `-n`, so both will pick up the
+  other namespace's JIT material once `voting-a` and `voting-b` both exist. `RELEASE`,
+  `VOTE_URL` and `RESULT_URL` are env-overridable. *(S16 findings item 8)*
+- **S17:** `app/README.md` and `app/docs/SCRIPTS-GUIDE.md` still describe the pre-migration
+  topology — SCRIPTS-GUIDE line 48 says "1Gi PVC. StatefulSet → stable pod name
+  `voting-app-postgres-0`". *(S16 findings item 9)*
+- **S17:** `scripts/verify-jit.sh` must not reuse the silent-empty helper pattern; it runs
+  under `set -euo pipefail`, so guard each read explicitly or use a sentinel.
+  *(S16 review concern 1)*
 - **S17:** `scripts/checks/S00.sh` now fails honestly — `FAIL: voting-app-redis not ready
   (ready='' desired='')`, exit 1 — because `default` runs the migrated app. That is the
   stale assertion from S15 surfacing, not a regression; its header documents it and
