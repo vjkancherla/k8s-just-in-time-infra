@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import json
 import logging
 import os
@@ -20,6 +21,7 @@ logger = logging.getLogger("jit-controller")
 
 RUNNER_URL = os.environ.get("RUNNER_URL", "")
 RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "")
+DOCKER_NETWORK = os.environ.get("DOCKER_NETWORK", "k3d-voting-app")
 
 
 def load_kube():
@@ -93,7 +95,7 @@ def handle_deployment(body, namespace, name, logger, **kwargs):
             "softDeleteTTL": claim_spec.get("softDeleteTTL", "30d"),
         }
         ensure_claim(api, namespace, ns_uid, claim_name, spec)
-        ensure_ready(api, namespace, claim_name, module)
+        provision_infra(api, namespace, claim_name, module, spec)
 
 
 def ensure_claim(api, ns, ns_uid, name, spec):
@@ -136,45 +138,240 @@ def ensure_claim(api, ns, ns_uid, name, spec):
             pass
 
 
-def ensure_ready(api, ns, name, module):
+def provision_infra(api, ns, name, module, spec):
+    """Call the runner to provision real infra, then create Secret + Service + EndpointSlice."""
     try:
         obj = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
-        status = obj.get("status", {})
-        if status.get("phase") != "Ready":
-            core = client.CoreV1Api()
-            secret_name = f"jit-{module}"
-            secret_body = client.V1Secret(
-                metadata=client.V1ObjectMeta(name=secret_name, namespace=ns), data={}
-            )
-            try:
-                core.create_namespaced_secret(ns, secret_body)
-                logger.info(f"Created Secret {secret_name} in {ns}")
-            except client.exceptions.ApiException as e:
-                if e.status != 409:
-                    raise
-            patch = {"status": {"phase": "Ready", "outputsSecret": secret_name}}
+    except client.exceptions.ApiException:
+        return
+
+    status = obj.get("status", {})
+    phase = status.get("phase", "")
+    logger.info(f"provision_infra: {name} phase={phase}, allocatedIP={status.get('allocatedIP', 'none')}")
+
+    # Check for stale Ready state: if claim is Ready but Secret is missing or empty,
+    # force re-provision (happens when namespace was deleted/recreated).
+    if phase == "Ready":
+        secret_name = f"jit-{module}"
+        core = client.CoreV1Api()
+        try:
+            secret = core.read_namespaced_secret(secret_name, ns)
+            if secret.data and len(secret.data) > 0:
+                logger.info(f"provision_infra: {name} is Ready with Secret data, skipping")
+                return  # Secret exists with data, truly provisioned
+            else:
+                logger.info(f"Stale Ready claim {name} (Secret empty), forcing re-provision")
+        except client.exceptions.ApiException as e:
+            if e.status == 404:
+                logger.info(f"Stale Ready claim {name} (Secret gone), forcing re-provision")
+            else:
+                return
+        # Reset phase and clear stale expiresAt so provisioning runs
+        try:
             api.patch_namespaced_custom_object_status(
-                GROUP, VERSION, ns, PLURAL, name, patch
-            )
-            clear_status_field(ns, name, "expiresAt")
-            logger.info(f"InfraClaim {name} phase set to Ready")
+                GROUP, VERSION, ns, PLURAL, name,
+                {"status": {"phase": "", "expiresAt": None}})
+        except client.exceptions.ApiException:
+            pass
+        # Re-read the claim after phase reset
+        try:
+            obj = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
+            status = obj.get("status", {})
+            phase = status.get("phase", "")
+        except client.exceptions.ApiException:
+            return
+
+    if phase == "Deleting":
+        return
+
+    # Compute runner params: annotation params + mandatory overrides.
+    allocated_ip = status.get("allocatedIP", "")
+    if not allocated_ip:
+        logger.warning(f"No allocatedIP on {name}, cannot provision")
+        return
+
+    runner_params = dict(spec.get("params", {}))
+    runner_params["name"] = f"{ns}-{module}"
+    runner_params["ip"] = allocated_ip
+    runner_params["network"] = DOCKER_NETWORK
+
+    # Call the runner.
+    runner_resp = call_runner(module, spec.get("moduleVersion", "v1"), ns, runner_params)
+    if runner_resp is None:
+        # Runner URL not configured — pretend success (fake mode, S8-S12 compat).
+        logger.info(f"No runner URL, using fake provisioning for {name}")
+        _provision_fake(api, ns, name, module)
+        return
+
+    if runner_resp.get("status") != "success":
+        error_msg = runner_resp.get("error", "unknown runner error")
+        logger.error(f"Runner failed for {name}: {error_msg}")
+        patch = {"status": {"phase": "Failed", "message": str(error_msg)[:512]}}
+        try:
+            api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
+        except client.exceptions.ApiException:
+            pass
+        return
+
+    outputs = runner_resp.get("outputs", {})
+    logger.info(f"Runner returned {len(outputs)} outputs for {name}: {list(outputs.keys())[:5]}")
+    _write_k8s_resources(api, ns, name, module, outputs, allocated_ip)
+
+
+def _provision_fake(api, ns, name, module):
+    """Fake provisioning mode (S8-S12): just create empty Secret and set Ready."""
+    secret_name = f"jit-{module}"
+    try:
+        core = client.CoreV1Api()
+        secret_body = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=secret_name, namespace=ns), data={}
+        )
+        try:
+            core.create_namespaced_secret(ns, secret_body)
+        except client.exceptions.ApiException as e:
+            if e.status != 409:
+                raise
+        patch = {"status": {"phase": "Ready", "outputsSecret": secret_name}}
+        api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
+        clear_status_field(ns, name, "expiresAt")
+        logger.info(f"InfraClaim {name} phase set to Ready (fake mode)")
     except client.exceptions.ApiException:
         pass
 
 
-def clear_status_field(namespace, name, field_path):
-    """Remove a field from status using JSON Patch (strategic merge can't remove fields)."""
-    api = client.CustomObjectsApi()
-    patch = [{"op": "remove", "path": f"/status/{field_path}"}]
+def _write_k8s_resources(api, ns, name, module, outputs, fallback_ip):
+    """Write Secret + Service + EndpointSlice from runner outputs."""
+    secret_name = f"jit-{module}"
+    svc_name = f"jit-{module}"
+
+    # Secret with runner outputs.
     try:
-        api.api_client.call_api(
-            f"/apis/{GROUP}/{VERSION}/namespaces/{namespace}/{PLURAL}/{name}/status",
-            "PATCH", body=patch,
-            header_params={"Content-Type": "application/json-patch+json"},
-            auth_settings=["BearerToken"],
+        core = client.CoreV1Api()
+        secret_data = {k: base64.b64encode(str(v).encode()).decode()
+                       for k, v in outputs.items()}
+        secret_body = client.V1Secret(
+            metadata=client.V1ObjectMeta(name=secret_name, namespace=ns),
+            data=secret_data,
         )
+        try:
+            core.create_namespaced_secret(ns, secret_body)
+            logger.info(f"Created Secret {secret_name} in {ns}")
+        except client.exceptions.ApiException as e:
+            if e.status == 409:
+                core.patch_namespaced_secret(secret_name, ns, secret_body)
+                logger.info(f"Updated Secret {secret_name} in {ns}")
+            else:
+                raise
     except Exception as e:
-        # Field may already be absent — that's fine
+        logger.error(f"Failed to write Secret {secret_name}: {e}")
+
+    # Service (no selector) + EndpointSlice.
+    address = outputs.get("address", fallback_ip)
+    port = int(outputs.get("port", "6379"))
+
+    create_jit_service(ns, svc_name, port)
+    create_jit_endpoint_slice(ns, svc_name, address, port)
+
+    # Set claim to Ready.
+    patch = {"status": {"phase": "Ready", "outputsSecret": secret_name,
+                         "endpoint": f"{address}:{port}"}}
+    try:
+        api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
+        clear_status_field(ns, name, "expiresAt")
+        logger.info(f"InfraClaim {name} phase set to Ready (runner)")
+    except client.exceptions.ApiException:
+        pass
+
+
+def call_runner(module, version, workspace, params):
+    """POST to the runner to provision infra. Returns response dict or None if not configured."""
+    if not RUNNER_URL:
+        return None
+    url = f"{RUNNER_URL}/v1/runs"
+    headers = {"Content-Type": "application/json"}
+    if RUNNER_TOKEN:
+        headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
+    body = {
+        "module": module,
+        "version": version or "main",
+        "workspace": workspace,
+        "params": {k: str(v) for k, v in params.items()},
+    }
+    try:
+        r = requests.post(url, json=body, timeout=600, headers=headers)
+        return r.json()
+    except Exception as e:
+        logger.error(f"Runner call failed for {workspace}/{module}: {e}")
+        return {"status": "error", "error": str(e)}
+
+
+def create_jit_service(namespace, name, port):
+    """Create a headless Service with no selector (for JIT infra endpoints)."""
+    core = client.CoreV1Api()
+    svc = client.V1Service(
+        metadata=client.V1ObjectMeta(name=name, namespace=namespace),
+        spec=client.V1ServiceSpec(
+            cluster_ip="None",
+            ports=[client.V1ServicePort(port=port, target_port=port, protocol="TCP")],
+        ),
+    )
+    try:
+        core.create_namespaced_service(namespace, svc)
+        logger.info(f"Created Service {name} in {namespace}")
+    except client.exceptions.ApiException as e:
+        if e.status == 409:
+            logger.info(f"Service {name} already exists in {namespace}")
+        else:
+            logger.warning(f"Failed to create Service {name}: {e}")
+
+
+def create_jit_endpoint_slice(namespace, svc_name, address, port):
+    """Create an EndpointSlice pointing to a JIT container IP."""
+    disco = client.DiscoveryV1Api()
+    ep = client.V1EndpointSlice(
+        metadata=client.V1ObjectMeta(
+            name=svc_name,
+            namespace=namespace,
+            labels={"kubernetes.io/service-name": svc_name},
+        ),
+        address_type="IPv4",
+        endpoints=[
+            client.V1Endpoint(
+                addresses=[address],
+                conditions=client.V1EndpointConditions(ready=True),
+            )
+        ],
+        ports=[
+            client.DiscoveryV1EndpointPort(port=port, protocol="TCP", name="tcp")
+        ],
+    )
+    try:
+        disco.create_namespaced_endpoint_slice(namespace, ep)
+        logger.info(f"Created EndpointSlice {svc_name} in {namespace}")
+    except client.exceptions.ApiException as e:
+        if e.status == 409:
+            logger.info(f"EndpointSlice {svc_name} already exists in {namespace}")
+        else:
+            logger.warning(f"Failed to create EndpointSlice {svc_name}: {e}")
+
+
+def clear_status_field(namespace, name, field_path):
+    """Clear a field from status by setting it to empty string.
+
+    For expiresAt: only clear if the claim is actually Ready (not stale).
+    An empty expiresAt blocks TTL sweep, so we must be careful.
+    """
+    api = client.CustomObjectsApi()
+    try:
+        # Only clear if the field actually has a value
+        obj = api.get_namespaced_custom_object_status(GROUP, VERSION, namespace, PLURAL, name)
+        current = obj.get("status", {}).get(field_path)
+        if not current:
+            return  # Already empty/absent
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name,
+            {"status": {field_path: ""}})
+    except Exception as e:
         if "not found" not in str(e).lower() and "404" not in str(e):
             logger.warning(f"Failed to clear status.{field_path} on {name}: {e}")
 
@@ -201,18 +398,27 @@ def parse_ttl(ttl_str):
     return timedelta(seconds={"s": val, "m": val * 60, "h": val * 3600, "d": val * 86400}[unit])
 
 
-def destroy_infra(namespace, module):
+def destroy_infra(namespace, module, allocated_ip=""):
     """Call the runner to destroy infrastructure. Returns True on success."""
     if not RUNNER_URL:
         logger.warning("RUNNER_URL not set, skipping destroy")
-        return False
+        return True
     workspace = namespace
     url = f"{RUNNER_URL}/v1/runs/{workspace}"
-    headers = {}
+    headers = {"Content-Type": "application/json"}
     if RUNNER_TOKEN:
         headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
+    # Pass all required vars for tofu destroy
+    params = {
+        "name": f"{workspace}-{module}",
+        "network": DOCKER_NETWORK,
+    }
+    if allocated_ip:
+        params["ip"] = allocated_ip
     try:
-        r = requests.delete(url, timeout=120, headers=headers)
+        r = requests.delete(url, json={"module": module, "params": params},
+                            timeout=120, headers=headers)
+        logger.info(f"Destroy response for {workspace}/{module}: {r.status_code}")
         return r.status_code in (200, 404)
     except Exception as e:
         logger.warning(f"Runner destroy failed for {workspace}/{module}: {e}")
@@ -273,27 +479,45 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
 
     api = client.CustomObjectsApi()
     refs = list_referencing_deployments(namespace, module)
-    status = body.get("status", {}) or {}
-    phase = status.get("phase", "")
     ttl_str = body.get("spec", {}).get("softDeleteTTL", "30d")
 
+    # Re-read status fresh: the kopf timer body can lag behind status patches
+    # that the controller itself made.
+    try:
+        obj = api.get_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name)
+        status = obj.get("status", {}) or {}
+    except client.exceptions.ApiException:
+        status = body.get("status", {}) or {}
+    phase = status.get("phase", "")
+
     if refs and phase != "Deleting":
-        # References exist: ensure Ready, clear expiresAt
-        # (but NOT if committed to destruction — no resurrection from Deleting)
-        patch = {"status": {"referencedBy": refs, "phase": "Ready"}}
+        # References exist: update refs, trigger provisioning if not yet Ready
+        if phase != "Ready":
+            spec = body.get("spec", {})
+            provision_infra(api, namespace, name, module, spec)
+            # Re-read phase after provisioning attempt
+            try:
+                obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+                phase = obj.get("status", {}).get("phase", "")
+            except client.exceptions.ApiException:
+                pass
+        # If Ready (or still pending), update refs
         try:
             api.patch_namespaced_custom_object_status(
-                GROUP, VERSION, namespace, PLURAL, name, patch)
-            clear_status_field(namespace, name, "expiresAt")
-            logger.info(f"Resync {name}: referencedBy={refs}, phase=Ready")
+                GROUP, VERSION, namespace, PLURAL, name,
+                {"status": {"referencedBy": refs}})
         except client.exceptions.ApiException as e:
             logger.warning(f"Failed to patch {name}: {e}")
+        if phase == "Ready":
+            clear_status_field(namespace, name, "expiresAt")
+            logger.info(f"Resync {name}: referencedBy={refs}, phase=Ready")
     else:
         # No references
         if phase == "Deleting":
             # Committed to destruction — retry the destroy+cleanup
             logger.info(f"Resync {name}: retrying destroy (Deleting)")
-            if destroy_infra(namespace, module):
+            if destroy_infra(namespace, module, status.get("allocatedIP", "")):
                 cleanup_k8s_resources(namespace, module)
                 remove_finalizer_and_delete(namespace, name, FINALIZER)
             else:
@@ -309,7 +533,7 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                     GROUP, VERSION, namespace, PLURAL, name, patch)
                 logger.info(f"Resync {name}: Orphaned, expiresAt={expires}")
             except client.exceptions.ApiException as e:
-                logger.warning(f"Failed to patch {name}: {e}")
+                logger.warning(f"Failed to patch {name} to Orphaned: {e}")
         else:
             # Already Orphaned — update refs (skip if unchanged)
             existing_refs = sorted(status.get("referencedBy", []) or [])
@@ -340,7 +564,7 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                             {"status": {"phase": "Deleting"}})
                     except client.exceptions.ApiException:
                         pass
-                    if destroy_infra(namespace, module):
+                    if destroy_infra(namespace, module, status.get("allocatedIP", "")):
                         cleanup_k8s_resources(namespace, module)
                         remove_finalizer_and_delete(namespace, name, FINALIZER)
                         release_block(namespace)
@@ -358,7 +582,8 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
     module = body.get("spec", {}).get("module")
     if module:
         logger.info(f"Hard delete triggered for {name} in {namespace}, destroying infra")
-        destroy_infra(namespace, module)
+        allocated_ip = body.get("status", {}).get("allocatedIP", "")
+        destroy_infra(namespace, module, allocated_ip)
         cleanup_k8s_resources(namespace, module)
     else:
         logger.warning(f"Claim {name} has no module in spec, skipping infra cleanup")
@@ -380,6 +605,9 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
 
 if __name__ == "__main__":
     load_kube()
-    watch_ns_env = os.environ.get("WATCH_NAMESPACES", "default")
+    watch_ns_env = os.environ.get("WATCH_NAMESPACES", "")
     namespaces = [ns.strip() for ns in watch_ns_env.split(",") if ns.strip()]
-    kopf.run(namespaces=namespaces)
+    if namespaces:
+        kopf.run(namespaces=namespaces)
+    else:
+        kopf.run(clusterwide=True)

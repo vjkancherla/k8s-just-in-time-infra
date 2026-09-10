@@ -32,7 +32,29 @@ spec:
               name: jit-runner-token
               key: token
         - name: WATCH_NAMESPACES
-          value: "default"
+          value: ""
+        - name: DOCKER_NETWORK
+          value: "k3d-voting-app"
+        volumeMounts:
+        - name: code-main
+          mountPath: /app/main.py
+          subPath: main.py
+        - name: code-ipam
+          mountPath: /app/ipam.py
+          subPath: ipam.py
+      volumes:
+      - name: code-main
+        configMap:
+          name: jit-controller-code
+          items:
+          - key: main.py
+            path: main.py
+      - name: code-ipam
+        configMap:
+          name: jit-controller-code
+          items:
+          - key: ipam.py
+            path: ipam.py
 ---
 apiVersion: v1
 kind: Secret

@@ -48,7 +48,7 @@ A step with one box ticked is not done. One step per session.
 ## Stage D - Join the planes
 
 - [x] check  - [x] review  **S13** IPAM: a block of 10 per namespace
-- [ ] check  - [ ] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
+- [x] check  - [ ] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
 
 ## Stage E - The app
 
