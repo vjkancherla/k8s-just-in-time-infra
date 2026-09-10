@@ -1,4 +1,11 @@
 terraform {
+  # Remote state in MinIO: the runner supplies bucket/key/endpoint/credentials via
+  # -backend-config at init time, so the block itself stays empty. Without it those
+  # arguments are ignored and tofu falls back to local state in a throwaway work
+  # directory, which a later cold destroy cannot see — it then reports success
+  # having destroyed nothing.
+  backend "s3" {}
+
   required_providers {
     docker = {
       source  = "kreuzwerker/docker"

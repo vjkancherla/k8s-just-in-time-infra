@@ -1,26 +1,27 @@
 Updated: 2026-09-10
 
 ## Working
-S14 blockers and all 10 concerns are addressed, and the IPAM + postgres defects are fixed;
-S13 and S14 checkpoints PASS with 0 FAIL. One new blocker surfaced (tfstate): see Blocked.
+S14 is complete: blockers, all 10 concerns, the IPAM + postgres defects and the tfstate/leak
+defect are fixed. S13 and S14 checkpoints PASS with 0 FAIL on the final code.
 
 ## Done (verified)
 - S0-S13: all checkpoints pass, committed
 - S13: IPAM — CLEAR
-- S14 checkpoint: PASS on four runs; the latest carries the strengthened Phase 2 (Service
-  name) and Phase 3 (pod gated on the JIT Secret) assertions. B1/B2 in 2e74e04
+- S14 checkpoint: PASS on five runs; latest carries the strengthened Phase 2 (Service name),
+  Phase 3 (pod gated on the JIT Secret) and Phase 4 (cold destroy asserted to remove the
+  container) assertions. B1/B2 in 2e74e04
 - Concerns verified live: 1 attempt vs 2/100s on a Failed claim; 1 apply + 0 collisions with
   two writers on one claim; `status.message` cleared on recovery; multi-module runner keying
-- IPAM per-claim addressing + claim-count fix, and postgres `sensitive = true`. S13 and S14
-  both re-verified PASS (0 FAIL) after that change
+- IPAM per-claim addressing + claim-count fix, and postgres `sensitive = true`
+- All three modules now declare `backend "s3" {}`: state really is in MinIO, and a cold
+  destroy removes the container (1 → 0) instead of reporting success and leaking it
+- S13 and S14 both re-verified PASS after every one of those changes
 
 ## In progress
 - S14 re-review against the newest commit
 
 ## Blocked
-- Teardown does not remove containers: no module declares a `backend` block, so tofu runs on
-  local state in a throwaway temp dir and a cold destroy returns `destroyed` having done
-  nothing. Raised, not fixed (it changes how every module initialises). Blocks S15.
+- none
 
 ## Learnings
 - No module declares a `backend` block, so the runner's `-backend-config` args are ignored:

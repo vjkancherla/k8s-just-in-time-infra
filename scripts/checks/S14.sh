@@ -416,6 +416,15 @@ for _ in $(seq 1 65); do
 done
 [[ "$PHASE" == "Orphaned" ]] || fail "should be Orphaned again, phase=$PHASE"
 
+# Make the sweep's destroy a COLD one: a restarted runner has no in-memory run
+# cache, so it must load the module's state from the remote backend. That is the
+# case that used to report success while destroying nothing.
+docker restart jit-runner >/dev/null 2>&1
+for _ in $(seq 1 30); do
+  curl -s -m 3 http://127.0.0.1:8100/health >/dev/null 2>&1 && break
+  sleep 2
+done
+
 # TTL=60s + 30s resync + 70s buffer = 160s
 for _ in $(seq 1 160); do
   if ! kubectl get infraclaim "$CLAIM_NAME" -n "$NAMESPACE" >/dev/null 2>&1; then
@@ -429,6 +438,12 @@ done
 if kubectl get secret "jit-redis" -n "$NAMESPACE" >/dev/null 2>&1; then
   fail "Secret jit-redis should be gone after TTL expiry"
 fi
-echo "  Step 4: TTL swept, Secret and claim gone"
+
+# The actual teardown: the container has to be gone as well. Before the modules
+# declared a remote backend, this destroy reported success and left it running.
+if docker ps -a --format '{{.Names}}' | grep -qx "${NAMESPACE}-redis-redis"; then
+  fail "container ${NAMESPACE}-redis-redis survived the TTL sweep (destroy claimed success)"
+fi
+echo "  Step 4: TTL swept — claim, Secret and container gone"
 
 echo "PASS: S14 real provisioning verified"
