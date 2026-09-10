@@ -11,9 +11,12 @@ runs. The app in `default` consumes JIT-provisioned Redis/Postgres/pgAdmin conta
   four addressed (52170d3)
 - S16: exit 0 on three runs; R2/R8/R9/R10/R11/R16/R17 reworked, plus R3/R4/R6/R7 via the
   `psql_q`/`redis_q` helpers
+- S16 review CONCERNS (no blockers) addressed in 3cdd4b6: guarded helper reads, R8's restore
+  moved out of the drain branch, build-plan.md's "eleven unaffected" corrected
 
 ## In progress
-- none — awaiting the S16 review (human-run, different model)
+- none — the S16 review box is the human's to tick (CONCERNS with no blockers, both
+  addressed); S17 must not start until then
 
 ## Blocked
 - none
@@ -26,6 +29,9 @@ runs. The app in `default` consumes JIT-provisioned Redis/Postgres/pgAdmin conta
   app happened to still be running in `default`.
 - `int(outputs.get("port", "6379"))` gives `jit-pgadmin` redis's port, because the pgadmin
   module exposes no `port` output.
+- A guard is not a fix if it skips the cleanup: R8's new early `fail` left the worker at 0
+  replicas because the restore lived in the branch it skipped. Test the failure path of a
+  check that pauses something.
 - kustomize rejects an overlay whose `resources:` reaches a directory containing the overlay
   itself; use a sibling subtree (base/ + overlays/ with `resources: ../../base`)
 - R12 seds the registry hostname into the base instead of building the overlay, so a broken

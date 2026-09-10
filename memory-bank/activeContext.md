@@ -1,9 +1,9 @@
 Updated: 2026-10-09
 
 ## Current focus
-S16 is implemented and its checkpoint passes (exit 0, three runs). `make verify` is 17 PASS
-again against out-of-cluster infra. Waiting on the S16 review; S15's review box is still
-unticked in docs/todo.md.
+S16's review came back CONCERNS with no blockers (docs/reviews/S16-findings.md, e17afc7).
+Both concerns are fixed in 3cdd4b6 and the checkpoint re-passes 17 PASS. Waiting on the
+human to tick S16's review box in docs/todo.md.
 
 ## Done (verified this pass)
 - S16: `app/scripts/verify.sh` reworked — `psql_q`/`redis_q` read the stateful tiers with
@@ -16,16 +16,22 @@ unticked in docs/todo.md.
   fails honestly as its stale header predicted.
 - `app/docs/MANUAL-TESTING-GUIDE.md` updated wherever it mirrored a reworked check.
 - New S17 flag: the controller's Service port default gives `jit-pgadmin` 6379.
+- S16 review CONCERNS (both fixed in 3cdd4b6): the helper reads are guarded so two failures
+  cannot compare equal, and R8's worker restore runs on every path — the first version of
+  the guard skipped it and left the worker at 0 replicas. Caught by the negative test
+  (/tmp/s16-negative2.log), not by the checkpoint. build-plan.md's "eleven unaffected"
+  corrected in place (eleven invalidated, six unaffected).
 
 ## Checkpoints (final code)
 - PASS: S16 (exit 0 x3, /tmp/s16-run{1-keep,2,3}.log) · S15 (/tmp/s15-final.log)
 - FAIL (expected): S00.sh — stale assertion, documented in docs/todo.md flags
 
 ## Commits
-e8c2b4e S16 rework · abcafd6 S16 review prompt · 1a4fccf S15 concerns · bf77a21 S15 migration
+3cdd4b6 concern fixes · e17afc7 S16 findings · e8c2b4e S16 rework · abcafd6 review prompt
 
 ## Next step
-The human runs the S16 review with a different model; S17 starts only after CLEAR.
+The human ticks S16's review box in docs/todo.md, then S17 reworks the R-checks' remaining
+`default` assumptions and adds the JIT suite. S17 must not start until then.
 
 ## Watch out
 - `jit-pgadmin` Service advertises 6379 (controller default) — S17's, invisible to R1-R17.
