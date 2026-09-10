@@ -1,40 +1,32 @@
 Updated: 2026-09-10
 
 ## Current focus
-S14 review returned BLOCKED (B1, B2). Both blockers are fixed and verified live; checkpoint
-re-run PASS. Awaiting re-review — nothing ticked.
+S14 — blockers fixed and all 10 review concerns acted on. Checkpoint re-run PASS.
+Two NEW defects found by the multi-module probe; awaiting a decision.
 
 ## Current work
-Fixes only; CONCERNS 1-10 left untouched and raised with the human, per the review protocol.
+Concerns from docs/reviews/S14-findings.md, all acted on (human said proceed):
+- 1 Failed is terminal (resync skips; a Deployment change retries)
+- 2 controller per-claim lock + runner per-(workspace,module) asyncio lock — 1 apply, 0
+  "container already in use" with 2 writers on 1 claim
+- 3 `status.message` cleared on success; 4 params persist (earlier); 5 Phase 3 gates the pod
+  on the JIT Secret (`CreateContainerConfigError`); 6 Phase 2 pings the Service name
+- 7 destroy sends the claim's params (`vars=['ip','maxmemory','name','network']`)
+- 8 runner `_runs` keyed by (workspace, module) — a second module applies itself
+- 9 fake mode writes a marker key so the stale-Ready detector stops looping
+- 10 resync fallback catches transport errors and logs it
+- handle_claim_delete keeps S11 semantics but logs ERROR when destroy fails
+Deployed: runner image rebuilt + container recreated, ConfigMap refreshed, pod restarted.
+Checkpoint: `PASS: S14 real provisioning verified`, 0 FAIL (/tmp/s14-final.log).
 
-## What changed this session
-- **B1** — `destroy_infra` reads the response body: success only for status in
-  ("destroyed", "not_found"). Live: a bogus-module destroy now logs `Destroy reported failure
-  for s14-b1-probe/bogus: {'status': 'error', …}` where the old code logged the 200 as success.
-- **B2** — new `check_param_conflict` in the resync sets a `ParamsConflict` condition (reason
-  `FirstWriterWins`) naming the winner and the ignored writer, and clears it when resolved.
-  First writer still wins: `ensure_claim` never overwrites spec and `provision_infra` returns
-  early on Ready. CRD gains `status.conditions`.
-- **B2 prerequisite** — `spec.params` had to persist so the winner's params are readable:
-  applied the reviewer's CONCERN 4 remedy using `x-kubernetes-preserve-unknown-fields`
-  (not `additionalProperties: {type: string}`, so non-string params are not pruned).
-- Re-ran `bash scripts/checks/S14.sh`: PASS, 0 FAIL lines (`/tmp/s14-rerun.log`). That also
-  proves the destroy success path still returns True — Step 4's TTL sweep depends on it.
-
-## Verified live
-- Two writers, different params → condition `conflict-a won with params {'maxmemory': '128mb'};
-  ignored: conflict-b wants {'maxmemory': '512mb'}`; `spec.params` kept the winner's;
-  container ran the winner's args; condition cleared after conflict-b was deleted
-- Probes cleaned; runner up; controller 1/1
+## New findings (raised, NOT fixed)
+- IPAM: every claim in a namespace gets the SAME allocatedIP (allocate_block returns the
+  block base for all claims). Two modules in one namespace collide — blocks S15.
+- The postgres module cannot be applied at all — `output "url"` needs `sensitive = true`, so
+  `tofu apply failed`. CONCERN 7's cold-destroy path is therefore untestable end to end
+  (the redis plumbing is verified).
+- Fixed while here: deploy/runner.sh had 3 bugs (wrong SCRIPT_DIR; `set -e` aborting on a
+  missing .env key; `docker inspect` matching the image so `up` never started).
 
 ## Next step
-A different model re-reviews: rewrites `docs/reviews/S14-findings.md` against these fixes.
-Do not start S15.
-
-## Open questions raised (not acted on)
-- `handle_claim_delete` still ignores `destroy_infra`'s result; respecting a failure would
-  block namespace deletion (S11 semantics) — needs a decision
-- CONCERNS 5/6 are checkpoint-evidence gaps (`pause:3.5` gone; Phase 2 uses the IP, not the
-  Service name); closing them means editing the gate, which the build plan forbids mid-step
-- CONCERN 7 (destroy params for postgres/pgadmin) and CONCERN 8 (runner `_runs` keyed by
-  workspace only) are S15 hazards
+Human decision on the two new findings, then re-review the new commit. Do not start S15.

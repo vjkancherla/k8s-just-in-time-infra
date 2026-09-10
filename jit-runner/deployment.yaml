@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jit-runner
+  namespace: default
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jit-runner
+  template:
+    metadata:
+      labels:
+        app: jit-runner
+    spec:
+      containers:
+      - name: jit-runner
+        image: jit-runner:latest
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8080
+        env:
+        - name: JIT_RUNNER_TOKEN
+          value: "s6-secret-token-2026"
+        - name: MINIO_ENDPOINT
+          value: "http://172.19.0.11:9000"
+        - name: MINIO_BUCKET
+          value: "jit-state"
+        - name: DOCKER_HOST
+          value: "unix:///var/run/docker.sock"
+        volumeMounts:
+        - name: docker-socket
+          mountPath: /var/run/docker.sock
+        - name: jit-modules
+          mountPath: /opt/jit-modules
+      volumes:
+      - name: docker-socket
+        hostPath:
+          path: /var/run/docker.sock
+      - name: jit-modules
+        hostPath:
+          path: /Users/vkancherla/Downloads/Devops-Projects/k8s-just-in-time-infra/jit-modules
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jit-runner
+  namespace: default
+spec:
+  selector:
+    app: jit-runner
+  type: LoadBalancer
+  loadBalancerIP: 172.19.0.10
+  ports:
+  - port: 8080
+    targetPort: 8080

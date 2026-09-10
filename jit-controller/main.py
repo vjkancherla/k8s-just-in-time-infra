@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import threading
 from datetime import datetime, timedelta, timezone
 
 import kopf
@@ -18,6 +19,10 @@ FINALIZER = "jit.infra/teardown"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("jit-controller")
+
+# Guards the per-claim lock registry below.
+_claim_locks_guard = threading.Lock()
+_claim_locks = {}
 
 RUNNER_URL = os.environ.get("RUNNER_URL", "")
 RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "")
@@ -53,6 +58,23 @@ def get_namespace_uid(namespace):
     core = client.CoreV1Api()
     ns_obj = core.read_namespace(namespace)
     return ns_obj.metadata.uid
+
+
+def claim_lock(namespace, name):
+    """Process-local lock for one claim.
+
+    Two Deployments annotating the same claim — or kopf's create+update pair — can
+    otherwise call provision_infra concurrently and both drive a tofu apply over the
+    same container name. The runner serialises per run too; this avoids the duplicate
+    work and the noisy conflict. Single controller replica is assumed.
+    """
+    key = f"{namespace}/{name}"
+    with _claim_locks_guard:
+        lock = _claim_locks.get(key)
+        if lock is None:
+            lock = threading.Lock()
+            _claim_locks[key] = lock
+        return lock
 
 
 def parse_annotations(annotations):
@@ -95,7 +117,8 @@ def handle_deployment(body, namespace, name, logger, **kwargs):
             "softDeleteTTL": claim_spec.get("softDeleteTTL", "30d"),
         }
         ensure_claim(api, namespace, ns_uid, claim_name, spec)
-        provision_infra(api, namespace, claim_name, module, spec)
+        with claim_lock(namespace, claim_name):
+            provision_infra(api, namespace, claim_name, module, spec)
 
 
 def ensure_claim(api, ns, ns_uid, name, spec):
@@ -223,15 +246,19 @@ def _provision_fake(api, ns, name, module):
     secret_name = f"jit-{module}"
     try:
         core = client.CoreV1Api()
+        # A non-empty marker key, so the stale-Ready detector — which requires Secret
+        # data — is satisfied and fake mode stops re-provisioning on every event.
         secret_body = client.V1Secret(
-            metadata=client.V1ObjectMeta(name=secret_name, namespace=ns), data={}
+            metadata=client.V1ObjectMeta(name=secret_name, namespace=ns),
+            data={"fake": base64.b64encode(b"true").decode()},
         )
         try:
             core.create_namespaced_secret(ns, secret_body)
         except client.exceptions.ApiException as e:
             if e.status != 409:
                 raise
-        patch = {"status": {"phase": "Ready", "outputsSecret": secret_name}}
+        patch = {"status": {"phase": "Ready", "outputsSecret": secret_name,
+                            "message": ""}}
         api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
         clear_status_field(ns, name, "expiresAt")
         logger.info(f"InfraClaim {name} phase set to Ready (fake mode)")
@@ -274,7 +301,7 @@ def _write_k8s_resources(api, ns, name, module, outputs, fallback_ip):
 
     # Set claim to Ready.
     patch = {"status": {"phase": "Ready", "outputsSecret": secret_name,
-                         "endpoint": f"{address}:{port}"}}
+                         "endpoint": f"{address}:{port}", "message": ""}}
     try:
         api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
         clear_status_field(ns, name, "expiresAt")
@@ -489,8 +516,13 @@ def parse_ttl(ttl_str):
     return timedelta(seconds={"s": val, "m": val * 60, "h": val * 3600, "d": val * 86400}[unit])
 
 
-def destroy_infra(namespace, module, allocated_ip=""):
-    """Call the runner to destroy infrastructure. Returns True on success."""
+def destroy_infra(namespace, module, allocated_ip="", extra_params=None):
+    """Call the runner to destroy infrastructure. Returns True on success.
+
+    extra_params carries the claim's recorded module params: postgres and pgadmin
+    cannot be destroyed from a cold work dir without their passwords, and the
+    controller otherwise only knows the fixed name/network/ip triple.
+    """
     if not RUNNER_URL:
         logger.warning("RUNNER_URL not set, skipping destroy")
         return True
@@ -499,13 +531,14 @@ def destroy_infra(namespace, module, allocated_ip=""):
     headers = {"Content-Type": "application/json"}
     if RUNNER_TOKEN:
         headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
-    # Pass all required vars for tofu destroy
-    params = {
-        "name": f"{workspace}-{module}",
-        "network": DOCKER_NETWORK,
-    }
+    # Module params first, then the mandatory vars, so a stale annotation cannot
+    # redirect the destroy at the wrong container.
+    params = {k: str(v) for k, v in (extra_params or {}).items()}
+    params["name"] = f"{workspace}-{module}"
+    params["network"] = DOCKER_NETWORK
     if allocated_ip:
         params["ip"] = allocated_ip
+    logger.info(f"Destroy {workspace}/{module} vars={sorted(params)}")
     try:
         r = requests.delete(url, json={"module": module, "params": params},
                             timeout=120, headers=headers)
@@ -596,7 +629,12 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
             GROUP, VERSION, namespace, PLURAL, name)
         status = obj.get("status", {}) or {}
         spec = obj.get("spec", {}) or spec
-    except client.exceptions.ApiException:
+    except Exception as e:
+        # Transport failures (urllib3 MaxRetryError) are not ApiException, so the
+        # catch is deliberately broad — but say so, because falling back means a
+        # stale phase is being acted on.
+        logger.warning(f"Fresh status read failed for {name}, using the handler body "
+                       f"instead: {e}")
         status = body.get("status", {}) or {}
     phase = status.get("phase", "")
 
@@ -604,10 +642,15 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
     check_param_conflict(namespace, name, module, refs, spec.get("params", {}), status)
 
     if refs and phase != "Deleting":
-        # References exist: update refs, trigger provisioning if not yet Ready
-        if phase != "Ready":
-            spec = body.get("spec", {})
-            provision_infra(api, namespace, name, module, spec)
+        # References exist: update refs, trigger provisioning if not yet Ready.
+        # Failed is terminal: the resync must not re-drive a failing runner every
+        # tick. A Deployment change re-fires handle_deployment, which retries.
+        if phase == "Failed":
+            logger.info(f"Resync {name}: phase=Failed, not retrying until the "
+                        f"Deployment changes")
+        elif phase != "Ready":
+            with claim_lock(namespace, name):
+                provision_infra(api, namespace, name, module, spec)
             # Re-read phase after provisioning attempt
             try:
                 obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
@@ -629,7 +672,8 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
         if phase == "Deleting":
             # Committed to destruction — retry the destroy+cleanup
             logger.info(f"Resync {name}: retrying destroy (Deleting)")
-            if destroy_infra(namespace, module, status.get("allocatedIP", "")):
+            if destroy_infra(namespace, module, status.get("allocatedIP", ""),
+                             spec.get("params", {})):
                 cleanup_k8s_resources(namespace, module)
                 remove_finalizer_and_delete(namespace, name, FINALIZER)
             else:
@@ -676,7 +720,8 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                             {"status": {"phase": "Deleting"}})
                     except client.exceptions.ApiException:
                         pass
-                    if destroy_infra(namespace, module, status.get("allocatedIP", "")):
+                    if destroy_infra(namespace, module, status.get("allocatedIP", ""),
+                                     spec.get("params", {})):
                         cleanup_k8s_resources(namespace, module)
                         remove_finalizer_and_delete(namespace, name, FINALIZER)
                         release_block(namespace)
@@ -695,7 +740,13 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
     if module:
         logger.info(f"Hard delete triggered for {name} in {namespace}, destroying infra")
         allocated_ip = body.get("status", {}).get("allocatedIP", "")
-        destroy_infra(namespace, module, allocated_ip)
+        params = body.get("spec", {}).get("params", {})
+        if not destroy_infra(namespace, module, allocated_ip, params):
+            # S11 semantics keep namespace deletion unconditional, so the claim is
+            # removed regardless — make the leak loud rather than silent.
+            logger.error(
+                f"Destroy FAILED for {name} ({namespace}/{module}) while deleting the "
+                f"claim: the container and its tofu state may leak")
         cleanup_k8s_resources(namespace, module)
     else:
         logger.warning(f"Claim {name} has no module in spec, skipping infra cleanup")

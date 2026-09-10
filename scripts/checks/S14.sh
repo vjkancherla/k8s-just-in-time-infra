@@ -97,7 +97,7 @@ spec:
     spec:
       containers:
       - name: pause
-        image: gcr.io/google_containers/pause:3.5
+        image: redis:7-alpine
 EOF
 
 for _ in $(seq 1 120); do
@@ -164,8 +164,8 @@ spec:
         command: ["sh", "-c"]
         args:
         - |
-          echo "Testing Redis at $ALLOCATED_IP:6379 ..."
-          redis-cli -h $ALLOCATED_IP -p 6379 PING
+          echo "Testing Redis via the Service name jit-redis:6379 ..."
+          redis-cli -h jit-redis -p 6379 PING
         envFrom:
         - secretRef:
             name: jit-redis
@@ -209,6 +209,10 @@ kubectl patch infraclaim "$CLAIM_NAME" -n "$NAMESPACE" --type=json \
 kubectl delete infraclaim "$CLAIM_NAME" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
 sleep 3
 
+# The workload below consumes the JIT Secret, so with the claim Failed (and therefore
+# no Secret) the pod must stay unstarted for a reason that depends on the claim.
+kubectl delete secret "jit-redis" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
+
 cat <<EOF | kubectl apply -f -
 apiVersion: apps/v1
 kind: Deployment
@@ -228,8 +232,11 @@ spec:
         app: s14-deploy-b
     spec:
       containers:
-      - name: pause
-        image: gcr.io/google_containers/pause:3.5
+      - name: workload
+        image: redis:7-alpine
+        envFrom:
+        - secretRef:
+            name: jit-redis
 EOF
 
 for _ in $(seq 1 120); do
@@ -245,9 +252,19 @@ MSG=$(kubectl get infraclaim "$CLAIM_NAME" -n "$NAMESPACE" \
 [[ -n "$MSG" ]] || fail "Failed claim should have a message"
 echo "  Failure message: $MSG"
 
+# The pod must be held back by the missing JIT Secret, not by an unpullable image.
+for _ in $(seq 1 30); do
+  WAIT_REASON=$(kubectl get pods -n "$NAMESPACE" -l "app=s14-deploy-b" \
+    -o jsonpath='{.items[0].status.containerStatuses[0].state.waiting.reason}' 2>/dev/null || echo "")
+  [[ -n "$WAIT_REASON" ]] && break
+  sleep 2
+done
 POD_PHASE=$(kubectl get pods -n "$NAMESPACE" -l "app=s14-deploy-b" \
   -o jsonpath='{.items[0].status.phase}' 2>/dev/null || echo "Pending")
 [[ "$POD_PHASE" != "Running" ]] || fail "pod should not be Running when claim is Failed"
+[[ "$WAIT_REASON" == "CreateContainerConfigError" ]] \
+  || fail "pod should be blocked on the missing JIT Secret, waiting reason=$WAIT_REASON"
+echo "  Pod held back by the claim: waiting reason=$WAIT_REASON"
 
 echo "PASS: runner down -> claim Failed with message, pod unstarted"
 
@@ -295,7 +312,7 @@ spec:
     spec:
       containers:
       - name: pause
-        image: gcr.io/google_containers/pause:3.5
+        image: redis:7-alpine
 EOF
 
 for _ in $(seq 1 120); do
@@ -357,7 +374,7 @@ spec:
     spec:
       containers:
       - name: pause
-        image: gcr.io/google_containers/pause:3.5
+        image: redis:7-alpine
 EOF
 
 for _ in $(seq 1 65); do

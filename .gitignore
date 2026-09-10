@@ -1,0 +1,6 @@
+# Local secrets / generated state (never commit)
+deploy/.env
+jit-runner/.env
+jit-controller/.env
+__pycache__/
+.pytest_cache/
