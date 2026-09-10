@@ -3,7 +3,10 @@
 **Step:** S17
 **Goal:** the demo, and the acceptance tests from the design note.
 
-**Commit range:** a82a6a9 → e00a179 (seven commits)
+**Commit range:** a82a6a9 → e00a179 (seven commits: the implementation, its fixes and the step's docs)
+
+**Outside that range, for context:** bookkeeping only, no implementation — `memory-bank/*`, and
+`docs/reviews/` (this prompt plus the S08-S15 artifacts that had never been committed).
 
 **Files changed:**
 - jit-controller/main.py (namespace_lock; release_block released once; Service re-stated on 409;
