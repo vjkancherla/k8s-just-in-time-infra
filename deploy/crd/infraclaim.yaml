@@ -28,6 +28,7 @@ spec:
                 type: string
               params:
                 type: object
+                x-kubernetes-preserve-unknown-fields: true
               softDeleteTTL:
                 type: string
           status:
@@ -49,6 +50,22 @@ spec:
                 type: string
               allocatedIP:
                 type: string
+              conditions:
+                type: array
+                items:
+                  type: object
+                  required: ["type", "status"]
+                  properties:
+                    type:
+                      type: string
+                    status:
+                      type: string
+                    reason:
+                      type: string
+                    message:
+                      type: string
+                    lastTransitionTime:
+                      type: string
     subresources:
       status: {}
     additionalPrinterColumns:

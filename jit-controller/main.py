@@ -376,16 +376,107 @@ def clear_status_field(namespace, name, field_path):
             logger.warning(f"Failed to clear status.{field_path} on {name}: {e}")
 
 
-def list_referencing_deployments(namespace, module):
-    """List Deployment names in the namespace that annotate jit.infra/<module>."""
+def list_referencing_deployments_with_params(namespace, module):
+    """Return sorted [(name, params)] for Deployments annotating jit.infra/<module>."""
     apps = client.AppsV1Api()
     deploys = apps.list_namespaced_deployment(namespace)
-    refs = []
+    out = []
     for d in deploys.items:
         annotations = d.metadata.annotations or {}
-        if f"jit.infra/{module}" in annotations:
-            refs.append(d.metadata.name)
-    return sorted(refs)
+        raw = annotations.get(f"jit.infra/{module}")
+        if raw is None:
+            continue
+        try:
+            params = (json.loads(raw) or {}).get("params", {}) or {}
+        except Exception:
+            params = {}
+        out.append((d.metadata.name, params))
+    return sorted(out)
+
+
+def list_referencing_deployments(namespace, module):
+    """List Deployment names in the namespace that annotate jit.infra/<module>."""
+    return [name for name, _ in list_referencing_deployments_with_params(namespace, module)]
+
+
+def _normalize_params(params):
+    """Params are compared as strings, matching how they are sent to the runner."""
+    return {k: str(v) for k, v in (params or {}).items()}
+
+
+def set_condition(namespace, name, cond_type, status, reason, message):
+    """Add or replace one entry in status.conditions, leaving other types alone."""
+    api = client.CustomObjectsApi()
+    condition = {
+        "type": cond_type,
+        "status": status,
+        "reason": reason,
+        "message": message,
+        "lastTransitionTime": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+        existing = obj.get("status", {}).get("conditions") or []
+        current = next((c for c in existing if c.get("type") == cond_type), None)
+        if current and current.get("status") == status and current.get("message") == message:
+            return  # already correct — avoid status churn on every resync
+        conditions = [dict(c) for c in existing if c.get("type") != cond_type]
+        conditions.append(condition)
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name,
+            {"status": {"conditions": conditions}})
+        logger.info(f"Condition {cond_type}={status} on {name}: {message}")
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to set condition {cond_type} on {name}: {e}")
+
+
+def clear_condition(namespace, name, cond_type):
+    """Remove a condition if it is present. No-op when absent."""
+    api = client.CustomObjectsApi()
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+        existing = obj.get("status", {}).get("conditions") or []
+        if not any(c.get("type") == cond_type for c in existing):
+            return
+        conditions = [dict(c) for c in existing if c.get("type") != cond_type]
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name,
+            {"status": {"conditions": conditions}})
+        logger.info(f"Condition {cond_type} cleared on {name}")
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to clear condition {cond_type} on {name}: {e}")
+
+
+def check_param_conflict(namespace, name, module, refs, stored_params, status):
+    """First writer wins on params.
+
+    The claim keeps the params of the writer that provisioned it. Any other referencing
+    Deployment whose annotation params differ is recorded in a ParamsConflict condition
+    naming both. The condition is cleared once the conflicting writers are gone or agree.
+    """
+    has_condition = any(c.get("type") == "ParamsConflict"
+                        for c in (status.get("conditions") or []))
+    if len(refs) < 2:
+        if has_condition:
+            clear_condition(namespace, name, "ParamsConflict")
+        return
+
+    stored = _normalize_params(stored_params)
+    deployments = list_referencing_deployments_with_params(namespace, module)
+    matching = [n for n, p in deployments if _normalize_params(p) == stored]
+    ignored = [(n, _normalize_params(p)) for n, p in deployments
+               if _normalize_params(p) != stored]
+    if not ignored:
+        if has_condition:
+            clear_condition(namespace, name, "ParamsConflict")
+        return
+
+    winner = matching[0] if matching else refs[0]
+    detail = ", ".join(f"{n} wants {p}" for n, p in ignored)
+    set_condition(
+        namespace, name, "ParamsConflict", "True", "FirstWriterWins",
+        f"{winner} won with params {stored}; ignored: {detail}",
+    )
 
 
 def parse_ttl(ttl_str):
@@ -418,8 +509,24 @@ def destroy_infra(namespace, module, allocated_ip=""):
     try:
         r = requests.delete(url, json={"module": module, "params": params},
                             timeout=120, headers=headers)
-        logger.info(f"Destroy response for {workspace}/{module}: {r.status_code}")
-        return r.status_code in (200, 404)
+        if r.status_code == 404:
+            logger.info(f"Destroy: runner has no run for {workspace}/{module} (404)")
+            return True
+        if r.status_code != 200:
+            logger.warning(
+                f"Destroy failed for {workspace}/{module}: HTTP {r.status_code}")
+            return False
+        # The runner answers HTTP 200 for every logical outcome, so the verdict is in
+        # the body: "destroyed" / "not_found" are success, anything else is a failure
+        # that must not be treated as a completed destroy.
+        result = r.json()
+        status = result.get("status", "")
+        if status in ("destroyed", "not_found"):
+            logger.info(f"Destroy response for {workspace}/{module}: {status}")
+            return True
+        logger.warning(
+            f"Destroy reported failure for {workspace}/{module}: {result}")
+        return False
     except Exception as e:
         logger.warning(f"Runner destroy failed for {workspace}/{module}: {e}")
         return False
@@ -483,13 +590,18 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
 
     # Re-read status fresh: the kopf timer body can lag behind status patches
     # that the controller itself made.
+    spec = body.get("spec", {}) or {}
     try:
         obj = api.get_namespaced_custom_object_status(
             GROUP, VERSION, namespace, PLURAL, name)
         status = obj.get("status", {}) or {}
+        spec = obj.get("spec", {}) or spec
     except client.exceptions.ApiException:
         status = body.get("status", {}) or {}
     phase = status.get("phase", "")
+
+    # First writer wins on params: warn any writer whose params were ignored.
+    check_param_conflict(namespace, name, module, refs, spec.get("params", {}), status)
 
     if refs and phase != "Deleting":
         # References exist: update refs, trigger provisioning if not yet Ready
