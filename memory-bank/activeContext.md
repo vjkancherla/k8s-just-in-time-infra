@@ -1,30 +1,30 @@
 Updated: 2026-10-09
 
 ## Current focus
-S15 checkpoint PASSED and committed (bf77a21). Waiting on the human: the review prompt cannot be
-generated because docs/reviews/REVIEW-PROMPT-TEMPLATE.md does not exist.
+S15 review returned CONCERNS with no blockers (docs/reviews/S15-findings.md). All four concerns are
+addressed in 52170d3. Waiting on the human to tick the S15 review box.
 
 ## Done (verified this pass)
-- Wrote scripts/checks/S15.sh, S16.sh, S17.sh from build-plan.md and committed (c2e01a0) — S-1 was incomplete.
-- S15: app migrated off in-cluster state. `bash scripts/checks/S15.sh` -> 16 PASS, exit 0, ran twice
-  (/tmp/s15-verify.log). Three containers provisioned, vote -> result end to end, tally 0 -> 1.
-- Kustomize restructured: base/ + overlays/{registry,voting-a,voting-b}; the registry overlay now builds.
-- Controller generates the Postgres password once per namespace, writes it into jit-postgres as
-  POSTGRES_PASSWORD, shares it with pgadmin; a cold destroy reads it back from the Secret.
+- S15: app migrated off in-cluster state. `bash scripts/checks/S15.sh` -> exit 0 on three runs
+  (/tmp/s15-verify.log, /tmp/s15-final.log). Three containers, vote -> result, tally 0 -> 1.
+- Review concerns: a note in the postgres module against owning the password (item 5), S00.sh
+  annotated rather than re-opened (item 9), pgadmin port + SECRET_KEY recorded as flags (items 10, 11).
+- docs/lessons.md created — the file build-plan.md's "Done" and docs/todo.md both point at.
 
 ## Checkpoints (final code)
-- PASS: S15 exit 0 (/tmp/s15-verify.log) · S13 (/tmp/s13-b.log) · S14 (/tmp/s14-backend.log)
+- PASS: S15 exit 0 · S13 (/tmp/s13-b.log) · S14 (/tmp/s14-backend.log)
 
 ## Commits
-bf77a21 S15 migration · c2e01a0 S-1 checks · 354f8bc memory bank · 1b50388 S14 review prompt
+52170d3 review concerns · 3bd9806 S15 review prompt · bf77a21 S15 migration · c2e01a0 S-1 checks
 
 ## Next step
-Decide how to produce docs/reviews/S15-review-prompt.md without the template, then run the S15 review.
+The human ticks S15's review box in docs/todo.md, then S16 reworks the R-checks the migration broke.
 
 ## Watch out
-- docs/reviews/REVIEW-PROMPT-TEMPLATE.md has NEVER existed, so the 12-question protocol cannot be followed.
-- Frozen S00.sh is now stale: it asserts 5 workloads and 17 PASS, both invalidated by S15 (S16 fixes verify.sh).
-- app/scripts/verify.sh, app/vote, app/worker, app/result are still uncommitted; scripts/checks/S00-S07.sh too.
-- No run-all.sh or review-guard.sh exists.
-- pgadmin publishes a fixed host port 5050, so S17's two namespaces cannot both run it.
+- S00.sh passes misleadingly today: it inspects the pre-migration app in `default` and parses a stale
+  verify.md. It starts failing when the migrated app is deployed (S16).
+- S00.sh is now tracked; scripts/checks/S01-S07.sh are still untracked.
+- pgadmin's fixed host port 5050 blocks S17's two namespaces — see docs/todo.md "Flags carried forward".
+- docs/reviews/REVIEW-PROMPT-TEMPLATE.md still does not exist.
+
 
