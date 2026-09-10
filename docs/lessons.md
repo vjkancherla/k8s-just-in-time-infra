@@ -88,18 +88,108 @@ R3-R7, R12-R15" sentence was wrong about R3-R7 for the same reason.
 
 ---
 
+## From S17 — the demo, the J-suite and the fixes it exposed
+
+**A bind mount is resolved by the Docker daemon, not by the process that wrote the file.**
+`modules/pgadmin` wrote `servers.json` with `local_file` and bind-mounted the path into the
+container. Tofu runs inside the `jit-runner` container, so on macOS the file existed only in
+the runner's own `/tmp`; the daemon, asked to mount a path it could not see, **created an
+empty directory** at `/pgadmin4/servers.json` and pgAdmin started with no server registered.
+Nothing failed, for the whole of S5-S16, because nothing read the file. Fixed by writing to
+a directory both sides can see: `deploy/runner.sh` mounts `$HOME/.jit-host-share` and the
+runner exports `TF_VAR_share_dir`, which the module reads (tofu picks up `TF_VAR_*` from the
+environment, and ignores the ones no module declares). `make jit-verify`'s J3 now reads the
+file back out of the container.
+
+**A claim's teardown needs every variable the module requires, and the Secret it reads them
+from may already be gone.** `destroy_infra` read pgadmin's `postgres_url` from the
+`jit-postgres` Secret only "if it had an address". When a namespace's postgres and pgadmin
+claims expire in the same sweep, postgres is destroyed first and its Secret deleted, so
+pgadmin's destroy failed with "No value for required variable" and the claim sat in
+`Deleting` forever — the wedged-namespace failure the README warns about. It now falls back
+to a placeholder the way `postgres_password` already did: destroying a container does not
+need the real credentials, only a value for the variable.
+
+**A module output that does not exist cannot be defaulted away.** (carried forward from S16)
+`jit-pgadmin` advertised port **6379** because the controller defaults a missing `port`
+output to redis's. The pgadmin module now exports `port = 80`, and `create_jit_service`
+re-states the spec on 409 so a Service created before the fix does not keep the stale port.
+
+**A test that can only pass on the first attempt is not testing what the design says it is.**
+J4 asserts "other workloads unaffected" by draining a vote through the worker after the vote
+Deployment is deleted. R9 (run inside J2) restarts Postgres, and `worker/app.py` BLPOPs
+destructively, so **the first insert after a restart is lost** — measured on this cluster:
+baseline landed, first-after-restart did not, second did. The check now makes up to three
+attempts and asserts the worker recovered, instead of encoding a one-shot assumption the
+worker never made.
+
+**Idempotence is a property of the steps, not the target.** `make jit-up` looks idempotent
+until `deploy/minio.sh` returns 409 `BucketAlreadyOwnedByYou` for the bucket it created on
+the first run — the script recreated the container but not the bucket check. `up` is only as
+re-runnable as the least re-runnable thing it calls.
+
+**A destroy must never resolve to a module the caller did not name.** `jit-runner`'s
+`DELETE /v1/runs/{workspace}` fell back to "the workspace's only cached run" whenever the
+requested module had no in-memory entry. The TTL sweep destroys a claim and kopf's delete
+handler then destroys the *same* claim again (removing the finalizer deletes the object, which
+fires the handler) — and on that second call the cache no longer holds the module, so the
+postgres retry resolved to **redis** and removed `voting-a-redis-redis`, a container that was
+still referenced and `Ready`. Its claim stayed `Ready` with no container, which the stale-Ready
+detector cannot see (the Secret still exists). The fallback now applies only when the request
+names no module at all, which is what S06 and S07 do — the two frozen gates that rely on it.
+Instrumentation was added to the runner at the same time: it had no logger, so the access log
+recorded the workspace and nothing else, and this was invisible until a probe read the
+container list.
+
+**Two claims in one namespace can be handed the same IP, and reading the code did not say so.**
+J1 deploys three claims and intermittently gave `pgadmin` and `redis` both `172.19.0.100`; the
+loser failed to start with "Address already in use" and its claim went `Failed`, which is
+terminal until the Deployment changes. Two independent causes, one symptom:
+
+- `ensure_claim` allocated in four non-atomic steps — read this claim's address, read the other
+  claims' addresses, pick the first free one, patch — and the only lock in play (`claim_lock`)
+  was keyed **per claim** and taken *after* it, so it serialised provisioning and never
+  allocation between different claims. kopf fires `on.create` **and** `on.update` for a single
+  Deployment apply, each iterating every claim, so the interleaving is the normal case rather
+  than a rare one. Fixed by taking `namespace_lock(ns)` around the whole read-pick-patch.
+- `release_block` ran **twice** for a swept claim: the TTL sweep releases it, and then removing
+  the finalizer deletes the object, which fires the delete handler and releases it again. The
+  namespace's `count` reached zero while claims still held addresses, so the block was free to
+  be issued to another namespace. `handle_claim_delete` now skips the release for a claim
+  already in phase `Deleting`.
+
+The symptom pointed at the wrong component — the duplicate surfaced as a *pgadmin* apply
+failure, and the ledger's drifting `count` looked like a counting bug on its own. Evidence is
+`/tmp/race-test.sh`: three clean-slate deploys, each asserting three distinct IPs. A single
+green run cannot tell a fixed race from a lucky one.
+
+**A check that was never executed is not a check that passes.** J11 had two defects no earlier
+run could reveal, because no run had ever reached it:
+
+- Its SigV4 list signed the prefix as `ns/`. A canonical query string uses S3's encoding, where
+  `/` is `%2F`, so MinIO answered **403 SignatureDoesNotMatch**. `deploy/minio.sh` needs no such
+  care — its PUT has no query string at all — which is what made copying its signing block look
+  safe.
+- Every J11 assertion is negative (a `fail` with no matching `pass`), so a *passing* J11 printed
+  nothing: the suite exited 0 having reported ten checks, and the checkpoint's `^J11 PASS` gate
+  could never be satisfied. The suite's first green run said `10 PASS, 0 FAIL` and the gate
+  failed on a check that had in fact passed.
+
+Both were caught only because the checkpoint asserts the PASS line and not just the exit code.
+The exit code alone called it fine.
+
+---
+
 ## Carried forward — do not lose these
 
-**A module output that does not exist cannot be defaulted away.**
-`jit-controller/main.py` writes the Service port as `int(outputs.get("port", "6379"))`, so
-`jit-pgadmin` advertises **6379** — redis's default — because the pgadmin module exposes no
-`port` output and listens on 80. No R-check touches pgAdmin, so it is invisible today.
-Owner: **S17**, where the pgadmin claim starts mattering.
+**A module output that does not exist cannot be defaulted away.** RESOLVED in S17: the
+pgadmin module exports `port = 80`, so `jit-pgadmin` advertises 80 rather than redis's 6379,
+and `create_jit_service` re-states the spec on 409 so an older Service does not keep the
+stale port. J3 asserts it.
 
-**pgAdmin publishes a fixed host port (`http_port`, default 5050).** Two namespaces
-cannot both run pgAdmin; the second claim goes `Failed`. Owner: **S17**, which deploys
-`voting-a` and `voting-b`. Fix by parameterising `http_port` per claim via annotation
-params, or by running pgAdmin in one namespace only.
+**pgAdmin publishes a fixed host port (`http_port`, default 5050).** RESOLVED in S17: the
+claim's annotation carries `params.http_port`, and `app/kustomize/overlays/voting-b` sets it
+to 5051 — the two-namespace demo runs both, and J8 checks the second one.
 
 **A committed secret literal sets a precedent.** `voting-app-secret-key` holds
 `SECRET_KEY=dev-only-session-key-not-a-credential`. Acceptable only because it is a Flask

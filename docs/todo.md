@@ -62,7 +62,21 @@ A step with one box ticked is not done. One step per session.
   - After the review's CONCERNS (no blockers): the helper reads are guarded so two failed
     reads cannot agree, and R8's worker restore runs on every path. Re-run after the fix
     → exit 0, 17 PASS (`/tmp/s16-postfix2.log`); negative test `/tmp/s16-negative2.log`.
-- [ ] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
+- [x] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
+  - `bash scripts/checks/S17.sh` → exit 0, ending `PASS: J1-J11 all PASS in .workflow/verify-jit.md`,
+    `PASS: ===== 17 PASS, 0 FAIL ===== in voting-a`, `PASS: S17 - two namespaces, J1-J11 and the
+    R-checks both green`. Full run: `/tmp/s17-run.log` (copy `/tmp/s17-green-run.log`), suite
+    report `/tmp/verify-jit-green.md`.
+  - J1 is no longer flaky. `/tmp/race-test.sh` — three clean-slate `voting-a` deploys, each
+    requiring three distinct IPs **and** `count: 3` in the IPAM ledger — is **3/3 OK**
+    (`/tmp/race-test.log`). The fix is `namespace_lock(ns)` over the read-pick-patch in
+    `ensure_claim`, plus releasing a claim's block once (`handle_claim_delete` skips phase
+    `Deleting`).
+  - Two earlier full runs failed at J11 and are kept, because they are what found it:
+    `/tmp/s17-run-j11fail.log` (403 SignatureDoesNotMatch — the prefix was signed as `ns/` rather
+    than `ns%2F`) and `/tmp/s17-run-j11-nopass.log` (J11 passed but printed nothing, so a gate
+    requiring `^J11 PASS` could not see it).
+  - `make check STEP=NN` routing is asserted in the same script. The S16 gate needs `NS=voting-a`.
 
 ## Notes carried from the app's own docs
 
@@ -75,29 +89,30 @@ A step with one box ticked is not done. One step per session.
 
 ## Flags carried forward (verdicts from reviews)
 
-- **S17:** pgAdmin publishes a fixed host port (`http_port`, default 5050), so `voting-a`
-  and `voting-b` cannot both run it — the second claim goes `Failed`. Parameterise
-  `http_port` per claim via annotation params, or run pgAdmin in one namespace.
-  *(S15 findings item 10)*
-- **S17:** the controller writes the JIT Service port as `int(outputs.get("port", "6379"))`.
-  The pgadmin module exposes no `port` output and listens on 80, so `jit-pgadmin`
-  advertises 6379 (redis's default). No R-check touches pgAdmin, so nothing notices.
-  *(found in S16)*
-- **S17:** `app/scripts/verify.sh` is still `default`-shaped outside its namespace support:
-  R14 scans Services cluster-wide and R15 lists pods without `-n`, so both will pick up the
-  other namespace's JIT material once `voting-a` and `voting-b` both exist. `RELEASE`,
-  `VOTE_URL` and `RESULT_URL` are env-overridable. *(S16 findings item 8)*
-- **S17:** `app/README.md` and `app/docs/SCRIPTS-GUIDE.md` still describe the pre-migration
-  topology — SCRIPTS-GUIDE line 48 says "1Gi PVC. StatefulSet → stable pod name
-  `voting-app-postgres-0`". *(S16 findings item 9)*
-- **S17:** `scripts/verify-jit.sh` must not reuse the silent-empty helper pattern; it runs
-  under `set -euo pipefail`, so guard each read explicitly or use a sentinel.
-  *(S16 review concern 1)*
-- **S17:** `scripts/checks/S00.sh` now fails honestly — `FAIL: voting-app-redis not ready
-  (ready='' desired='')`, exit 1 — because `default` runs the migrated app. That is the
-  stale assertion from S15 surfacing, not a regression; its header documents it and
-  re-opening a frozen gate was rejected in S15 findings item 9. Decide in S17 whether to
-  re-open or retire it.
+All five S17 verdicts below are **resolved in S17**, each with the assertion that proves it.
+
+- **pgAdmin's host port is per claim.** RESOLVED: the pgadmin module takes `http_port`, the
+  claim's annotation carries `params.http_port`, and `app/kustomize/overlays/voting-b` sets it
+  to 5051 — both namespaces run pgAdmin, and J8 reads voting-b's Service back. *(S15 findings
+  item 10)*
+- **A module output that does not exist cannot be defaulted away.** RESOLVED: the pgadmin module
+  exports `port = 80`, and `create_jit_service` re-states the spec on 409 so a Service created
+  before the fix does not keep the stale 6379. J3 asserts port 80 in voting-a. *(found in S16)*
+- **`verify.sh`'s remaining `default`-shaped reads.** RESOLVED: R14 and R15 are namespace-scoped
+  (`kubectl get svc -n "$NS"`, `kubectl get pods -n "$NS"`). `RELEASE`, `VOTE_URL` and
+  `RESULT_URL` stay env-overridable, which is what lets `make verify NS=voting-a` drive the demo
+  namespace. *(S16 findings item 8)*
+- **The app's docs described the pre-migration topology.** RESOLVED: `app/README.md` carries a
+  pre-migration banner, and `app/docs/SCRIPTS-GUIDE.md` describes the container-based tiers, the
+  named volume and pgAdmin's overridable host port. *(S16 findings item 9)*
+- **`verify-jit.sh` must not reuse the silent-empty helper pattern.** RESOLVED: it runs
+  `set -euo pipefail`, and every read a comparison depends on is guarded and names the container
+  it failed to read. *(S16 review concern 1)*
+- **S17 decision — `scripts/checks/S00.sh` keeps failing, deliberately.** It fails honestly
+  (`FAIL: voting-app-redis not ready`, exit 1) because `default` now runs the migrated app while
+  S00's assertions are pre-migration. It was not re-opened (rejected in S15 findings item 9) and
+  not retired: a frozen gate that documents its own staleness is a record, not a defect. Carried
+  past S17 unchanged — no S17 checkpoint runs it.
 - **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
   sensitive output. Until then the controller writes the postgres password itself.
 
@@ -119,6 +134,26 @@ A step with one box ticked is not done. One step per session.
   `voting-app-postgres` Secret.
 - `app/docs/MANUAL-TESTING-GUIDE.md` was updated where it mirrored the reworked checks — a
   guide whose copy-paste commands name a deleted pod is worse than no guide.
+
+**S17 — what changed from the design, and why.** (checkpoint PASS; review pending)
+
+- **The IPAM design had no serialisation, and needed one.** S13 specifies "a block of 10 per
+  namespace" and `allocate_block` counts claims; nothing said the address pick inside a block had
+  to be atomic, and J1 intermittently handed two claims the same address. Fixed with
+  `namespace_lock(ns)` around read-pick-patch and by releasing a swept claim's block exactly once.
+  The design's guarantee is unchanged; only the mechanism that upholds it.
+- **J11 had to be repaired before it could be asserted at all.** Its prefix was signed as `ns/`
+  rather than `ns%2F` (MinIO answered 403), and it had no `pass` line, so a *passing* J11 printed
+  nothing. Neither the design note nor the build plan says how to read the state bucket; the check
+  is this step's implementation of "one state object per namespace-module, under distinct
+  prefixes".
+- **`voting-b` patches the shared base rather than the base being parameterised.** Two namespaces
+  cannot share one Ingress host or one pgAdmin host port, so the second namespace patches both.
+  The plan's "deploy voting-a and voting-b from the same base" still holds; parameterising the
+  base instead would have moved voting-a off the app's documented defaults.
+- **Retention keeps the infra *running*, not stopped.** The design's "two-speed cleanup" is
+  implemented as the containers continuing until the TTL expires. Stopping them is listed in the
+  build plan's "Done" section as something production needs and this PoC omits.
 
 ## Lessons
 
