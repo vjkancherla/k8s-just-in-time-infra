@@ -1,0 +1,3 @@
+FROM scratch
+ARG SERVERS_JSON
+RUN mkdir -p /pgadmin4 && echo ${SERVERS_JSON} > /pgadmin4/servers.json

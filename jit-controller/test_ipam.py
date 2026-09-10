@@ -21,6 +21,8 @@ from ipam import (
     _base_ip,
     _free_offsets,
     allocate_block,
+    block_addresses,
+    first_free_address,
     release_block,
 )
 
@@ -217,3 +219,48 @@ class TestAllocateReleaseLifecycle:
         release_block("ns-x")
         state = mock_write.call_args[0][0]
         assert "ns-x" not in state
+
+
+# ── block_addresses / first_free_address ─────────────────────────────────────
+
+
+class TestBlockAddresses:
+    """A block is BLOCK_SIZE addresses wide, starting at the block base."""
+
+    def test_block_has_ten_addresses(self):
+        addrs = block_addresses("172.19.0.100")
+        assert len(addrs) == BLOCK_SIZE
+        assert addrs[0] == "172.19.0.100"
+        assert addrs[-1] == "172.19.0.109"
+
+    def test_second_block_starts_at_its_own_base(self):
+        addrs = block_addresses("172.19.0.110")
+        assert addrs[0] == "172.19.0.110"
+        assert addrs[-1] == "172.19.0.119"
+
+
+class TestFirstFreeAddress:
+    """Each claim in a namespace takes its own address from the namespace block."""
+
+    def test_empty_block_returns_the_base(self):
+        assert first_free_address("172.19.0.100", []) == "172.19.0.100"
+
+    def test_skips_the_taken_base(self):
+        assert first_free_address("172.19.0.100", ["172.19.0.100"]) == "172.19.0.101"
+
+    def test_fills_a_gap(self):
+        taken = ["172.19.0.100", "172.19.0.101", "172.19.0.103"]
+        assert first_free_address("172.19.0.100", taken) == "172.19.0.102"
+
+    def test_full_block_returns_none(self):
+        assert first_free_address("172.19.0.100", block_addresses("172.19.0.100")) is None
+
+    def test_addresses_outside_the_block_do_not_occupy_it(self):
+        assert first_free_address("172.19.0.100", ["172.19.0.120"]) == "172.19.0.100"
+
+    def test_two_claims_in_one_namespace_get_different_addresses(self):
+        """Regression: every claim in a namespace used to get the block base."""
+        first = first_free_address("172.19.0.100", [])
+        second = first_free_address("172.19.0.100", [first])
+        assert first == "172.19.0.100"
+        assert second == "172.19.0.101"

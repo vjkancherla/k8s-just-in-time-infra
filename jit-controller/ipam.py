@@ -29,6 +29,26 @@ def _free_offsets(allocations: dict) -> list:
     return [i for i in range(total) if i not in taken]
 
 
+def block_addresses(base_ip: str) -> list:
+    """Return the BLOCK_SIZE addresses of the block that starts at *base_ip*."""
+    prefix, _, octet = base_ip.rpartition(".")
+    start = int(octet)
+    return [f"{prefix}.{start + i}" for i in range(BLOCK_SIZE)]
+
+
+def first_free_address(base_ip: str, taken) -> str | None:
+    """First address in the block not in *taken*; None when the block is full.
+
+    One block is reserved per namespace, so several claims in that namespace each
+    take their own address from it.
+    """
+    used = set(taken or [])
+    for address in block_addresses(base_ip):
+        if address not in used:
+            return address
+    return None
+
+
 def _read_allocations() -> dict:
     """Read the allocations dict from the jit-ipam ConfigMap.
 

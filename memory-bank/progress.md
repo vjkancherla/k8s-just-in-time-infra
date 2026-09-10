@@ -12,15 +12,25 @@ Two new defects found (IPAM per-claim IP, postgres module) awaiting a decision.
 - S14 blockers B1/B2 committed 2e74e04; concerns 1-10 addressed in the next commit
 - Concerns verified live: 1 attempt vs 2/100s on a Failed claim; 1 apply + 0 collisions with
   two writers on one claim; `status.message` cleared on recovery; multi-module runner keying
+- IPAM per-claim addressing + claim-count fix, and postgres `sensitive = true`. S13 and S14
+  both re-verified PASS (0 FAIL) after that change
 
 ## In progress
 - S14 re-review against the newest commit
 
 ## Blocked
-- Multi-module namespaces: every claim in a namespace gets the same `allocatedIP`, so redis +
-  postgres in one namespace collide. Blocks S15. Raised, not fixed (it touches S13).
+- Teardown does not remove containers: no module declares a `backend` block, so tofu runs on
+  local state in a throwaway temp dir and a cold destroy returns `destroyed` having done
+  nothing. Raised, not fixed (it changes how every module initialises). Blocks S15.
+- Multi-module namespaces were blocked by per-claim IP collision — now FIXED (see Done).
 
 ## Learnings
+- No module declares a `backend` block, so the runner's `-backend-config` args are ignored:
+  tofu used local state in a temp dir, so cold destroys were no-ops that reported success
+- The runner image has no docker CLI — its `docker rm -f` "safety" is dead code hidden behind
+  `except Exception: pass`
+- S13.sh's `kubectl set env` mutates the live controller (empty RUNNER_TOKEN, WATCH_NAMESPACES
+  =default) and never restores it: re-apply deploy/controller.yaml before running S14
 - The runner returns HTTP 200 for logical failures — read the body, not the status code
 - A CRD `type: object` with no additionalProperties/preserve-unknown-fields prunes that field
 - `allocate_block(ns)` allocates one block per namespace, but callers hand its base IP to every

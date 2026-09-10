@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 
 import kopf
 import requests
-from ipam import allocate_block, release_block
+from ipam import allocate_block, first_free_address, release_block
 from kubernetes import client, config
 
 GROUP = "jit.io"
@@ -121,6 +121,32 @@ def handle_deployment(body, namespace, name, logger, **kwargs):
             provision_infra(api, namespace, claim_name, module, spec)
 
 
+def _allocated_ip(api, ns, name):
+    """Current status.allocatedIP of a claim, or '' when unset."""
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
+    except client.exceptions.ApiException:
+        return ""
+    return (obj.get("status", {}) or {}).get("allocatedIP", "") or ""
+
+
+def _namespace_ips(api, ns, exclude=""):
+    """Addresses already held by the other claims in the namespace."""
+    ips = []
+    try:
+        items = api.list_namespaced_custom_object(
+            GROUP, VERSION, ns, PLURAL).get("items", [])
+    except client.exceptions.ApiException:
+        return ips
+    for item in items:
+        if item.get("metadata", {}).get("name") == exclude:
+            continue
+        ip = (item.get("status", {}) or {}).get("allocatedIP", "")
+        if ip:
+            ips.append(ip)
+    return ips
+
+
 def ensure_claim(api, ns, ns_uid, name, spec):
     body = {
         "apiVersion": f"{GROUP}/{VERSION}",
@@ -150,15 +176,31 @@ def ensure_claim(api, ns, ns_uid, name, spec):
             raise
         logger.info(f"InfraClaim {name} already exists in {ns}")
 
-    # IPAM: allocate a block for this namespace (idempotent — returns existing).
-    base_ip = allocate_block(ns)
-    if base_ip:
+    # IPAM: give this claim its own address from the namespace's block.
+    # allocate_block is only called for a claim that has no address yet, so the
+    # namespace's count tracks real claims rather than handler invocations — it used
+    # to grow on every Deployment event, so release_block never reached zero and the
+    # block was never freed. A claim that already has an address keeps it: moving a
+    # live container's IP would break its EndpointSlice.
+    allocated_ip = _allocated_ip(api, ns, name)
+    if not allocated_ip:
+        base_ip = allocate_block(ns)
+        if not base_ip:
+            logger.error(f"No IP block available for namespace {ns}; "
+                         f"{name} left unprovisioned")
+            return
+        allocated_ip = first_free_address(base_ip, _namespace_ips(api, ns, exclude=name))
+        if not allocated_ip:
+            logger.error(f"Block {base_ip} for namespace {ns} is full; "
+                         f"{name} cannot be given an address")
+            return
         try:
             api.patch_namespaced_custom_object_status(
                 GROUP, VERSION, ns, PLURAL, name,
-                {"status": {"allocatedIP": base_ip}})
-        except client.exceptions.ApiException:
-            pass
+                {"status": {"allocatedIP": allocated_ip}})
+            logger.info(f"InfraClaim {name} allocated {allocated_ip} (block {base_ip})")
+        except client.exceptions.ApiException as e:
+            logger.warning(f"Failed to set allocatedIP on {name}: {e}")
 
 
 def provision_infra(api, ns, name, module, spec):

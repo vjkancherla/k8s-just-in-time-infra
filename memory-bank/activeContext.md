@@ -1,33 +1,31 @@
 Updated: 2026-09-10
 
 ## Current focus
-S14 — blockers fixed and all 10 review concerns acted on. Checkpoint re-run PASS.
-Two NEW defects found by the multi-module probe; awaiting a decision.
+S14 — blockers, concerns 1-10, IPAM per-claim addressing and the postgres module are done;
+S13 + S14 checkpoints PASS. One NEW blocker surfaced (tfstate); decision needed.
 
-## Current work
-Concerns from docs/reviews/S14-findings.md, all acted on (human said proceed):
-- 1 Failed is terminal (resync skips; a Deployment change retries)
-- 2 controller per-claim lock + runner per-(workspace,module) asyncio lock — 1 apply, 0
-  "container already in use" with 2 writers on 1 claim
-- 3 `status.message` cleared on success; 4 params persist (earlier); 5 Phase 3 gates the pod
-  on the JIT Secret (`CreateContainerConfigError`); 6 Phase 2 pings the Service name
-- 7 destroy sends the claim's params (`vars=['ip','maxmemory','name','network']`)
-- 8 runner `_runs` keyed by (workspace, module) — a second module applies itself
-- 9 fake mode writes a marker key so the stale-Ready detector stops looping
-- 10 resync fallback catches transport errors and logs it
-- handle_claim_delete keeps S11 semantics but logs ERROR when destroy fails
-Deployed: runner image rebuilt + container recreated, ConfigMap refreshed, pod restarted.
-Checkpoint: `PASS: S14 real provisioning verified`, 0 FAIL (/tmp/s14-final.log).
+## Done this session (on top of the earlier commits)
+- IPAM: every claim in a namespace used to get the block base. `first_free_address` now gives
+  each claim its own address, and `allocate_block` runs only for a NEW claim so the count
+  tracks claims — it had reached 193 for one namespace and blocks were never freed.
+- postgres module: `output "url"` is now `sensitive = true`; it failed every apply.
+- Verified in one namespace: redis 172.19.0.100 + postgres 172.19.0.101 both Ready, two
+  containers, `count: 2`. S13 `PASS: S13 IPAM verified`; S14 `PASS: S14 real provisioning
+  verified` — 0 FAIL on both (logs /tmp/s13-run.log, /tmp/s14-post-ipam.log).
 
-## New findings (raised, NOT fixed)
-- IPAM: every claim in a namespace gets the SAME allocatedIP (allocate_block returns the
-  block base for all claims). Two modules in one namespace collide — blocks S15.
-- The postgres module cannot be applied at all — `output "url"` needs `sensitive = true`, so
-  `tofu apply failed`. CONCERN 7's cold-destroy path is therefore untestable end to end
-  (the redis plumbing is verified).
-- Fixed while here: deploy/runner.sh had 3 bugs (wrong SCRIPT_DIR; `set -e` aborting on a
-  missing .env key; `docker inspect` matching the image so `up` never started).
+## NEW finding (raised, NOT fixed) — teardown does not remove containers
+No module declares a `backend` block, so the runner's `-backend-config` args are ignored and
+every tofu run uses local state in a throwaway temp dir. State dies with the dir, so a cold
+`tofu destroy` finds nothing, returns `destroyed`, and the container leaks. Reproduced:
+`{"status":"destroyed"}` while `s14-multi-postgres-postgres` stayed up; no state object
+existed for either module key.
+The `docker rm -f` safety cannot compensate — the runner image has no docker CLI and those
+failures are swallowed by `except Exception: pass`. The S14 gate cannot see any of it: it
+asserts on the claim and the Secret, never on the container.
+Also: S13.sh's `kubectl set env` leaves the controller mutated (RUNNER_TOKEN empty,
+WATCH_NAMESPACES=default) — re-apply deploy/controller.yaml before running S14.
 
 ## Next step
-Decide on the two new findings (IPAM per-claim IP; postgres module), then re-review against
-`b9945bd` — the prompt's range is updated. Do not start S15.
+Decide on the tfstate finding (recommend: declare `backend "s3" {}` in the three modules —
+it is exactly what the runner already passes and what systemPatterns documents), then have
+the re-review run against the newest commit. Do not start S15.
