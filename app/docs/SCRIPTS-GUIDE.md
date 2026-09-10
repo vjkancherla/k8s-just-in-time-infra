@@ -41,9 +41,16 @@ result (Flask) ◄────── SELECT / COUNT(*) / GROUP BY ────�
 ```
 
 - **vote**: renders the voting page, assigns a per-browser UUID cookie, enqueues votes to Redis.
-- **redis**: pure FIFO queue (`votes` list). No PVC, no AOF — votes are lost if the Redis *pod* restarts.
+- **redis**: pure FIFO queue (`votes` list), running as a container *outside* the cluster on the k3d
+  network. No AOF — votes in flight are lost if the container restarts (`verify.sh` R9 restarts
+  Postgres, not Redis).
 - **worker**: drains Redis, upserts one row per `voter_id` into Postgres (idempotent).
-- **postgres**: stores the `votes` table (1Gi PVC). StatefulSet → stable pod name `voting-app-postgres-0`.
+- **postgres**: stores the `votes` table, running as a container outside the cluster with a named
+  Docker volume for its data (`voting-a-postgres-data`). There is no StatefulSet and no PVC
+  (build-plan S15). `verify.sh` reads it with `docker exec <ns>-postgres-postgres psql`.
+- **pgadmin**: registers Postgres as a server, also a container outside the cluster; its web UI is
+  published on a host port (5050 by default, overridable per claim through the annotation's
+  `params.http_port`).
 - **result**: queries Postgres, renders counts + percentages, auto-refreshes every 2s.
 
 All traffic reaches the app through an **Ingress** on `vote.localhost`/`result.localhost`, routed via the k3d loadbalancer
@@ -244,15 +251,15 @@ line (`===== N PASS, M FAIL =====`), and appends the same output to `.workflow/v
 | R6 | A new vote appears in the tally within 5s |
 | R7 | `psql \d votes` has `voter_id`, `choice`, `updated_at` |
 | R8 | Stop worker, vote (queue), restart worker → vote drains to Postgres, Redis drained to 0 |
-| R9 | Delete the Postgres pod, wait ready → tally unchanged |
-| R10 | All 5 workloads have liveness AND readiness probes |
-| R11 | All 5 have resource requests AND limits |
+| R9 | `docker restart` the Postgres container, wait `pg_isready` → tally unchanged |
+| R10 | All 3 workloads have liveness AND readiness probes |
+| R11 | All 3 have resource requests AND limits |
 | R12 | `kubectl kustomize` builds; registry image override works |
 | R13 | HTTPS GET to both ingress hosts returns 200 |
-| R14 | 0 NodePort services (all ClusterIP) |
+| R14 | 0 NodePort services in the namespace |
 | R15 | `vote:latest` is arm64; no `ImagePullBackOff` (import mode) / ≥3 registry refs (registry mode) |
 | R16 | `/healthz` (vote, result), worker `--healthcheck`, Redis `PONG`, Postgres `pg_isready` all succeed |
-| R17 | No literal `POSTGRES_PASSWORD` in manifests; Secret `voting-app-postgres` holds the password |
+| R17 | No literal `POSTGRES_PASSWORD` in manifests; the JIT outputs Secret `jit-postgres` holds the password |
 
 **Implementation notes:**
 - Uses `-k`/`--compressed` on all `curl` calls (self-signed certs, gzip).
@@ -264,8 +271,8 @@ line (`===== N PASS, M FAIL =====`), and appends the same output to `.workflow/v
 - Results are written fresh each run: the file is **truncated** at the start (`: > "$OUT"`) and then
   filled in per-check, so each run overwrites (not accumulates) the report.
 
-> **Timing:** R9 waits up to 120s for the Postgres pod to return and polls until both Postgres and the result
-> pod are `Ready` (Postgres has a 30s readiness delay). Don't conclude early if you run checks manually.
+> **Timing:** R9 restarts the Postgres container and polls `pg_isready` inside it for up to 120s, then waits
+> for the `result` Deployment to be Ready again. Don't conclude early if you run checks manually.
 
 ---
 
@@ -343,10 +350,10 @@ REGISTRY=1 REGISTRY_PORT=5001 ./scripts/deploy.sh
 CLUSTER=mycluster ./scripts/deploy.sh
 ```
 
-> `verify.sh` supports a custom `CLUSTER` via `RELEASE` for label selectors and the auto-detected
-> Postgres pod name — **except** R9's readiness loop hardcodes `voting-app-postgres-0` (see §12). For a
-> full `verify.sh` run, keep the default cluster name `voting-app`, or override `PGPOD` and expect R9's
-> readiness wait to reference the default name.
+> `verify.sh` is namespace-scoped: every `kubectl` call takes `-n "$NS"`, and the stateful tiers are read
+> as the containers `<NS>-redis-redis` / `<NS>-postgres-postgres` (override with `REDIS_CONTAINER` /
+> `POSTGRES_CONTAINER`). R9 no longer names a pod, so `NS` is the only thing that has to match the
+> deployment; the k3d cluster name is still fixed at `voting-app` in `deploy.sh`/`cleanup.sh`.
 
 **Clean up / teardown:**
 
@@ -393,9 +400,9 @@ non-default `REGISTRY_PORT`.
 | `ImagePullBackOff` in import mode | Images weren't imported — re-run `./scripts/build.sh`. In registry mode, confirm `REGISTRY=1` was used consistently. |
 | Port 5000 already in use | AirPlay Receiver on macOS. Use `REGISTRY=1 REGISTRY_PORT=5001` (and update the overlay port). |
 | `verify.sh` R15 fails on Rancher Desktop | It falls back to `rdctl shell docker ...` automatically; ensure Docker is reachable via `rdctl`. |
-| R9 flaky (tally changes) | Postgres readiness has a 30s delay and the result pod needs to reconnect. The script waits; manual runs should too. |
+| R9 flaky (tally changes) | `docker restart` takes a few seconds and the `result` pod reconnects on its own. The script polls `pg_isready` in the container and then the Deployment; manual runs should too. |
 | R8 "no vote queued during worker outage" | The worker wasn't fully scaled to 0 before the POST. The script waits up to 30s for worker pods to disappear. |
-| Re-running verify shows stale data | `verify.sh` never resets the `votes` table, so tallies accumulate across runs. Wipe to start clean: `kubectl delete pod voting-app-postgres-0` (PVC keeps data) or delete+recreate the cluster (§13). The **report** file itself is fresh each run.
+| Re-running verify shows stale data | `verify.sh` never resets the `votes` table, so tallies accumulate across runs. Wipe to start clean: `docker exec <ns>-postgres-postgres psql -U postgres -d voting -c "TRUNCATE votes"`, or delete and re-create the namespace. The **report** file itself is fresh each run.
 
 ---
 
@@ -411,7 +418,7 @@ Script-related caveats to be aware of (see `README.md` §6 for the full gaps lis
 | **deploy.sh doesn't wait for the ingress** | Assumes the ingress controller is already running; doesn't verify ingress pods are ready. |
 | **verify.sh not `-e`** | Uses `set -uo pipefail` (no exit-on-error) so all checks run — good, but a failing check doesn't set a non-zero exit code. |
 | **RESOLVED — POSTGRES_DB mismatch** | The database is `voting` everywhere now: `modules/postgres` defaults `postgres_db = "voting"` and every pod sets `PGDATABASE=voting`. `postgres-secret.env` and its `votingdb` placeholder are gone (build-plan S15). |
-| **pgAdmin publishes a fixed host port** | `modules/pgadmin` publishes `http_port` (default 5050) on the host, so two namespaces cannot both run pgAdmin unless the port is overridden per claim — relevant to the two-namespace demo (build-plan S17). |
+| **pgAdmin publishes a fixed host port** | `modules/pgadmin` publishes `http_port` (default 5050) on the host, so two namespaces cannot both run pgAdmin on the default. RESOLVED in the two-namespace demo (build-plan S17): the claim's annotation carries `params.http_port`, and `overlays/voting-b` sets it to 5051. |
 | **verify.sh.bak is stale** | `scripts/verify.sh.bak` is an outdated backup — not executed by any workflow. Safe to delete. |
 
 ---

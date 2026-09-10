@@ -3,8 +3,38 @@ kind: Kustomization
 
 # The second demo environment (build-plan S17): same base, different namespace.
 # J8 asserts that tearing one namespace down leaves the other untouched.
+#
+# Two things cannot be shared with voting-a and are patched here:
+#
+#  1. The ingress hosts. Both namespaces carry the same base Ingress, and two
+#     Ingresses claiming `vote.localhost` route unpredictably through Traefik -
+#     which would make `make verify` in voting-a read voting-b's pods.
+#  2. pgAdmin's host port. The module publishes a fixed host port (5050 by
+#     default), so a second pgAdmin in a second namespace fails with "port is
+#     already allocated". Parameterising the claim's params is what the S15
+#     findings item 10 asked for.
 
 resources:
   - ../../base
 
 namespace: voting-b
+
+patches:
+  - target:
+      kind: Ingress
+      name: voting-app-ingress
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: vote-b.localhost
+      - op: replace
+        path: /spec/rules/1/host
+        value: result-b.localhost
+
+  - target:
+      kind: Deployment
+      name: voting-app-vote
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/jit.infra~1pgadmin
+        value: '{"module":"pgadmin","moduleVersion":"v1","params":{"http_port":5051},"softDeleteTTL":"10m"}'

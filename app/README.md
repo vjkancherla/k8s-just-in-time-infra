@@ -9,6 +9,12 @@
 
 > 👉 **Want to automate the pipeline?** See [`docs/MAKEFILE-GUIDE.md`](docs/MAKEFILE-GUIDE.md) for the `make` targets (build/deploy/verify/teardown), environment-variable passthrough, common workflows, and troubleshooting.
 
+> ⚠️ **The stateful tiers are no longer in the cluster.** Build-plan S15 moved Redis, Postgres and
+> pgAdmin out to Docker containers on the k3d network, provisioned per namespace by the JIT controller
+> and runner; §3 describes that state, and `verify.sh` reads them with `docker exec`. The gap analyses
+> in §6 and the appendices are the **pre-migration** record and still refer to the old Deployments, the
+> PVC and `voting-app-postgres-0`. See `docs/SCRIPTS-GUIDE.md` for the current topology.
+
 ---
 
 ## Table of Contents
@@ -224,7 +230,7 @@ Full R1–R17 verification script. Outputs to `.workflow/verify.md`.
 | R6 | POST vote, poll result page → appears within 5s |
 | R7 | `psql \d votes` matches expected schema |
 | R8 | Stop worker, vote (queue), restart worker → vote drains to Postgres |
-| R9 | Delete Postgres pod, wait ready → tally unchanged |
+| R9 | `docker restart` the Postgres container, wait `pg_isready` → tally unchanged |
 | R10 | All 5 workloads have liveness AND readiness probes |
 | R11 | All 5 have resource requests AND limits |
 | R12 | `kubectl kustomize` + `sed` image override works |

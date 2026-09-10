@@ -279,7 +279,10 @@ else
 fi
 
 # ---- R14: No NodePort services ----
-np="$(kubectl get svc -o json | jq '[.items[] | select(.spec.type == "NodePort")] | length')"
+# Scoped to the namespace (S17): once voting-a and voting-b both exist, an
+# unscoped list only ever saw the current context's namespace and said nothing
+# about the ones the checks were actually made against.
+np="$(kubectl get svc -n "$NS" -o json | jq '[.items[] | select(.spec.type == "NodePort")] | length')"
 if [[ "$np" == "0" ]]; then
   pass "R14" "0 NodePort services"
 else
@@ -293,14 +296,16 @@ if [[ -z "$arch" ]]; then
   arch="$(rdctl shell docker inspect "vote:latest" --format '{{.Architecture}}' 2>/dev/null || echo 'missing')"
 fi
 if [[ "$REGISTRY" == "1" ]]; then
-  reg_refs="$(kubectl get deploy -o json | jq '[.items[].spec.template.spec.containers[].image | select(contains("k3d-voting-app-registry.localhost"))] | length')"
+  reg_refs="$(kubectl get deploy -n "$NS" -o json | jq '[.items[].spec.template.spec.containers[].image | select(contains("k3d-voting-app-registry.localhost"))] | length')"
   if [[ "$arch" == "arm64" && "$reg_refs" -ge 3 ]]; then
     pass "R15" "arm64, ${reg_refs} registry image refs"
   else
     fail "R15" "arch=${arch} registry refs=${reg_refs}"
   fi
 else
-  imagepull="$(kubectl get pods -o json | jq '[.items[] | .status.containerStatuses[]? | select(.state.waiting.reason == "ImagePullBackOff")] | length')"
+  # Same scoping as R14 (S17): an unscoped pod list reads whatever namespace the
+  # context points at, not the one under test.
+  imagepull="$(kubectl get pods -n "$NS" -o json | jq '[.items[] | .status.containerStatuses[]? | select(.state.waiting.reason == "ImagePullBackOff")] | length')"
   if [[ "$arch" == "arm64" && "$imagepull" == "0" ]]; then
     pass "R15" "arm64, no ImagePullBackOff (images imported)"
   else

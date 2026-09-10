@@ -4,6 +4,15 @@ kind: Kustomization
 # One overlay per environment, so the namespace is parameterised rather than
 # baked into the manifests (build-plan S15). voting-a and voting-b are the two
 # namespaces the S17 demo deploys from this same base.
+#
+# No patches here, deliberately:
+#   - voting-a keeps the base's ingress hosts (vote.localhost / result.localhost)
+#     because it is the namespace `make verify` drives, and app/scripts/verify.sh
+#     defaults VOTE_URL/RESULT_URL to those hostnames.
+#   - its pgAdmin keeps the module's default host port 5050.
+# voting-b patches both, because two Ingresses claiming one host route
+# unpredictably through Traefik and a fixed host port cannot be published twice
+# (see overlays/voting-b/kustomization.yaml).
 
 resources:
   - ../../base
