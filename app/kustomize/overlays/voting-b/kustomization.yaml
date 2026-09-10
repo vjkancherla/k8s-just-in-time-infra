@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The second demo environment (build-plan S17): same base, different namespace.
+# J8 asserts that tearing one namespace down leaves the other untouched.
+
+resources:
+  - ../../base
+
+namespace: voting-b

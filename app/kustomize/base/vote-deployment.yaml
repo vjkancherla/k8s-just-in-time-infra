@@ -1,0 +1,72 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: voting-app-vote
+  labels:
+    app.kubernetes.io/name: voting-app
+    app.kubernetes.io/instance: voting-app
+    app.kubernetes.io/component: vote
+  annotations:
+    # JIT: one claim per module. The controller provisions each container
+    # outside the cluster and writes the jit-redis / jit-postgres / jit-pgadmin
+    # Secrets and Services that the pods below consume. Nothing here is a
+    # stateful workload, and no credential is written into the manifest.
+    #
+    # softDeleteTTL is the two-speed cleanup window: deleting this Deployment
+    # orphans the infra, which is then destroyed after 10m; deleting the
+    # *namespace* destroys immediately. It is deliberately long enough to cover
+    # a redeploy inside the window, which reuses the same containers and so
+    # keeps the data.
+    jit.infra/redis: '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+    jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: voting-app
+      app.kubernetes.io/instance: voting-app
+      app.kubernetes.io/component: vote
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: voting-app
+        app.kubernetes.io/instance: voting-app
+        app.kubernetes.io/component: vote
+    spec:
+      containers:
+        - name: vote
+          image: vote:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: voting-app-secret-key
+                  key: SECRET_KEY
+            - name: REDIS_URL
+              value: "redis://jit-redis:6379/0"
+            - name: OPTIONS
+              value: '["Cats","Dogs"]'
+          ports:
+            - containerPort: 80
+              name: http
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi

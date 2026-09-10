@@ -40,19 +40,19 @@ A step with one box ticked is not done. One step per session.
 ## Stage C - Control plane, fake provisioner
 
 - [x] check  - [x] review  **S8** CRD + claim creation, ownerRef → Namespace, finalizer
-- [x] check  - [ ] review  **S9** Resync computes `referencedBy`
+- [x] check  - [x] review  **S9** Resync computes `referencedBy`
 - [x] check  - [x] review  **S10** Soft delete: orphan, expiry, resurrection
 - [x] check  - [x] review  **S11** Hard delete: namespace destroys immediately
-- [ ] check  - [x] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
+- [x] check  - [x] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
 
 ## Stage D - Join the planes
 
 - [x] check  - [x] review  **S13** IPAM: a block of 10 per namespace
-- [x] check  - [ ] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
+- [x] check  - [x] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
 
 ## Stage E - The app
 
-- [ ] check  - [ ] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
+- [x] check  - [ ] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
 - [ ] check  - [ ] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
 - [ ] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
 

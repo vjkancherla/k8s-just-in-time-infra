@@ -1,0 +1,31 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# The application. There is no stateful workload in the cluster: Redis,
+# Postgres and pgAdmin are provisioned out of cluster by the JIT controller and
+# runner (build-plan S15). The pods reach them through the controller-written
+# Services jit-redis, jit-postgres and jit-pgadmin, whose addresses come from
+# the jit-postgres / jit-redis Secrets.
+
+resources:
+  - vote-deployment.yaml
+  - vote-service.yaml
+  - worker-deployment.yaml
+  - result-deployment.yaml
+  - result-service.yaml
+  - ingress.yaml
+
+# The Flask session key is the app's own secret, not a Postgres credential.
+# Postgres credentials are generated per namespace and written by the controller
+# into the jit-postgres Secret, so nothing here carries a database password.
+# The committed value is deliberate for this PoC: it is not a credential, R17
+# only scopes POSTGRES_PASSWORD, and it keeps the vote pod's config declarative.
+# The name is stable (no hash suffix) so consuming pods keep working across
+# re-applies.
+secretGenerator:
+  - name: voting-app-secret-key
+    literals:
+      - SECRET_KEY=dev-only-session-key-not-a-credential
+
+generatorOptions:
+  disableNameSuffixHash: true

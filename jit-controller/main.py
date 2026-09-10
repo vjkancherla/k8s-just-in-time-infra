@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import re
+import secrets
 import threading
 from datetime import datetime, timedelta, timezone
 
@@ -203,6 +204,53 @@ def ensure_claim(api, ns, ns_uid, name, spec):
             logger.warning(f"Failed to set allocatedIP on {name}: {e}")
 
 
+def _jit_secret_data(ns, module):
+    """Decoded data of the jit-<module> Secret, or {} when it does not exist."""
+    core = client.CoreV1Api()
+    try:
+        secret = core.read_namespaced_secret(f"jit-{module}", ns)
+    except client.exceptions.ApiException as e:
+        if e.status == 404:
+            return {}
+        raise
+    data = {}
+    for k, v in (secret.data or {}).items():
+        try:
+            data[k] = base64.b64decode(v).decode()
+        except Exception:
+            data[k] = ""
+    return data
+
+
+def resolve_postgres_credentials(ns, module, params):
+    """Fill in the Postgres credentials the tenant did not supply.
+
+    Returns (params, pending). A non-empty `pending` means a dependency is not
+    ready yet - the caller must leave the claim pending rather than fail it,
+    because Failed is terminal until the Deployment changes.
+
+    The jit-postgres Secret is the single source of truth for the generated
+    password: pgadmin reads it to pair with the database, and a cold destroy
+    reads it before cleanup deletes it. Reusing the stored value keeps the
+    password stable across re-provisioning, so a Postgres container that already
+    holds data is never asked to change its password.
+    """
+    if module == "pgadmin":
+        secret = _jit_secret_data(ns, "postgres")
+        if not secret.get("address"):
+            return params, "waiting for the jit-postgres Secret (the postgres claim is not Ready)"
+        params.setdefault("postgres_url", f"{secret['address']}:{secret.get('port', '5432')}")
+        if not secret.get("POSTGRES_PASSWORD"):
+            return params, "waiting for POSTGRES_PASSWORD in the jit-postgres Secret"
+        params.setdefault("postgres_password", secret["POSTGRES_PASSWORD"])
+        return params, ""
+
+    if module == "postgres" and "postgres_password" not in params:
+        stored = _jit_secret_data(ns, "postgres").get("POSTGRES_PASSWORD")
+        params["postgres_password"] = stored or secrets.token_urlsafe(24)
+    return params, ""
+
+
 def provision_infra(api, ns, name, module, spec):
     """Call the runner to provision real infra, then create Secret + Service + EndpointSlice."""
     try:
@@ -260,6 +308,14 @@ def provision_infra(api, ns, name, module, spec):
     runner_params["ip"] = allocated_ip
     runner_params["network"] = DOCKER_NETWORK
 
+    # Postgres and pgadmin need the generated password; pgadmin also needs the
+    # database's address. A missing dependency leaves the claim pending so the
+    # resync retries - see resolve_postgres_credentials.
+    runner_params, pending = resolve_postgres_credentials(ns, module, runner_params)
+    if pending:
+        logger.info(f"provision_infra: {name} pending - {pending}")
+        return
+
     # Call the runner.
     runner_resp = call_runner(module, spec.get("moduleVersion", "v1"), ns, runner_params)
     if runner_resp is None:
@@ -280,6 +336,15 @@ def provision_infra(api, ns, name, module, spec):
 
     outputs = runner_resp.get("outputs", {})
     logger.info(f"Runner returned {len(outputs)} outputs for {name}: {list(outputs.keys())[:5]}")
+
+    # Record the generated password in the outputs Secret. It cannot travel back
+    # as a module output: the runner reads `tofu output` in plain text, where a
+    # sensitive value renders as "<sensitive>" (the postgres module's `url`
+    # output is already in that state). The controller knows the value it sent,
+    # so it writes that.
+    if module == "postgres" and runner_params.get("postgres_password"):
+        outputs["POSTGRES_PASSWORD"] = runner_params["postgres_password"]
+
     _write_k8s_resources(api, ns, name, module, outputs, allocated_ip)
 
 
@@ -580,6 +645,21 @@ def destroy_infra(namespace, module, allocated_ip="", extra_params=None):
     params["network"] = DOCKER_NETWORK
     if allocated_ip:
         params["ip"] = allocated_ip
+
+    # Cold destroy: the claim's recorded params may predate the generated
+    # password, because the controller generates it rather than the tenant. The
+    # Secret still exists - cleanup_k8s_resources runs only after a successful
+    # destroy - so read the value back from there. Once it is gone (postgres
+    # destroyed before pgadmin) a placeholder lets tofu evaluate the config and
+    # remove the container: deleting a container does not need the real password.
+    if module in ("postgres", "pgadmin"):
+        secret = _jit_secret_data(workspace, "postgres")
+        params.setdefault("postgres_password",
+                          secret.get("POSTGRES_PASSWORD") or "unknown-at-destroy")
+        if module == "pgadmin" and secret.get("address"):
+            params.setdefault("postgres_url",
+                              f"{secret['address']}:{secret.get('port', '5432')}")
+
     logger.info(f"Destroy {workspace}/{module} vars={sorted(params)}")
     try:
         r = requests.delete(url, json={"module": module, "params": params},
