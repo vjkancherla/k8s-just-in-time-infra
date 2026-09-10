@@ -20,10 +20,39 @@ FINALIZER = "jit.infra/teardown"
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(name)s %(levelname)s %(message)s")
 logger = logging.getLogger("jit-controller")
+# kopf reconfigures the root logger, which silently drops this logger's INFO records
+# (its own "kopf.objects" logger still prints). Without this line the handler's
+# decisions - claim creation, IP allocation, provisioning - are invisible in the pod
+# log, which is exactly what S17 needed to debug a duplicate-address allocation.
+logger.setLevel(logging.INFO)
 
 # Guards the per-claim lock registry below.
 _claim_locks_guard = threading.Lock()
 _claim_locks = {}
+
+# Guards the per-namespace IPAM registry below.
+_ns_locks_guard = threading.Lock()
+_ns_locks = {}
+
+
+def namespace_lock(namespace):
+    """Process-local lock for one namespace's IP allocation.
+
+    Allocation is read-then-write: read the other claims' allocatedIP, pick the first
+    free address, then patch this claim's status. Without a lock spanning all three
+    steps, two claims in one namespace read the same "taken" set and are handed the
+    same address - and they really do run concurrently, because kopf fires both
+    on.create and on.update for a single Deployment apply, each iterating every claim.
+    The loser then fails to start its container ("Address already in use") and the
+    claim goes Failed. Found by S17's J1. Single controller replica is assumed, as for
+    claim_lock.
+    """
+    with _ns_locks_guard:
+        lock = _ns_locks.get(namespace)
+        if lock is None:
+            lock = threading.Lock()
+            _ns_locks[namespace] = lock
+        return lock
 
 RUNNER_URL = os.environ.get("RUNNER_URL", "")
 RUNNER_TOKEN = os.environ.get("RUNNER_TOKEN", "")
@@ -183,25 +212,27 @@ def ensure_claim(api, ns, ns_uid, name, spec):
     # to grow on every Deployment event, so release_block never reached zero and the
     # block was never freed. A claim that already has an address keeps it: moving a
     # live container's IP would break its EndpointSlice.
-    allocated_ip = _allocated_ip(api, ns, name)
-    if not allocated_ip:
-        base_ip = allocate_block(ns)
-        if not base_ip:
-            logger.error(f"No IP block available for namespace {ns}; "
-                         f"{name} left unprovisioned")
-            return
-        allocated_ip = first_free_address(base_ip, _namespace_ips(api, ns, exclude=name))
+    # The read-then-write below has to be atomic per namespace: see namespace_lock.
+    with namespace_lock(ns):
+        allocated_ip = _allocated_ip(api, ns, name)
         if not allocated_ip:
-            logger.error(f"Block {base_ip} for namespace {ns} is full; "
-                         f"{name} cannot be given an address")
-            return
-        try:
-            api.patch_namespaced_custom_object_status(
-                GROUP, VERSION, ns, PLURAL, name,
-                {"status": {"allocatedIP": allocated_ip}})
-            logger.info(f"InfraClaim {name} allocated {allocated_ip} (block {base_ip})")
-        except client.exceptions.ApiException as e:
-            logger.warning(f"Failed to set allocatedIP on {name}: {e}")
+            base_ip = allocate_block(ns)
+            if not base_ip:
+                logger.error(f"No IP block available for namespace {ns}; "
+                             f"{name} left unprovisioned")
+                return
+            allocated_ip = first_free_address(base_ip, _namespace_ips(api, ns, exclude=name))
+            if not allocated_ip:
+                logger.error(f"Block {base_ip} for namespace {ns} is full; "
+                             f"{name} cannot be given an address")
+                return
+            try:
+                api.patch_namespaced_custom_object_status(
+                    GROUP, VERSION, ns, PLURAL, name,
+                    {"status": {"allocatedIP": allocated_ip}})
+                logger.info(f"InfraClaim {name} allocated {allocated_ip} (block {base_ip})")
+            except client.exceptions.ApiException as e:
+                logger.warning(f"Failed to set allocatedIP on {name}: {e}")
 
 
 def _jit_secret_data(ns, module):
@@ -454,7 +485,16 @@ def create_jit_service(namespace, name, port):
         logger.info(f"Created Service {name} in {namespace}")
     except client.exceptions.ApiException as e:
         if e.status == 409:
-            logger.info(f"Service {name} already exists in {namespace}")
+            # A Service that already exists keeps its old ports. Re-state the spec:
+            # the port comes from the module's own output, and a stale value (the
+            # pgadmin module gained a `port` output in S17, before which the Service
+            # advertised redis's default 6379) would leave the EndpointSlice
+            # pointing at a closed port.
+            try:
+                core.patch_namespaced_service(name, namespace, svc)
+                logger.info(f"Updated Service {name} in {namespace}")
+            except client.exceptions.ApiException as pe:
+                logger.warning(f"Failed to update Service {name}: {pe}")
         else:
             logger.warning(f"Failed to create Service {name}: {e}")
 
@@ -652,13 +692,20 @@ def destroy_infra(namespace, module, allocated_ip="", extra_params=None):
     # destroy - so read the value back from there. Once it is gone (postgres
     # destroyed before pgadmin) a placeholder lets tofu evaluate the config and
     # remove the container: deleting a container does not need the real password.
+    #
+    # postgres_url needs the same treatment and did not have it: the pgadmin module
+    # requires it with no default, so once postgres's Secret had been cleaned up the
+    # destroy failed on "No value for required variable" and the claim stayed
+    # Deleting forever (found by S17's J6, which destroys both in the same sweep).
     if module in ("postgres", "pgadmin"):
         secret = _jit_secret_data(workspace, "postgres")
         params.setdefault("postgres_password",
                           secret.get("POSTGRES_PASSWORD") or "unknown-at-destroy")
-        if module == "pgadmin" and secret.get("address"):
-            params.setdefault("postgres_url",
-                              f"{secret['address']}:{secret.get('port', '5432')}")
+        if module == "pgadmin":
+            params.setdefault(
+                "postgres_url",
+                f"{secret['address']}:{secret.get('port', '5432')}"
+                if secret.get("address") else "unknown-at-destroy:5432")
 
     logger.info(f"Destroy {workspace}/{module} vars={sorted(params)}")
     try:
@@ -885,7 +932,17 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
         except client.exceptions.ApiException:
             pass
 
-    release_block(namespace)
+    # Release the namespace's IP block once, not twice. A claim the TTL sweep already
+    # tore down is in phase Deleting and has had its block released; removing the
+    # finalizer there deletes the object, which fires this handler again. Releasing
+    # again drives the namespace's claim count to zero while claims still hold
+    # addresses, so the block is handed to another namespace and two containers end up
+    # with the same IP ("Address already in use"). Found by S17's J1.
+    phase = (body.get("status", {}) or {}).get("phase", "")
+    if phase == "Deleting":
+        logger.info(f"Claim {name} was already swept; not releasing its IP block twice")
+    else:
+        release_block(namespace)
 
 
 if __name__ == "__main__":
