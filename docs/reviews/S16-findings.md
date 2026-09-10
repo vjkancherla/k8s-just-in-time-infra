@@ -163,13 +163,15 @@ Items 1–3 are out of this step's design. Items 4–5 are the cost of a count-b
 
 ## Verdict
 
-### CONCERNS
+### CONCERNS — resolved in `3cdd4b6`
 
-The code rework is correct and the checkpoint passes. Two concerns, neither blocking:
+The code rework is correct and the checkpoint passes. Two concerns were raised and both fixed:
 
-1. **The helpers' silent-empty pattern** (item 3): `psql_q`/`redis_q` return empty on any failure, and R3/R8 can produce a false PASS on empty strings. S16.sh's container preconditions protect against the primary failure mode, but a mid-run container crash would bypass them. **Recommendation:** S17's verification script should add explicit non-empty guards on helper outputs, or the helpers should return a sentinel (e.g., `__ERROR__`) that no check can mistake for data.
+1. **~~The helpers' silent-empty pattern~~** (item 3): **Fixed.** R2, R3, R6 and R8 now assert their reads are non-empty before comparing, naming the container in the failure message. R4, R7 and R16 compare against literals and fail on their own. R8's worker-restore (`scale --replicas=1`) now runs on every path, not just the happy drain branch — an early `fail` would otherwise leave the app with no consumer for the rest of the run.
 
-2. **build-plan.md's "eleven unaffected" is stale** (item 2): The real count is seven. The todo.md review section already documents this accurately; the build-plan text should be corrected or footnoted.
+2. **~~build-plan.md's "eleven unaffected" is stale~~** (item 2): **Fixed.** A dated correction is in place: the table lists seven rows, the shared helpers also invalidated R3, R4, R6 and R7, and eleven of seventeen checks were invalidated in total. Six were genuinely unaffected.
 
-Both are addressed by S17's existing flags and the lessons learned. No blockers.
+**Verdict: CLEAR**
+
+Both concerns addressed in the same step. No new issues. S17 may proceed.
 

@@ -53,7 +53,7 @@ A step with one box ticked is not done. One step per session.
 ## Stage E - The app
 
 - [x] check  - [x] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
-- [x] check  - [ ] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
+- [x] check  - [x] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
   - `bash scripts/checks/S16.sh` → exit 0 on three consecutive runs (/tmp/s16-run1-keep.log,
     /tmp/s16-run2.log, /tmp/s16-run3.log): `PASS: ===== 17 PASS, 0 FAIL =====`,
     `PASS: no StatefulSet and no PVC in default`.
