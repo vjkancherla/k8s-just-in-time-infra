@@ -3,12 +3,15 @@
 **Step:** S14
 **Goal:** real containers, driven by the controller.
 
-**Commit range:** 9184a7b
+**Commit range:** 9184a7b → 2e74e04 → b9945bd (step, blocker fixes, concerns)
 
 **Files changed:**
 - jit-controller/main.py (modified)
+- deploy/crd/infraclaim.yaml (modified — status.conditions, spec.params preservation)
 - deploy/controller.yaml (modified)
-- scripts/checks/S14.sh (new)
+- deploy/runner.sh (modified — three deploy-script bug fixes)
+- jit-runner/main.py (modified — now tracked; per-run lock, (workspace, module) keying)
+- scripts/checks/S14.sh (new; Phase 2 uses the Service name, Phase 3 gates on the JIT Secret)
 - docs/todo.md (check box ticked)
 
 **Checkpoint to run:** `bash scripts/checks/S14.sh`
@@ -24,5 +27,11 @@
 8. Note the checkpoint fix: Step 2 and Step 4 called `kubectl delete deployment "$DEPLOY_NAME"` without `-n "$NAMESPACE"`, so they acted on namespace `default` and `s14-deploy` in `s14-test` was never deleted. With `--ignore-not-found` the no-op was silent, the controller correctly kept `referencedBy=['s14-deploy']`, and the claim could never leave `Ready`. Judge whether fixing the gate here was legitimate, and whether the diff still earns its keep now that the workaround it motivated is gone.
 9. S14 requires conflicting params between two Deployments to resolve first-writer-wins with a warning condition naming both. The checkpoint has no phase covering this and no reviewer-visible evidence for it. Treat as unverified - call it out.
 10. Write docs/reviews/S14-findings.md with CLEAR / BLOCKED / CONCERNS
+11. Judge two NEW defects found after your previous pass, both outside the earlier findings:
+    (a) every InfraClaim in a namespace receives the SAME `status.allocatedIP`, because
+    `allocate_block(ns)` returns one block per namespace and each claim is handed its base —
+    so two modules in one namespace collide. (b) the postgres module cannot be applied at
+    all: `output "url"` refers to sensitive values without `sensitive = true`. Decide whether
+    either belongs to S14 or should block S15.
 
 Do not start S15.

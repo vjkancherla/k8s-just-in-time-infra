@@ -29,4 +29,5 @@ Checkpoint: `PASS: S14 real provisioning verified`, 0 FAIL (/tmp/s14-final.log).
   missing .env key; `docker inspect` matching the image so `up` never started).
 
 ## Next step
-Human decision on the two new findings, then re-review the new commit. Do not start S15.
+Decide on the two new findings (IPAM per-claim IP; postgres module), then re-review against
+`b9945bd` — the prompt's range is updated. Do not start S15.
