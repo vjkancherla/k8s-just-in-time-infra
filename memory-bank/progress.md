@@ -1,40 +1,40 @@
-Updated: 2026-10-09
+Updated: 2026-09-10
 
 ## Working
-S16: `make verify` = 17 PASS, 0 FAIL against out-of-cluster infra; checkpoint exit 0
-(/tmp/s16-postfix2.log). `default` runs the migrated app on JIT-provisioned containers.
+S17 is complete: the two-namespace demo, `make jit-verify` J1-J11 and `make verify` in voting-a all
+green in one `bash scripts/checks/S17.sh` run, and the duplicate-IP race fixed with repeat evidence
+rather than a single lucky run.
 
 ## Done (verified)
-- S0-S13: checkpoints pass, committed
-- S14: real provisioning via the runner; review CLEAR, one item UNVERIFIED
-- S15: exit 0 on three runs; 3 containers; vote -> result; tally 0 -> 1; review CONCERNS, all
-  four addressed (52170d3)
-- S16: the R-check rework (e8c2b4e) plus the review's two concerns (3cdd4b6). The negative
-  test (/tmp/s16-negative2.log) proves the failure path now fails loudly instead of comparing
-  two empty reads, and leaves the worker running
+- S0-S16: checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
+- J1: voting-a deploys 3 claims Ready and 3 containers on three distinct IPs from one block of 10 -
+  `.100/.101/.102` in both complete suite runs, and 3/3 in the race test that repeats it 3x.
+- J2: R1-R17 = 17 PASS, 0 FAIL in voting-a; 3 Secrets + Services + EndpointSlices.
+- J3: pgAdmin HTTP 200 on :5050, `/pgadmin4/servers.json` registers `<postgres-ip>:5432`, Service
+  `jit-pgadmin` port 80.
+- J4/J5: deleting `vote` orphans postgres+pgadmin with `expiresAt` and keeps all 3 containers
+  running; the worker still drains a vote; redeploying inside the window reuses the container ids
+  and the tally survives.
+- J6: past the 2m window the sweep removes the containers, Secrets, Services, EndpointSlices and the
+  postgres data volume, while redis stays up.
+- J8: `kubectl delete ns voting-b` removes 3 containers and their claims in ~30s, no TTL armed,
+  voting-a untouched.
+- J9: controller killed, `vote` deleted, controller restarted - the resync still marks
+  postgres+pgadmin Orphaned and keeps redis Ready.
+- J10: with the runner stopped, redis+postgres go Failed with a readable message, pgadmin has no
+  phase, no container starts and no pod becomes Ready.
+- J11: `ns/voting-a/{redis,postgres,pgadmin}/terraform.tfstate` plus an `ns/voting-b/` prefix, and
+  every key matches `ns/<ns>/<module>/terraform.tfstate`.
 
 ## In progress
-- none — the S16 review box is the human's to tick (CONCERNS with no blockers, both
-  addressed); S17 must not start until then
+Nothing - the next action is the S17 review, not another implementation step.
 
 ## Blocked
-- none
+- S17's `review` box: only a different model's `CLEAR` in `docs/reviews/S17-findings.md` ticks it.
 
 ## Learnings
-- "Rework the six checks the migration invalidates" was an incomplete inventory: R3/R4/R6/R7
-  broke through the shared `psql_q`/`redis_q` helpers and R7's direct exec. Grep for the
-  helper, not the requirement number.
-- A stale gate's green can be latency, not health: S00.sh passed only while the pre-migration
-  app happened to still be running in `default`.
-- A guard is not a fix if it skips the cleanup: R8's new early `fail` left the worker at 0
-  replicas because the restore lived in the branch it bypassed.
-- `int(outputs.get("port", "6379"))` gives `jit-pgadmin` redis's port; the pgadmin module has
-  no `port` output.
-- kustomize refuses an overlay whose `resources:` reaches a directory containing the overlay;
-  use a sibling subtree (base/ + overlays/ -> ../../base)
-- R12 seds the registry hostname in instead of building the overlay, so only
-  `kubectl kustomize <overlay>` catches a broken one
-- `tofu output` renders a sensitive value as "<sensitive>" — never route a secret through a
-  module output while the runner parses plain text
-- Failed is terminal until the Deployment changes; leave a claim pending, not failed
-- Heredocs are flaky in this tool shell; write the payload to a /tmp file instead
+- The duplicate IP had two causes: allocation locked per claim instead of per namespace, and a double
+  `release_block` (the ledger's `count: 2` against 3 live claims, not arithmetic noise).
+- A green suite run does not prove a race is fixed; a repeat test does.
+- A check that has never executed is not a passing check - J11 hid both a 403 and a missing PASS.
+- Assert the PASS line, not the exit code: both failing runs exited 0.
