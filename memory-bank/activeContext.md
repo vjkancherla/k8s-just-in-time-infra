@@ -22,7 +22,7 @@ unticked in docs/todo.md.
 - FAIL (expected): S00.sh — stale assertion, documented in docs/todo.md flags
 
 ## Commits
-S16 rework · S16 review prompt · 1a4fccf S15 concerns · bf77a21 S15 migration
+e8c2b4e S16 rework · abcafd6 S16 review prompt · 1a4fccf S15 concerns · bf77a21 S15 migration
 
 ## Next step
 The human runs the S16 review with a different model; S17 starts only after CLEAR.
