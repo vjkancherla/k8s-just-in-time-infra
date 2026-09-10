@@ -65,10 +65,28 @@ A step with one box ticked is not done. One step per session.
 - Database name is `voting`. `votingdb` was the never-populated placeholder.
 - Avoid host port 5000 (AirPlay).
 
+## Flags carried forward (verdicts from reviews)
+
+- **S17:** pgAdmin publishes a fixed host port (`http_port`, default 5050), so `voting-a`
+  and `voting-b` cannot both run it — the second claim goes `Failed`. Parameterise
+  `http_port` per claim via annotation params, or run pgAdmin in one namespace.
+  *(S15 findings item 10)*
+- **S16:** `app/scripts/verify.sh` is intentionally failing until R2, R8, R9, R10, R11,
+  R16 and R17 are reworked. Do not change R1, R3-R7 or R12-R15 — if one of those fails,
+  the migration broke something real.
+- **S16/S17:** `scripts/checks/S00.sh` asserts 5 workloads and 17 PASS and is stale from
+  S15. It still prints PASS today because `default` runs the pre-migration app and it
+  parses a stale `verify.md` — do not read that as a green signal.
+- **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
+  sensitive output. Until then the controller writes the postgres password itself.
+
 ## Review
 
 *(fill in after S16: what changed from the design, and why)*
 
 ## Lessons
 
-*(anything reworked goes in `lessons.md` as a rule that prevents the repeat)*
+Rules that prevent a repeat live in [lessons.md](./lessons.md). The first entries come
+from S15: the kustomize overlay cycle, secrets routed through module outputs,
+pending-versus-Failed on a dependency that is not ready, and the carried-forward pgAdmin
+port and committed-SECRET_KEY notes.

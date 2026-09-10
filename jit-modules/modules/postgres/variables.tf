@@ -14,7 +14,7 @@ variable "network" {
 }
 
 variable "postgres_password" {
-  description = "Password for the postgres superuser."
+  description = "Password for the postgres superuser. Supplied by the controller, which owns and persists it — see the note in main.tf before changing how this is populated."
   type        = string
   sensitive   = true
 }
