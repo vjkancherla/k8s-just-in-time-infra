@@ -52,8 +52,13 @@ A step with one box ticked is not done. One step per session.
 
 ## Stage E - The app
 
-- [x] check  - [ ] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
-- [ ] check  - [ ] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
+- [x] check  - [x] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
+- [x] check  - [ ] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
+  - `bash scripts/checks/S16.sh` → exit 0 on three consecutive runs (/tmp/s16-run1-keep.log,
+    /tmp/s16-run2.log, /tmp/s16-run3.log): `PASS: ===== 17 PASS, 0 FAIL =====`,
+    `PASS: no StatefulSet and no PVC in default`.
+  - Deploying the migrated app into `default` made `scripts/checks/S00.sh` fail honestly
+    (`FAIL: voting-app-redis not ready`, exit 1) — see the flags below.
 - [ ] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
 
 ## Notes carried from the app's own docs
@@ -71,18 +76,36 @@ A step with one box ticked is not done. One step per session.
   and `voting-b` cannot both run it — the second claim goes `Failed`. Parameterise
   `http_port` per claim via annotation params, or run pgAdmin in one namespace.
   *(S15 findings item 10)*
-- **S16:** `app/scripts/verify.sh` is intentionally failing until R2, R8, R9, R10, R11,
-  R16 and R17 are reworked. Do not change R1, R3-R7 or R12-R15 — if one of those fails,
-  the migration broke something real.
-- **S16/S17:** `scripts/checks/S00.sh` asserts 5 workloads and 17 PASS and is stale from
-  S15. It still prints PASS today because `default` runs the pre-migration app and it
-  parses a stale `verify.md` — do not read that as a green signal.
+- **S17:** the controller writes the JIT Service port as `int(outputs.get("port", "6379"))`.
+  The pgadmin module exposes no `port` output and listens on 80, so `jit-pgadmin`
+  advertises 6379 (redis's default). No R-check touches pgAdmin, so nothing notices.
+  *(found in S16)*
+- **S17:** `scripts/checks/S00.sh` now fails honestly — `FAIL: voting-app-redis not ready
+  (ready='' desired='')`, exit 1 — because `default` runs the migrated app. That is the
+  stale assertion from S15 surfacing, not a regression; its header documents it and
+  re-opening a frozen gate was rejected in S15 findings item 9. Decide in S17 whether to
+  re-open or retire it.
 - **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
   sensitive output. Until then the controller writes the postgres password itself.
 
 ## Review
 
-*(fill in after S16: what changed from the design, and why)*
+**S16 — what changed from the design, and why.**
+
+- The build plan named six rows (R2, R8, R9, R10, R11, R16, R17); the migration also
+  invalidated R3, R4, R6 and R7, which read Postgres/Redis through the shared `psql_q` /
+  `redis_q` helpers — and R7 called `kubectl exec "$PGPOD"` directly. The helpers and R7
+  changed; the four bodies did not, so their assertions are unaltered.
+- R9's post-restart wait no longer names a pod: it polls `pg_isready` inside the container
+  and then waits for the `result` Deployment to be Ready. SCRIPTS-GUIDE §9 named the
+  hardcoded `voting-app-postgres-0` as the reason `CLUSTER` was not fully overridable.
+- R10/R11 are namespace-scoped (`kubectl get deploy -n "$NS"`) as well as counted at 3:
+  the JIT controller's own Deployment also runs in `default`, so a cluster-wide count
+  would be wrong regardless of the 5→3 change.
+- R17 reads the `jit-postgres` outputs Secret instead of the app's own (now deleted)
+  `voting-app-postgres` Secret.
+- `app/docs/MANUAL-TESTING-GUIDE.md` was updated where it mirrored the reworked checks — a
+  guide whose copy-paste commands name a deleted pod is worse than no guide.
 
 ## Lessons
 

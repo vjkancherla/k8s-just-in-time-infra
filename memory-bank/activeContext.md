@@ -1,30 +1,38 @@
 Updated: 2026-10-09
 
 ## Current focus
-S15 review returned CONCERNS with no blockers (docs/reviews/S15-findings.md). All four concerns are
-addressed in 52170d3. Waiting on the human to tick the S15 review box.
+S16 is implemented and its checkpoint passes (exit 0, three runs). `make verify` is 17 PASS
+again against out-of-cluster infra. Waiting on the S16 review; S15's review box is still
+unticked in docs/todo.md.
 
 ## Done (verified this pass)
-- S15: app migrated off in-cluster state. `bash scripts/checks/S15.sh` -> exit 0 on three runs
-  (/tmp/s15-verify.log, /tmp/s15-final.log). Three containers, vote -> result, tally 0 -> 1.
-- Review concerns: a note in the postgres module against owning the password (item 5), S00.sh
-  annotated rather than re-opened (item 9), pgadmin port + SECRET_KEY recorded as flags (items 10, 11).
-- docs/lessons.md created — the file build-plan.md's "Done" and docs/todo.md both point at.
+- S16: `app/scripts/verify.sh` reworked — `psql_q`/`redis_q` read the stateful tiers with
+  `docker exec` (`default-redis-redis`, `default-postgres-postgres`); R9 is
+  `docker restart` + `pg_isready`; R10/R11 count 3 and are namespace-scoped; R16 posts into
+  the container; R17 reads the `jit-postgres` outputs Secret. R7 also changed (it called
+  `kubectl exec "$PGPOD"` directly); R3/R4/R6 came along through the helpers. R1, R5 and
+  R12-R15 untouched.
+- The migrated app now runs in `default` (pre-migration app torn down there), so S00.sh
+  fails honestly as its stale header predicted.
+- `app/docs/MANUAL-TESTING-GUIDE.md` updated wherever it mirrored a reworked check.
+- New S17 flag: the controller's Service port default gives `jit-pgadmin` 6379.
 
 ## Checkpoints (final code)
-- PASS: S15 exit 0 · S13 (/tmp/s13-b.log) · S14 (/tmp/s14-backend.log)
+- PASS: S16 (exit 0 x3, /tmp/s16-run{1-keep,2,3}.log) · S15 (/tmp/s15-final.log)
+- FAIL (expected): S00.sh — stale assertion, documented in docs/todo.md flags
 
 ## Commits
-52170d3 review concerns · 3bd9806 S15 review prompt · bf77a21 S15 migration · c2e01a0 S-1 checks
+S16 rework · S16 review prompt · 1a4fccf S15 concerns · bf77a21 S15 migration
 
 ## Next step
-The human ticks S15's review box in docs/todo.md, then S16 reworks the R-checks the migration broke.
+The human runs the S16 review with a different model; S17 starts only after CLEAR.
 
 ## Watch out
-- S00.sh passes misleadingly today: it inspects the pre-migration app in `default` and parses a stale
-  verify.md. It starts failing when the migrated app is deployed (S16).
-- S00.sh is now tracked; scripts/checks/S01-S07.sh are still untracked.
-- pgadmin's fixed host port 5050 blocks S17's two namespaces — see docs/todo.md "Flags carried forward".
-- docs/reviews/REVIEW-PROMPT-TEMPLATE.md still does not exist.
+- `jit-pgadmin` Service advertises 6379 (controller default) — S17's, invisible to R1-R17.
+- pgadmin's fixed host port 5050 still blocks S17's two namespaces.
+- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` still does not exist; S16's prompt is house-style.
+- `app/scripts/build.sh`, `app/vote/`, `app/worker/` and `scripts/checks/S01-S07.sh` remain
+  untracked.
+
 
 

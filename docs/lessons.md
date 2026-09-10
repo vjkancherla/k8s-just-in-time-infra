@@ -37,9 +37,33 @@ will restore the second. Its header now states the staleness. Note the trap: the
 is latent while the old deployment is still running, so the gate passes misleadingly —
 and it parses `verify.md` instead of running `verify.sh`, so a stale artifact satisfies it.
 
+## From S16 — reworking the R-checks (`docs/reviews/S16-findings.md`)
+
+**"Rework the six checks the migration invalidates" understates the change: grep for the
+shared helper, not the requirement number.** The build plan named R2, R8, R9, R10, R11,
+R16 and R17. R3, R4, R6 and R7 were also broken — not in their own bodies, but because
+they read the stateful tiers through `psql_q` / `redis_q`, and R7 called
+`kubectl exec "$PGPOD"` directly. Rewriting the two helpers to `docker exec` fixed four
+checks without touching them; R7 needed one line. The step's own list was a good start and
+an incomplete inventory.
+
+**A stale gate that passes is more dangerous than one that fails.** `scripts/checks/S00.sh`
+asserts "all 5 workloads Ready" and passed for as long as the pre-migration app happened to
+still be running in `default`. Deploying the S15 manifests there produced
+`FAIL: voting-app-redis not ready (ready='' desired='')`, exit 1 — the first honest result
+it had given since S15. Its header predicted exactly this, which is why annotating a frozen
+gate (rather than editing it) is the right repair: the record of the staleness is what makes
+the failure readable.
+
 ---
 
 ## Carried forward — do not lose these
+
+**A module output that does not exist cannot be defaulted away.**
+`jit-controller/main.py` writes the Service port as `int(outputs.get("port", "6379"))`, so
+`jit-pgadmin` advertises **6379** — redis's default — because the pgadmin module exposes no
+`port` output and listens on 80. No R-check touches pgAdmin, so it is invisible today.
+Owner: **S17**, where the pgadmin claim starts mattering.
 
 **pgAdmin publishes a fixed host port (`http_port`, default 5050).** Two namespaces
 cannot both run pgAdmin; the second claim goes `Failed`. Owner: **S17**, which deploys
