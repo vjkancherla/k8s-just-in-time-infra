@@ -1,9 +1,7 @@
 Updated: 2026-10-09
 
 ## Current focus
-S16's review came back CONCERNS with no blockers (e17afc7). Both concerns are fixed (3cdd4b6)
-and the checkpoint re-passes 17 PASS. Waiting on the human to tick S16's review box in
-docs/todo.md.
+S16 review is CLEAR (5dd3352). Both concerns fixed, review box ticked. S17 can start.
 
 ## Done (verified this pass)
 - S16: `app/scripts/verify.sh` reworked for out-of-cluster infra - helpers use `docker exec`,
@@ -17,14 +15,14 @@ docs/todo.md.
 - `app/docs/MANUAL-TESTING-GUIDE.md` updated wherever it mirrored a reworked check.
 
 ## Checkpoints (final code)
-- PASS: S16 (exit 0 x4, /tmp/s16-postfix2.log) · S15 (/tmp/s15-final.log)
+- PASS: S16 (exit 0 x5, /tmp/s16-postfix2.log + this re-review) · S15 (/tmp/s15-final.log)
 - FAIL (expected): S00.sh — stale assertion, documented in docs/todo.md flags
 
 ## Commits
-3cdd4b6 fixes · e17afc7 findings · e8c2b4e rework · abcafd6 prompt
+5dd3352 CLEAR · 3cdd4b6 fixes · e17afc7 CONCERNS · e8c2b4e rework
 
 ## Next step
-The human ticks S16's review box in docs/todo.md; S17 starts only after that.
+S17 starts — two namespaces, `make jit-verify` J1-J11, Makefile targets.
 
 ## Watch out
 - `jit-pgadmin` advertises 6379 (controller port default) and pgadmin's fixed host port 5050
@@ -32,6 +30,8 @@ The human ticks S16's review box in docs/todo.md; S17 starts only after that.
 - `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` still does not exist; S16's prompt is house-style.
 - `app/scripts/build.sh`, `app/vote/`, `app/worker/` and `scripts/checks/S01-S07.sh` remain
   untracked.
+- `app/README.md` and `app/docs/SCRIPTS-GUIDE.md` still describe the pre-migration topology.
+- R14 cluster-wide and R15 unscoped need `-n "$NS"` for S17.
 
 
 
