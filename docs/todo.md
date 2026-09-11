@@ -99,6 +99,32 @@ A step with one box ticked is not done. One step per session.
     `jit-modules/modules/pgadmin/variables.tf` requires with no default: the documented manual destroy
     failed with `No value for required variable: postgres_url`. Step 2 now states what each module
     requires and where each value comes from.
+  - **Review (a different model, a fresh task): CONCERNS, no blockers** — `docs/reviews/S17-findings.md`,
+    with its own live checkpoint run at c95c051 (11 PASS, then 17 PASS). All five concerns and what each
+    became:
+    1. `jit-down` left the IPAM ledger behind → **fixed**: `scripts/jit-down.sh` deletes `jit-ipam`
+       after the claims have been destroyed, so the ledger it leaves is the truthful one. Verified by
+       running the whole bounce — the ConfigMap is gone after `jit-down`, and comes back as
+       `{"voting-a": {"offset": 0, "count": 3}}` once the claims are re-created.
+    2. The escape hatch did not mention the ledger → **fixed**: README step 3 gives the one-liner that
+       drops the namespace's entry and names `make jit-down` as the blunt version.
+    3. `var.share_dir`'s `/tmp` default silently reproduces the original pgadmin bug for standalone use
+       → **documented where it bites**: the escape hatch now says to run tofu on the host and pass
+       `-var share_dir="$HOME/.jit-host-share"`, where `deploy/runner.sh` writes the file. Requiring
+       the variable is the production answer and would break the escape hatch as written, so it is
+       recorded as a flag, not taken.
+    4. The build-plan Done item "a cold `make destroy`" was never exercised → **open**, with the reason
+       found by reading it: `make destroy` deletes the k3d cluster, which takes `jit-controller:latest`
+       with it, and `scripts/jit-up.sh` assumes the image is already imported. See the flag below.
+    5. Tenant visibility of an `Orphaned` claim → **open by design**: the design note lists it under
+       what production needs, and the platform operator's `kubectl get infraclaims` stays the only
+       view. S17 changed nothing here.
+  - Running the bounce found something the review did not: **`make jit-up` does not bring a tenant
+    back.** kopf does not replay create for Deployments that already existed, and an unchanged
+    `kubectl apply` is a no-op, so after `jit-down` + `jit-up` the claims have to be re-triggered by
+    touching the annotated Deployment (`kubectl rollout restart deploy/<name> -n <ns>`). Documented in
+    `scripts/jit-down.sh` and the README's step 4; verified by running it (three claims Ready and the
+    ledger rebuilt from empty).
 
 ## Notes carried from the app's own docs
 
@@ -137,6 +163,19 @@ All five S17 verdicts below are **resolved in S17**, each with the assertion tha
   past S17 unchanged — no S17 checkpoint runs it.
 - **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
   sensitive output. Until then the controller writes the postgres password itself.
+- **The cold path is unverified: `cd app && make destroy` → `make all` → `make jit-up` →
+  `make jit-verify`.** Open from S17's review (concern 4). Reading it, the first step deletes the k3d
+  cluster, which takes `jit-controller:latest` out of the cluster's containerd, and `scripts/jit-up.sh`
+  does not import it — the image was "built and imported by the earlier stages (S8)", and after a cold
+  destroy that is no longer true. Expected to need `k3d image import jit-controller:latest -c voting-app`
+  by hand (the hint `jit-up.sh` prints) or an import step inside `jit-up.sh`. **Not run**: it deletes
+  the cluster, so it is the human's call. Related: `make jit-up` does not re-create a tenant's claims —
+  touch the annotated Deployment (see the S17 record above).
+- **`var.share_dir` keeps a `/tmp` default, deliberately.** S17 review concern 3. The default is only
+  correct when tofu runs on the Docker daemon's host; the pgadmin module is silently wrong without it
+  (Docker creates an empty directory instead of mounting `servers.json`). Requiring the variable is the
+  production answer, but it would force the escape hatch in the README to pass it as well, so S17 chose
+  a documented default plus a note in the escape hatch. Revisit before any real deployment.
 
 ## Review
 

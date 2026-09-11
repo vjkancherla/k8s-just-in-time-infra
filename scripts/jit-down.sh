@@ -15,9 +15,26 @@ set -euo pipefail
 # means the claim objects (and their history) survive a stack bounce. `make
 # jit-up` re-applies it anyway.
 #
+# The IPAM ledger IS removed. `jit-ipam` is created and patched only by the
+# controller, so it is not in deploy/controller.yaml and the delete below never
+# sees it; a ledger outliving the claims it counted makes a namespace's count
+# drift permanently upward, so its block is never freed and the address range
+# shrinks by ten per bounced stack. Every claim is destroyed first, so an empty
+# ledger is the truthful state. (S17 review, `docs/reviews/S17-findings.md` 1.)
+#
 # This removes the stack, not the tenants. A namespace that still runs the voting
 # app keeps its Deployments; their pods stay in Init because the jit-redis /
 # jit-postgres Services the controller wrote are gone with it.
+#
+# Their claims are gone too, and `make jit-up` will not recreate them on its own:
+# kopf does not replay on.create for objects that already existed, and an unchanged
+# `kubectl apply` produces no event for the controller to see. Touch the annotated
+# Deployment to bring a tenant back -
+#
+#   kubectl rollout restart deployment/<name> -n <ns>
+#
+# - which re-creates the claims and re-provisions from the MinIO state. Verified by
+# running the full bounce (jit-down, jit-up, touch, three claims Ready again).
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$ROOT"
@@ -68,4 +85,10 @@ echo "removed the controller"
 docker rm -f minio >/dev/null 2>&1 || true
 echo "removed the runner and MinIO"
 
-echo "PASS: jit stack down (the InfraClaim CRD is left in place; make jit-up re-applies it)"
+# 5. The IPAM ledger. Every claim was destroyed above and the controller is gone, so
+#    the truthful ledger is an empty one. It is not in deploy/controller.yaml - the
+#    controller creates it on first allocation - which is why step 3 missed it.
+kubectl delete configmap jit-ipam -n "$CTRL_NS" --ignore-not-found >/dev/null 2>&1 || true
+echo "removed the IPAM ledger"
+
+echo "PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)"

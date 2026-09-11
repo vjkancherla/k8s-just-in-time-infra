@@ -205,13 +205,36 @@ tofu destroy -auto-approve -var name=<ns>-<module> -var network=k3d-voting-app -
 #    The controller takes both from the jit-postgres Secret: POSTGRES_PASSWORD, and
 #    address/port joined as "<address>:<port>". Add -var http_port=<n> for pgadmin
 #    only if it was not published on the module's default 5050.
+#    Run this on the host, not inside the jit-runner container, and pass
+#    -var share_dir="$HOME/.jit-host-share": pgadmin's module bind-mounts
+#    ${var.share_dir}/pgadmin-servers-<name>.json, and that directory is where
+#    deploy/runner.sh writes it - visible to the Docker daemon, which the runner's own
+#    filesystem is not. Docker silently creates an empty *directory* for a bind source
+#    the daemon cannot see, which is why pgAdmin would come up with no server
+#    registered (var.share_dir, fixed in S17). A destroy removes the container either
+#    way; the path has to match what the module wrote only so the plan is coherent.
 
 # 3. Take the finalizer off, which lets the claim and its namespace go.
 kubectl patch infraclaim <ns>-<module> -n <ns> --type=json \
   -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]'
+#    Patch the finalizer off and the controller never runs its release, so the
+#    namespace's IP block stays in the jit-ipam ledger and is lost to the next
+#    namespace that needs one. Drop the entry by hand, or let step 4 remove the whole
+#    ledger with the stack:
+kubectl get configmap jit-ipam -n default -o json \
+  | jq --arg ns '<ns>' '.data.allocations |= (fromjson | del(.[$ns]) | tojson)' \
+  | kubectl replace -f -
 
 # 4. Or leave the stack entirely.
 make jit-down
+#    That takes the stack, the claims and the IPAM ledger with it, but not the tenant
+#    namespaces: their Deployments survive, and nothing re-creates the claims on the
+#    way back up - kopf does not replay create for objects that already existed, and an
+#    unchanged `kubectl apply` is a no-op. After `make jit-up`, touch the annotated
+#    Deployment and the claims come back:
+#      kubectl rollout restart deployment/<name> -n <ns>
+#    (Verified by running the bounce: jit-down, jit-up, touch -> three claims Ready and
+#    the ledger rebuilt as {"<ns>": {"offset": 0, "count": 3}}.)
 ```
 
 A destroy that fails for the *same* reason twice is a design problem wearing an
