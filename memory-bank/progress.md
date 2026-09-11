@@ -1,23 +1,20 @@
 Updated: 2026-09-11
 
 ## Working
-S17 is reviewed, its concerns are fixed or flagged, the demo namespace convention is pinned in code, and the
-demo runs again. One cold-start blocker is open, and it is a design question.
+**S17 is complete.** The cold start runs green from a genuine `make destroy`, the teardown semantics are
+settled and in the code, and the demo runs on the cluster that cold run rebuilt.
 
 ## Done (verified)
-- Checkpoint at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL` (`docs/evidence/s17-run-postfix.log`);
-  `make verify` re-run green after every later change.
-- `jit-down` clears the IPAM ledger and waits for its claims; the bounce is green (`s17-jitdown-bounce.log`).
-- The R-checks no longer abort on an empty `OPTS` or let R5 pass vacuously
-  (`s17-rchecks-negative-options.log`: 10 PASS, 7 FAIL with honest reasons).
-- Cold-start traps: `jit-up` imports the controller image; `jit-down` survives no CRD; a bare `make all`
-  deploys to `voting-a`.
-- Demo healthy: three claims Ready, ledger `{"voting-a": {"offset": 0, "count": 3}}`, three pods 1/1.
+- Cold path green end to end (`docs/evidence/s17-cold-path-green.log`): `make all` `17 PASS, 0 FAIL`,
+  `make jit-verify` `11 PASS, 0 FAIL`, three claims Ready, ledger `{"voting-a": {"offset": 0, "count": 3}}`.
+- Gate on the final code (`docs/evidence/s17-final-gate.log`); `make verify` `17 PASS` in `voting-a`.
+- `jit-down` now takes each swept container's Postgres volume with it (`scripts/jit-down.sh` step 2), so no
+  volume outlives the password that opens it — the rule the destroy path always followed (J6 records it).
+- Earlier S17: ledger cleared on `jit-down`; R-checks guard an empty `OPTS`; `jit-up` imports the controller
+  image; `jit-down` survives no CRD; a bare `make all` deploys to `voting-a`.
 
 ## Broken (confirmed by execution)
-- **A cold start cannot bring the app up**: `init-db` gets
-  `FATAL: password authentication failed for user "postgres"` because the postgres volume outlives its
-  container while the controller regenerates the password (`docs/evidence/s17-cold-path.log`).
+- None open. The cold start was the last one — four defects, all fixed and re-run green.
 
 ## Suspected (read, not reproduced)
 - `ipam.py` has no lock of its own; `namespace_lock` is process-local.
@@ -25,13 +22,13 @@ demo runs again. One cold-start blocker is open, and it is a design question.
 - A claim can be `Ready` with no container behind it; the stale-Ready check only looks for the Secret.
 
 ## In progress
-Nothing. Waiting on the volume-vs-password decision.
+Nothing.
 
 ## Blocked
-- The cold-start Done item (design question above) and the review box (the human's tick).
+- The 18 review boxes in `docs/todo.md` are the human's to tick; S17's is unticked like the rest.
 
 ## Learnings
-- Run the failure path: the cold start found four defects, one of them in the fix made the same day.
-- Two stores of one image, two homes for one app, one volume outliving its password - the expensive bugs
-  here are all "the same thing in two places".
-- Read the comments before spending a cluster: two of the four contradictions were already written down.
+- Settle a "design question" by reading the code first: three files already stated this answer, and the real
+  defect was the one path that broke the rule the others followed.
+- A password written inside the volume it opens cannot be rescued by persisting the password elsewhere.
+- Run the failure path: the cold start found four defects, one of them in a fix made the same day.

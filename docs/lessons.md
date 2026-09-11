@@ -224,8 +224,18 @@ things no warm run can show:
   `clean-slate`) remove module containers with `docker rm -f`, which is not a `tofu destroy`, so the
   `docker_volume` stays — while the controller writes a *new* password into `jit-postgres` for the new
   stack. Postgres ignores `POSTGRES_PASSWORD` on a data directory that already exists, so the container
-  is up, the Secret is right, and the app can never authenticate. Either the volume goes with the
-  container or the password must be persisted; nothing in the PoC decides that.
+  is up, the Secret is right, and the app can never authenticate.
+
+  **Settled: the volume goes with its container.** The code had already decided it — `tofu destroy`
+  destroys the `docker_volume` alongside the container, every recorded J6 run answers `postgres data
+  volume removed`, and `jit-modules/modules/postgres/main.tf` carries an explicit "do not add a
+  `random_password` that replaces `var.postgres_password`". What was missing is that `jit-down`'s
+  fallback sweep broke the rule precisely when the destroy could not run — no CRD, no state, no Secret,
+  which is the state that made the run cold in the first place. Persisting the password instead would
+  not have rescued the volume that already existed either: its password is written inside the data
+  directory and nowhere else, so it needs a volume reset regardless. `scripts/jit-down.sh` step 2 now
+  removes `<container>-data` with the container, and `docs/evidence/s17-cold-path-green.log` is the
+  same script ending `17 PASS, 0 FAIL` then `11 PASS, 0 FAIL` from a cold `make destroy`.
 
 The run also caught a bug in that same day's `jit-down` fix: `remaining="$(kubectl get infraclaims …
 | wc -l)"` under `set -euo pipefail`. In a fresh cluster there is no CRD, so kubectl fails, `pipefail`

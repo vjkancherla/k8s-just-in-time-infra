@@ -159,8 +159,9 @@ failure, unlike `make verify`, whose report always exits 0. The four checks that
 ### From cold
 
 `make destroy` deletes the cluster, so a cold start is two passes of the app's own loop. Every
-line below is load-bearing, and the whole path is recorded in `docs/evidence/s17-cold-path.log`
-along with the two runs that got it wrong first:
+line below is load-bearing: the green run is `docs/evidence/s17-cold-path-green.log`, and the three
+runs before it - `s17-cold-path-gaps.log`, `-order.log`, `s17-cold-path.log` - each record what the
+next missing line cost.
 
 ```bash
 make jit-down                                  # the module containers live on the host, not the cluster
@@ -183,7 +184,10 @@ Three things surprise people here, and all three are real:
   go first. That first `deploy` is only there to create the cluster.
 - **`make destroy` leaves the module containers running.** They live on the Docker daemon, outside the
   cluster, so they survive it - and their addresses have to be free before the next stack's empty IPAM
-  ledger hands out the same ones. `make jit-down` is what removes them.
+  ledger hands out the same ones. `make jit-down` is what removes them, together with the Postgres
+  volume each one owns: a data directory carries its own password, so a volume that outlives its
+  container makes the next stack's fresh password unusable
+  (`FATAL: password authentication failed for user "postgres"`).
 - **Tenants never run in `default`.** The base kustomization carries no namespace, so a bare
   `kubectl apply -k app/kustomize` (or a `make deploy` with `KUSTOMIZE_DIR` pointing at the base) puts
   the app in `default`, whose Ingress then claims `vote.localhost` - the host the `voting-a` demo owns -
@@ -195,9 +199,10 @@ Three things surprise people here, and all three are real:
 
 Deliberate omissions, not oversights.
 
-- **No snapshot before destroy.** `kubectl delete ns` takes the Postgres volume with it.
-  The soft-delete window covers the accident that matters; the deliberate act is
-  unprotected on purpose, so the failure is visible rather than theoretical.
+- **No snapshot before destroy.** `kubectl delete ns` takes the Postgres volume with it, and so
+  does any teardown: a container removal takes the volume it owns, because the data directory is
+  where that password lives. The soft-delete window covers the accident that matters; the
+  deliberate act is unprotected on purpose, so the failure is visible rather than theoretical.
 - **The runner holds the Docker socket.** That is the "cloud credential" of this
   simulation, and it is why nothing here should ever point at anything you care about.
 - **Synchronous provisioning.** Containers start in seconds. Real RDS takes 5-15 minutes

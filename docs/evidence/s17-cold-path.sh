@@ -16,6 +16,15 @@
 #   3. The cluster is not the only state: the JIT module containers live on the *host*, and
 #      `make destroy` does not touch them (the JIT stack's own `make jit-down` does). Left
 #      behind, they hold the addresses the new, empty IPAM ledger is about to hand out again.
+#   4. And so does the Postgres data volume a leftover container owns. Postgres ignores
+#      POSTGRES_PASSWORD on a data directory that already exists, so a volume that outlives
+#      its container carries the *old* password while the new stack writes a fresh one into
+#      jit-postgres: `init-db` dies on `FATAL: password authentication failed for user
+#      "postgres"`. That is where the first full run stopped (s17-cold-path.log). The rule is
+#      that the volume goes with its container - `tofu destroy` already obeys it, and
+#      `scripts/jit-down.sh` step 2 now obeys it for the containers it sweeps by name. The run
+#      after the fix is s17-cold-path-green.log; every state line prints the volumes so a
+#      leaked one is visible rather than inferred.
 set -uo pipefail
 cd /Users/vkancherla/Downloads/Devops-Projects/k8s-just-in-time-infra
 
@@ -31,8 +40,13 @@ run() {  # run <label> <logfile> <command string> - never aborts; the exit code 
 }
 clusters() { k3d cluster list 2>/dev/null | awk 'NR>1{print $1}' | tr '\n' ' '; }
 jit_containers() { docker ps -a --format '{{.Names}}' | grep -cE -- '-(redis-redis|postgres-postgres|pgadmin-pgadmin)$' || true; }
+# The volume is the part that bit: it outlives the container sweep and carries the
+# *old* password inside the data directory, so the next stack's fresh password is
+# ignored and the app cannot authenticate. Printed on every state line for that
+# reason - a run that leaves one behind should be visible, not inferred.
+jit_volumes() { docker volume ls --format '{{.Name}}' | grep -E -- '-postgres-postgres-data$' | tr '\n' ' ' || true; }
 state() {
-  log "    clusters=[$(clusters)] jit-containers=$(jit_containers) claims=$(kubectl get infraclaims -A --no-headers 2>/dev/null | wc -l | tr -d ' ') ledger=$(kubectl get cm jit-ipam -n default -o jsonpath='{.data.allocations}' 2>/dev/null || echo '<none>')"
+  log "    clusters=[$(clusters)] jit-containers=$(jit_containers) jit-volumes=[$(jit_volumes)] claims=$(kubectl get infraclaims -A --no-headers 2>/dev/null | wc -l | tr -d ' ') ledger=$(kubectl get cm jit-ipam -n default -o jsonpath='{.data.allocations}' 2>/dev/null || echo '<none>')"
 }
 
 log "phase=$PHASE"
@@ -49,7 +63,7 @@ run "2  cd app && make deploy   (creates the cluster; stops until the CRD exists
 state
 
 if [[ "$PHASE" == "gaps" ]]; then
-  run "3  make jit-down   (the JIT stack's own teardown, which is what removes the module containers)" \
+  run "3  make jit-down   (the module containers outlive the cluster; this removes them)" \
                                  /tmp/cold-3-jitdown.log "make jit-down"
   state
   run "4  make jit-up"           /tmp/cold-4-jitup.log   "make jit-up"
@@ -64,7 +78,7 @@ else
   # bare `make all` lands the app in `default` with an Ingress claiming vote.localhost -
   # and the suite's PREREQ then refuses to run, correctly, because one namespace per demo
   # host. The first run of this script is kept as s17-cold-path-order.log for exactly that.
-  run "3  make jit-down   (the module containers outlive the cluster; this removes them)" \
+  run "3  make jit-down   (the module containers and their volumes outlive the cluster; this removes both)" \
                                  /tmp/cold-3a-jitdown.log "make jit-down"
   state
   run "4  make jit-up"           /tmp/cold-4-jitup.log   "make jit-up"

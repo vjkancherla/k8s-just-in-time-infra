@@ -4,16 +4,18 @@ set -euo pipefail
 # scripts/jit-down.sh - tear the JIT stack down.
 #
 #   make jit-down   ->   remove the controller, the runner, MinIO, and any
-#                        leftover JIT containers
+#                        leftover JIT containers and the volumes they own
 #
 # Order is load-bearing. The claims are torn down *first*, while the runner is
 # still up, so the containers they own are destroyed properly rather than left
 # behind; only then do the runner and the controller go away. Anything the
-# destroy missed is removed by name at the end. The claims are also *waited* for:
-# their deletion is asynchronous, the controller owns a finalizer on them, and a
-# stack that comes down mid-destroy leaves them Terminating (see the note at step
-# 1 - they return as Ready with no container behind them and block the tenant's
-# recovery).
+# destroy missed is removed by name at the end, together with the volume that
+# container owns - a Postgres data directory carries its password inside itself,
+# so a container-less volume is what breaks the next stack's authentication. The
+# claims are also *waited* for: their deletion is asynchronous, the controller
+# owns a finalizer on them, and a stack that comes down mid-destroy leaves them
+# Terminating (see the note at step 1 - they return as Ready with no container
+# behind them and block the tenant's recovery).
 #
 # The CRD is deliberately NOT deleted: it is cheap to re-apply, and leaving it
 # means the claim objects (and their history) survive a stack bounce. `make
@@ -28,7 +30,10 @@ set -euo pipefail
 #
 # This removes the stack, not the tenants. A namespace that still runs the voting
 # app keeps its Deployments; their pods stay in Init because the jit-redis /
-# jit-postgres Services the controller wrote are gone with it.
+# jit-postgres Services the controller wrote are gone with it. What does *not*
+# survive is the module data: a real destroy has always taken the postgres volume
+# with its container (J6 records "postgres data volume removed"), and step 2 now
+# takes it too when the destroy could not run.
 #
 # Their claims are gone too, and `make jit-up` will not recreate them on its own:
 # kopf does not replay on.create for objects that already existed, and an unchanged
@@ -96,9 +101,25 @@ else
   echo "InfraClaims gone; the infra they owned is destroyed"
 fi
 
-# 2. Leftover JIT containers. Module containers are named "<ns>-<module>-<module>"
-#    (jit-modules/modules/*/main.tf), so the pattern is exact - it cannot match an
-#    unrelated container that merely ends in "-redis".
+# 2. Leftover JIT containers, and the volumes they own. Module containers are named
+#    "<ns>-<module>-<module>" (jit-modules/modules/*/main.tf), so the pattern is
+#    exact - it cannot match an unrelated container that merely ends in "-redis".
+#
+#    The volume goes with the container, because a Postgres data directory carries
+#    its password inside itself: Postgres ignores POSTGRES_PASSWORD on a data
+#    directory that already exists, and this sweep runs precisely when no state and
+#    no Secret are left to read the password from. Left behind, that volume is
+#    reattached by the next stack, which writes a *new* password into jit-postgres -
+#    the container comes up, the Secret is right, and the app can never authenticate
+#    (`FATAL: password authentication failed for user "postgres"`, the cold-start
+#    blocker recorded in docs/evidence/s17-cold-path.log). The primary path already
+#    takes the volume: `tofu destroy` destroys the docker_volume with the container
+#    (jit-modules/modules/postgres/main.tf), and J6 reports "postgres data volume
+#    removed". This is the fallback sweep obeying the same rule.
+#
+#    The volume is "<container>-data": the module names it "<var.name>-postgres-data"
+#    with var.name "<ns>-postgres". redis and pgadmin declare no volume at all, so
+#    the inspect below is what keeps this from guessing.
 leftovers="$(docker ps -a --format '{{.Names}}' \
   | grep -E -- '-(redis-redis|postgres-postgres|pgadmin-pgadmin)$' || true)"
 if [[ -n "$leftovers" ]]; then
@@ -106,6 +127,10 @@ if [[ -n "$leftovers" ]]; then
     [[ -n "$c" ]] || continue
     docker rm -f "$c" >/dev/null 2>&1 || true
     echo "removed leftover container $c"
+    if docker volume inspect "${c}-data" >/dev/null 2>&1; then
+      docker volume rm -f "${c}-data" >/dev/null 2>&1 || true
+      echo "removed leftover volume ${c}-data"
+    fi
   done <<< "$leftovers"
 fi
 

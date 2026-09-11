@@ -19,7 +19,9 @@
   non-zero on failure). Added by S17 and committed; `bash scripts/checks/SNN.sh` works too.
 - Test the lifecycle: `make jit-verify` → `scripts/verify-jit.sh`, J1-J11, writes
   `.workflow/verify-jit.md`. Green as of S17 (see memory-bank/activeContext.md).
-- Stack: `make jit-up` (MinIO + runner + CRD + controller), `make jit-down`.
+- Stack: `make jit-up` (MinIO + runner + CRD + controller); `make jit-down` (sweeps the module containers
+  and takes their Postgres volumes with them — a container removal takes its volume, because the data
+  directory is where that password lives).
 - Update controller code: `kubectl create configmap jit-controller-code -n default
   --from-file=main.py=jit-controller/main.py --from-file=ipam.py=jit-controller/ipam.py
   --dry-run=client -o yaml | kubectl apply -f -`, then force-delete the pod (subPath mounts

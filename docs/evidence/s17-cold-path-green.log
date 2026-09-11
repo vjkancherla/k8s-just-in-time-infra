@@ -1,0 +1,43 @@
+[15:35:02] phase=full
+[15:35:02]     clusters=[voting-app ] jit-containers=3 jit-volumes=[voting-a-postgres-postgres-data ] claims=3 ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[15:35:02] --- 1  cd app && make destroy
+[15:35:07]     exit 0
+    | [36mINFO[0m[0001] Successfully deleted cluster voting-app!     
+    | 
+    | Cleanup complete.
+[15:35:08]     clusters=[] jit-containers=3 jit-volumes=[voting-a-postgres-postgres-data ] claims=0 ledger=<none>
+[15:35:08] --- 2  cd app && make deploy   (creates the cluster; stops until the CRD exists)
+[15:35:40]     exit 2
+    |        re-run this. On a cold host this script is also what creates the cluster, so
+    |        it stops here by design and the second run is the one that applies the app.
+    | make: *** [deploy] Error 1
+[15:35:40]     clusters=[voting-app ] jit-containers=3 jit-volumes=[voting-a-postgres-postgres-data ] claims=0 ledger=<none>
+[15:35:40] --- 3  make jit-down   (the module containers and their volumes outlive the cluster; this removes both)
+[15:35:41]     exit 0
+    | removed the runner and MinIO
+    | removed the IPAM ledger
+    | PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+[15:35:41]     clusters=[voting-app ] jit-containers=0 jit-volumes=[] claims=0 ledger=<none>
+[15:35:41] --- 4  make jit-up
+[15:35:55]     exit 0
+    | deployment "jit-controller" successfully rolled out
+    | controller Ready; watching: 
+    | PASS: jit stack up - MinIO, runner running, CRD, controller
+[15:35:56]     controller: jit-controller-68c4b8d6dc-8lgbx 1/1 Running 
+[15:35:56] --- 5  kubectl create ns voting-a   (the overlay sets a namespace; it does not create one)
+[15:35:56]     exit 0
+    | namespace/voting-a created
+[15:35:56] --- 6  cd app && make all   (bare: the Makefile now defaults to the voting-a overlay)
+[15:38:28]     exit 0
+    | R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+    | 
+    | ===== 17 PASS, 0 FAIL =====
+[15:38:28]     verify: ===== 17 PASS, 0 FAIL =====
+[15:38:28] --- 7  make jit-verify
+[15:49:39]     exit 0
+    | J11 PASS jit-state holds ns/voting-a/{redis,postgres,pgadmin}/terraform.tfstate and an ns/voting-b/ prefix, every key ns/<ns>/<module>/terraform.tfstate
+    | 
+    | ===== 11 PASS, 0 FAIL =====
+[15:49:39]     suite: ===== 11 PASS, 0 FAIL =====
+[15:49:40]     clusters=[voting-app ] jit-containers=3 jit-volumes=[voting-a-postgres-postgres-data ] claims=3 ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[15:49:40] done

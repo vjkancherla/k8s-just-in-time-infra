@@ -1,40 +1,40 @@
 Updated: 2026-09-11
 
 ## Current focus
-S17 is reviewed (CONCERNS, no blockers) and its concerns are dispositioned: 1-3 fixed and run-verified, 4
-narrowed to one open design question, 5 open by design. The decision **tenants never run in `default`** is
-applied and committed, and the demo is healthy (three claims Ready, three pods 1/1).
+**S17 is complete.** Its review concerns are dispositioned, the cold start runs green end to end, and the
+build plan's last Done item is ticked. The demo is healthy on the cluster that cold run rebuilt: three
+claims Ready, ledger `{"voting-a": {"offset": 0, "count": 3}}`, three pods 1/1.
 
 ## Blocked
-- **The cold start, on one design question.** It now reaches provisioning and stops at
-  `FATAL: password authentication failed for user "postgres"`: the postgres data volume survives the
-  container sweep (`docker rm -f`, not a `tofu destroy`) while the controller writes a fresh password for
-  the new stack. Decide: the volume goes with its container, or the password is persisted.
-  Evidence: `docs/evidence/s17-cold-path.log`.
-- The review box in `docs/todo.md` — the human ticks it.
+- Nothing. The 18 review boxes in `docs/todo.md` are the human's to tick; S17's is unticked like the rest.
 
 ## Done (verified)
-- The concern fixes: `jit-down` clears the ledger; the escape hatch names it; `share_dir` documented.
-- The bounce and the two defects it found: `s17-jitdown-bounce.log` vs `-race.log`; the `OPTS` guard
-  (`s17-rchecks-negative-options.log`).
-- Cold-start traps fixed: `jit-up` imports the controller image (16s, was 180s of ImagePullBackOff);
-  `jit-down` survives a cluster with no CRD; a bare `make all` lands in `voting-a`.
-- The retry-path release: `leak-probe3*` against `leak-probe2*`.
+- **The cold start, closed** (`docs/evidence/s17-cold-path-green.log`): destroy → deploy (creates the
+  cluster, stops by design) → `jit-down` → `jit-up` → `make all` (`17 PASS, 0 FAIL`) → `make jit-verify`
+  (`11 PASS, 0 FAIL`), start to finish on a cold host.
+- **The last blocker settled, not patched: a container removal takes its volume.** `tofu destroy` always
+  did (J6: `postgres data volume removed`; the module's comment forbids the `random_password`
+  alternative); `jit-down`'s by-name sweep now removes `<container>-data` too — `scripts/jit-down.sh`
+  step 2. Persisting the password could not have rescued the existing volume: its password lives in the
+  data directory.
+- Gate on the final code: `bash scripts/checks/S17.sh`, ends on its own last PASS line
+  (`docs/evidence/s17-final-gate.log`).
+- Earlier in S17: the ledger clear, the `OPTS` guard, the image import, the `voting-a` pin, the IP release.
 
 ## Checkpoints (final code)
-- PASS: S17, `scripts/checks/S17.sh` (exit 0) at c95c051. Since then `scripts/jit-*.sh`, `app/Makefile` and
-  `app/scripts/{verify,deploy}.sh` changed; the gate runs none of them, and `make verify` — the half it does
-  run — is green on the new files.
+- PASS: S17, `docs/evidence/s17-final-gate.log` — J1-J11 `11 PASS`, R1-R17 `17 PASS` in `voting-a`. Code
+  since c95c051: `scripts/jit-down.sh` (the sweep's volume), `docs/evidence/s17-cold-path.sh`, docs.
 
 ## Commits
-c95c051 teardown fix; 8e7bae5 review; c811966 ledger; f3a7989 jit-down wait; b4ccdaa OPTS; 60f48e4 cold
-tolerance; 9f72b30 voting-a alignment; then the docs and evidence for all of it (HEAD).
+HEAD before this work: ab00fd8. This task: `jit-down` takes the swept container's volume, the cold-path
+evidence, and the docs that recorded the question as open.
 
 ## Next step
-Resume: decide the volume-vs-password question (`docs/todo.md` flag, evidence `docs/evidence/s17-cold-path.log`), then re-run `bash docs/evidence/s17-cold-path.sh full`.
+Nothing queued for S17. Next, from `docs/todo.md`: the reviewer's open items (tenant visibility of an
+`Orphaned` claim; `var.share_dir`'s `/tmp` default) or the S-1 frozen-gate question.
 
 ## Watch out
 - Latent: `ipam.py` has no lock; `_allocated_ip` cannot tell a failed read from "no address"; a claim can sit
   `Ready` with no container (the stale-Ready detector needs the Secret to be gone).
 - Untracked but referenced by README/todo/systemPatterns: `docs/jit-infra-poc.md`, `docs/jit-infra-flows.md`,
-  `docs/01-jit-poc.md`, `docs/decisions/`.
+  `docs/01-jit-poc.md`, `docs/decisions/`. Also untracked: `terraform.tfstate%`, from a bad redirect.

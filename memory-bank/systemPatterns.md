@@ -18,4 +18,9 @@ GC + finalizer → immediate destroy). MinIO holds per-namespace Terraform state
 ## Decisions
 - Authoring on the Deployment (tenant-writable); ownership via ownerReference → Namespace
   (survives churn). See docs/decisions/.
+- Tenants never run in `default`; `default` holds the control plane (controller + `jit-ipam`).
+- A container removal takes its volume. `tofu destroy` always did (J6 records `postgres data volume
+  removed`); `jit-down`'s by-name sweep now matches it. A Postgres data directory carries its own
+  password, so a volume outliving its container makes the next stack's fresh password unusable —
+  the cold start's last blocker (`docs/evidence/s17-cold-path-green.log`).
 

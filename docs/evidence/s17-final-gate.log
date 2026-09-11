@@ -1,0 +1,20 @@
+PASS: root Makefile declares jit-up
+PASS: root Makefile declares jit-verify
+PASS: root Makefile declares jit-down
+PASS: root Makefile declares check
+PASS: make check STEP=NN routes to scripts/checks/SNN.sh
+  J9  PASS controller was down when vote was deleted; the restarted resync still marked postgres+pgadmin Orphaned and redis stayed Ready
+  J10 PASS runner stopped: redis+postgres Failed with a message, pgadmin '<no phase>' (pending), no container started, no pod Ready - runner restored
+  J11 PASS jit-state holds ns/voting-a/{redis,postgres,pgadmin}/terraform.tfstate and an ns/voting-b/ prefix, every key ns/<ns>/<module>/terraform.tfstate
+  
+  ===== 11 PASS, 0 FAIL =====
+PASS: make jit-verify exited 0 and wrote .workflow/verify-jit.md
+PASS: J1-J11 all PASS in .workflow/verify-jit.md
+PASS: voting-a runs the migrated app on three containers, no StatefulSet, no PVC
+  R15  PASS     arm64, no ImagePullBackOff (images imported)
+  R16  PASS     vote/result/worker/redis/postgres all healthy
+  R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+  
+  ===== 17 PASS, 0 FAIL =====
+PASS: ===== 17 PASS, 0 FAIL ===== in voting-a
+PASS: S17 - two namespaces, J1-J11 and the R-checks both green

@@ -516,11 +516,17 @@ The four that matter:
 
 ## Done
 
-- [ ] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:
+- [x] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:
       `make all` now targets the `voting-a` overlay (`app/Makefile` defaults `NS`/`KUSTOMIZE_DIR` to it),
       tenants never run in `default`, and the cold order needs `make jit-down` plus a cluster-creating
-      `make deploy` before `jit-up`. The recipe and its three traps are in the README's "From cold"; the
-      runs that established it are in `docs/evidence/s17-cold-path*.log`.
+      `make deploy` before `jit-up`. The recipe and its traps are in the README's "From cold"; the runs
+      that established it are in `docs/evidence/s17-cold-path*.log`. **Run green and committed**:
+      `docs/evidence/s17-cold-path-green.log` — `17 PASS, 0 FAIL` then `11 PASS, 0 FAIL`, cold, after the
+      fourth trap was closed. That trap was the blocker this item was left open on: a Postgres volume
+      outliving its container, holding a password the new stack does not use. A container removal takes its
+      volume (`tofu destroy` always did; `scripts/jit-down.sh`'s by-name sweep now does too), because the
+      data directory is where the password lives. Gate re-run on the final code:
+      `docs/evidence/s17-final-gate.log`.
 - [ ] `docs/todo.md` boxes all ticked, with the checkpoint output that justified each
 - [ ] Review section in `todo.md`: what changed from the design and why
 - [ ] `docs/lessons.md` for anything that had to be reworked

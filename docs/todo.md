@@ -119,9 +119,11 @@ A step with one box ticked is not done. One step per session.
        `-var share_dir="$HOME/.jit-host-share"`, where `deploy/runner.sh` writes the file. Requiring
        the variable is the production answer and would break the escape hatch as written, so it is
        recorded as a flag, not taken.
-    4. The build-plan Done item "a cold `make destroy`" was never exercised → **open**, with the reason
-       found by reading it: `make destroy` deletes the k3d cluster, which takes `jit-controller:latest`
-       with it, and `scripts/jit-up.sh` assumes the image is already imported. See the flag below.
+    4. The build-plan Done item "a cold `make destroy`" was never exercised → **closed**, and it was
+       the right concern: the cold path hid four defects (see the cold-start record below). The reason
+       found by reading it was real — `make destroy` deletes the k3d cluster, which takes
+       `jit-controller:latest` with it, while `scripts/jit-up.sh` assumed the image was already
+       imported — and is fixed. Green run: `docs/evidence/s17-cold-path-green.log`.
     5. Tenant visibility of an `Orphaned` claim → **open by design**: the design note lists it under
        what production needs, and the platform operator's `kubectl get infraclaims` stays the only
        view. S17 changed nothing here.
@@ -185,26 +187,39 @@ All five S17 verdicts below are **resolved in S17**, each with the assertion tha
   not retired: a frozen gate that documents its own staleness is a record, not a defect. Carried
   past S17 unchanged — no S17 checkpoint runs it.
 - **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
-  sensitive output. Until then the controller writes the postgres password itself.
-- **Cold start — the namespace side is settled; one blocker is open.** S17's review concern 4, and the runs
-  earned their keep. In order: `s17-cold-path-gaps.log` — the cluster's containerd went with the cluster, so
-  `jit-controller:latest` went with it and `make jit-up` then waited 180s to fail on ImagePullBackOff;
-  the module containers live on the Docker daemon, outside the cluster, and survive both the app and the
-  cluster, holding the addresses the next stack's empty ledger is about to hand out; `app/scripts/deploy.sh`
-  creates the cluster and then stops until the CRD exists while `scripts/jit-up.sh` needs the cluster, so
-  the cluster is created by a `deploy` that stops by design; and a bare `make all` deploys into `default`,
-  whose Ingress claims `vote.localhost` - the host the `voting-a` demo owns - so `make jit-verify` refuses
-  to run ("one namespace per demo host"). Fixed: `jit-up.sh` imports the controller image when the cluster
-  lacks it, and `jit-down` no longer dies on a cluster with no CRD (its own `set -euo pipefail` bug, found
-  by this run), and a bare `make all` no longer lands the app in `default` (`app/Makefile` defaults
-  `NS`/`KUSTOMIZE_DIR` to the `voting-a` overlay — see the decision in "Decisions (settled)"). The third
-  run, `docs/evidence/s17-cold-path.log`, goes as far as provisioning with tenants pinned to `voting-a` —
-  three claims Ready, vote rolled out — and **stops** at a blocker: `init-db` fails with
-  `FATAL: password authentication failed for user "postgres"`, because the postgres data volume outlives
-  the container sweep while the controller generates a fresh password for the new stack (`docker volume ls`
-  still lists `voting-a-postgres-postgres-data`, and a `default-...` one from an older run). **Open, and a
-  design question rather than a bug:** on a bounce or a cold start, either the data volume goes with its
-  container or the password has to be persisted instead of regenerated. Not decided.
+  sensitive output. Until then the controller writes the postgres password itself. Unchanged by the
+  cold-start fix: what moved there was the volume, not the password.
+- **Cold start — closed, and the runs earned their keep.** S17's review concern 4. The path hid four
+  defects, in the order it hits them. `s17-cold-path-gaps.log` — the cluster's containerd went with the
+  cluster, so `jit-controller:latest` went with it and `make jit-up` then waited 180s to fail on
+  ImagePullBackOff; the module containers live on the Docker daemon, outside the cluster, and survive both
+  the app and the cluster, holding the addresses the next stack's empty ledger is about to hand out;
+  `app/scripts/deploy.sh` creates the cluster and then stops until the CRD exists while `scripts/jit-up.sh`
+  needs the cluster, so the cluster is created by a `deploy` that stops by design; and a bare `make all`
+  deploys into `default`, whose Ingress claims `vote.localhost` — the host the `voting-a` demo owns — so
+  `make jit-verify` refuses to run ("one namespace per demo host"). Fixed: `jit-up.sh` imports the
+  controller image when the cluster lacks it, `jit-down` no longer dies on a cluster with no CRD (its own
+  `set -euo pipefail` bug, found by this run), and a bare `make all` no longer lands the app in `default`
+  (`app/Makefile` defaults `NS`/`KUSTOMIZE_DIR` to the `voting-a` overlay — see the decision in
+  "Decisions (settled)").
+  - **The fourth, and the last blocker: settled, not patched.** `s17-cold-path.log` reached provisioning —
+    three claims Ready, vote rolled out — and stopped at `init-db` with `FATAL: password authentication
+    failed for user "postgres"`, because the postgres data volume outlived the container sweep while the
+    controller wrote a fresh password for the new stack. The code had already answered the question that
+    raised: a container removal takes its volume — `tofu destroy` destroys the `docker_volume` with the
+    container, every recorded J6 run reports `postgres data volume removed`, and
+    `jit-modules/modules/postgres/main.tf` forbids the `random_password` alternative. What broke the rule
+    was `jit-down`'s fallback sweep, which removes containers *by name* precisely when the destroy cannot
+    run: no CRD, no state, no Secret — the state that made the run cold. It now removes `<container>-data`
+    with the container (`scripts/jit-down.sh` step 2). Persisting the password instead would not have
+    rescued the volume that already existed either: its password lives inside the data directory and nowhere
+    else, so a volume reset was needed whichever way this went. Reasoning in `docs/lessons.md`.
+  - **The build plan's last Done item is now run, and green.** `docs/evidence/s17-cold-path-green.log`
+    (phase `full`): step 3 shows `jit-volumes=[voting-a-postgres-postgres-data ]` → `jit-volumes=[]`, and the
+    run ends cold and green — `make all` = `17 PASS, 0 FAIL`, `make jit-verify` = `11 PASS, 0 FAIL`, three
+    claims Ready, and the ledger rebuilt as `{"voting-a": {"offset": 0, "count": 3}}`. The gate re-run on
+    the final code, `bash scripts/checks/S17.sh`, ends on its last PASS line
+    (`docs/evidence/s17-final-gate.log`), which under `set -euo pipefail` is reachable only on success.
 - **`var.share_dir` keeps a `/tmp` default, deliberately.** S17 review concern 3. The default is only
   correct when tofu runs on the Docker daemon's host; the pgadmin module is silently wrong without it
   (Docker creates an empty directory instead of mounting `servers.json`). Requiring the variable is the
