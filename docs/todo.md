@@ -125,6 +125,23 @@ A step with one box ticked is not done. One step per session.
     touching the annotated Deployment (`kubectl rollout restart deploy/<name> -n <ns>`). Documented in
     `scripts/jit-down.sh` and the README's step 4; verified by running it (three claims Ready and the
     ledger rebuilt from empty).
+  - **The bounce's second run failed, and that failure found a defect of its own.** `jit-down` deleted
+    the claims with `--wait=false` and then removed the runner, so the deletes were still in flight:
+    they sat Terminating for the whole two-minute window (`must be 0): 3`), came back *Ready* with no
+    container behind them, and — because Ready is what the controller checks before provisioning —
+    blocked the tenant's recovery (`containers up: 0 of 3`, R2 FAIL). That log is kept, because the
+    green run alone would not have proved it: `docs/evidence/s17-jitdown-bounce-race.log`.
+    `scripts/jit-down.sh` now waits for the claims to actually go before the runner does, and warns
+    loudly if they will not. Re-run end to end: `docs/evidence/s17-jitdown-bounce.log` — ledger absent
+    after `jit-down`, nothing left over after `jit-up`, and `17 PASS, 0 FAIL` once the tenant is
+    touched.
+  - **That failing run also exposed an unguarded read in the R-checks.** With R1 unable to parse the
+    vote page, `OPTS` is empty, every later `${OPTS[0]}` aborts with `unbound variable` under `set -u`,
+    and — worse than noise — `grep -q "${OPTS[0]}"` on an empty name matches any line, so R5's two
+    label assertions could pass vacuously on a dead app. `app/scripts/verify.sh` pads `OPTS` to two
+    slots and R5 now requires them non-empty. Negative test:
+    `docs/evidence/s17-rchecks-negative-options.log` (`10 PASS, 7 FAIL`, no shell noise, R5 fails
+    honestly); the normal run is unchanged at `17 PASS, 0 FAIL`.
 
 ## Notes carried from the app's own docs
 

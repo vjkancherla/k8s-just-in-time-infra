@@ -1,36 +1,37 @@
 Updated: 2026-09-11
 
 ## Working
-S17 is complete on the code side: every teardown exit releases its IP block exactly once, the README's
-escape hatch matches the modules, and the checkpoint is green on the fixed tree. The one open item is the
-independent review.
+S17's code is complete, reviewed (CONCERNS, no blockers) and hardened by exercising its failure paths:
+the stack bounce and the R-checks' diagnostics both behave as documented now.
 
 ## Done (verified)
-- `bash scripts/checks/S17.sh` exit 0 at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL`
-  (`docs/evidence/s17-run-postfix.log`).
-- The retry-path release, proved by running it: `docs/evidence/leak-probe3.sh` + `leak-probe3-controller.log`.
-- The escape hatch's variables now match `jit-modules/modules/*/variables.tf`.
+- Checkpoint at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL`; `make verify` re-run green (17 PASS)
+  after every later change (`docs/evidence/s17-run-postfix.log`).
+- Bounce: `docs/evidence/s17-jitdown-bounce.log` — ledger absent after `jit-down`, no leftover claims
+  after `jit-up`, three claims and the rebuilt ledger after a Deployment touch, 17 PASS.
+- R-checks against a dead app: `10 PASS, 7 FAIL`, each failure its own reason, no `unbound variable`
+  noise (`docs/evidence/s17-rchecks-negative-options.log`).
+- The teardown leak and its fix: `leak-probe2.*`, `leak-probe3.*`.
 - S0-S16 checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
 
 ## Broken (confirmed by execution)
-- Nothing known. Both defects this step opened with are fixed and re-proved.
+- Nothing known. Every defect S17 found, and every one its review or the bounce found, is fixed and
+  re-proved.
 
 ## Suspected (read, not reproduced)
-- `ipam.py` has no lock; `namespace_lock` is process-local, so a second controller replica would not
-  serialise the ledger's read-modify-write.
-- `_allocated_ip` returns `""` on `ApiException`, which also means "allocate" — a failed read can move a
-  live claim's address and inflate the count.
-- `jit-down` never reconciles `jit-ipam`, so a stack bounce can start from a stale count.
-- Both exits now release only after the claim is gone, but that ordering is asserted by a probe on one
-  path, not by a test that enumerates them.
+- The cold path: `make destroy` removes the cluster and `jit-controller:latest` with it, and `jit-up.sh`
+  does not import it. Not run — it deletes the cluster.
+- `ipam.py` has no lock of its own; `_allocated_ip` returns `""` on `ApiException`, which also means
+  "allocate".
+- `var.share_dir` defaults to `/tmp`, correct only when tofu runs on the Docker daemon's host.
 
 ## In progress
-Nothing. Waiting on the independent review.
+Nothing. The next move is the human's: the review box, or the cold-path run.
 
 ## Blocked
-- The review box, on a different model writing `docs/reviews/S17-findings.md` with CLEAR.
+- The review box (the human's tick) and the cold-path run (their call; it deletes the cluster).
 
 ## Learnings
-- A guard that stops a second release makes one path the owner of the first; walk every other path that can
-  reach that state (`docs/lessons.md`).
-- A probe can pass by testing nothing: read its log against the component log before believing it.
+- Run the failure path, not only the happy one: the second bounce found a `jit-down` race and an
+  unguarded `OPTS` that every green run had hidden.
+- `--wait=false` next to a stateful consumer of the deleted object is a race worth writing down.
