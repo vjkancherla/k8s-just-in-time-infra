@@ -31,7 +31,7 @@ c95c051 teardown fix; 8e7bae5 review; c811966 ledger; f3a7989 jit-down wait; b4c
 tolerance; 9f72b30 voting-a alignment; then the docs and evidence for all of it (HEAD).
 
 ## Next step
-Decide the volume-vs-password question, or retire the build plan's cold-start Done item naming that reason.
+Resume: decide the volume-vs-password question (`docs/todo.md` flag, evidence `docs/evidence/s17-cold-path.log`), then re-run `bash docs/evidence/s17-cold-path.sh full`.
 
 ## Watch out
 - Latent: `ipam.py` has no lock; `_allocated_ip` cannot tell a failed read from "no address"; a claim can sit
