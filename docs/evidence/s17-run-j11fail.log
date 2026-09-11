@@ -1,0 +1,12 @@
+PASS: root Makefile declares jit-up
+PASS: root Makefile declares jit-verify
+PASS: root Makefile declares jit-down
+PASS: root Makefile declares check
+PASS: make check STEP=NN routes to scripts/checks/SNN.sh
+  <Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match the signature you provided. Check your key and signing metho
+  J11 FAIL could not list the jit-state bucket (is MinIO up? see 'make jit-up')
+  
+  ===== 10 PASS, 1 FAIL =====
+  make: *** [jit-verify] Error 1
+J11 FAIL could not list the jit-state bucket (is MinIO up? see 'make jit-up')
+FAIL: make jit-verify exited 2 (verify-jit.sh must use set -euo pipefail and exit non-zero)

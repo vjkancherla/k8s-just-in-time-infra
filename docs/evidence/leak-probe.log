@@ -1,0 +1,13 @@
+[09:36:48] ledger before: {}
+[09:36:57] claim phase after deploy: Ready  ledger: {"hatch-leak": {"offset": 0, "base_ip": "172.19.0.100", "count": 1}}
+[09:37:28] claim phase after deleting the Deployment: Orphaned
+[09:37:28] runner stopped; waiting past the 2m TTL for a sweep that must fail
+[09:39:27] claim phase after the TTL expired with the runner down: Deleting
+[09:39:28] ledger at this point: {"hatch-leak": {"offset": 0, "base_ip": "172.19.0.100", "count": 1}}
+[09:39:30] runner restarted, waiting for the resync retry to finish the destroy
+[09:39:42] claim present now? no
+[09:39:42] container present now? no
+[09:39:42] TOTAL CLAIMS IN CLUSTER: 0
+[09:39:42] LEDGER AFTER: {}
+[09:39:42] VERDICT: if the ledger still names hatch-leak with no claims left, the block leaked
+[09:39:42] done

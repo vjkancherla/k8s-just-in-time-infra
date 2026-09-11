@@ -54,27 +54,27 @@ A step with one box ticked is not done. One step per session.
 
 - [x] check  - [x] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
 - [x] check  - [x] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
-  - `bash scripts/checks/S16.sh` → exit 0 on three consecutive runs (/tmp/s16-run1-keep.log,
-    /tmp/s16-run2.log, /tmp/s16-run3.log): `PASS: ===== 17 PASS, 0 FAIL =====`,
+  - `bash scripts/checks/S16.sh` → exit 0 on three consecutive runs (docs/evidence/s16-run1-keep.log,
+    docs/evidence/s16-run2.log, docs/evidence/s16-run3.log): `PASS: ===== 17 PASS, 0 FAIL =====`,
     `PASS: no StatefulSet and no PVC in default`.
   - Deploying the migrated app into `default` made `scripts/checks/S00.sh` fail honestly
     (`FAIL: voting-app-redis not ready`, exit 1) — see the flags below.
   - After the review's CONCERNS (no blockers): the helper reads are guarded so two failed
     reads cannot agree, and R8's worker restore runs on every path. Re-run after the fix
-    → exit 0, 17 PASS (`/tmp/s16-postfix2.log`); negative test `/tmp/s16-negative2.log`.
+    → exit 0, 17 PASS (`docs/evidence/s16-postfix2.log`); negative test `docs/evidence/s16-negative2.log`.
 - [x] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
   - `bash scripts/checks/S17.sh` → exit 0, ending `PASS: J1-J11 all PASS in .workflow/verify-jit.md`,
     `PASS: ===== 17 PASS, 0 FAIL ===== in voting-a`, `PASS: S17 - two namespaces, J1-J11 and the
-    R-checks both green`. Full run: `/tmp/s17-run.log` (copy `/tmp/s17-green-run.log`), suite
-    report `/tmp/verify-jit-green.md`.
-  - J1 is no longer flaky. `/tmp/race-test.sh` — three clean-slate `voting-a` deploys, each
+    R-checks both green`. Full run: `docs/evidence/s17-run.log` (copy `docs/evidence/s17-green-run.log`), suite
+    report `docs/evidence/verify-jit-green.md`.
+  - J1 is no longer flaky. `docs/evidence/race-test.sh` — three clean-slate `voting-a` deploys, each
     requiring three distinct IPs **and** `count: 3` in the IPAM ledger — is **3/3 OK**
-    (`/tmp/race-test.log`). The fix is `namespace_lock(ns)` over the read-pick-patch in
+    (`docs/evidence/race-test.log`). The fix is `namespace_lock(ns)` over the read-pick-patch in
     `ensure_claim`, plus releasing a claim's block once (`handle_claim_delete` skips phase
     `Deleting`).
   - Two earlier full runs failed at J11 and are kept, because they are what found it:
-    `/tmp/s17-run-j11fail.log` (403 SignatureDoesNotMatch — the prefix was signed as `ns/` rather
-    than `ns%2F`) and `/tmp/s17-run-j11-nopass.log` (J11 passed but printed nothing, so a gate
+    `docs/evidence/s17-run-j11fail.log` (403 SignatureDoesNotMatch — the prefix was signed as `ns/` rather
+    than `ns%2F`) and `docs/evidence/s17-run-j11-nopass.log` (J11 passed but printed nothing, so a gate
     requiring `^J11 PASS` could not see it).
   - `make check STEP=NN` routing is asserted in the same script. The S16 gate needs `NS=voting-a`.
 

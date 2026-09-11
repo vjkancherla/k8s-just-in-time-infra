@@ -1,0 +1,10 @@
+  R15  PASS     arm64, no ImagePullBackOff (images imported)
+  R16  PASS     vote/result/worker/redis/postgres all healthy
+  R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+  
+  ===== 17 PASS, 0 FAIL =====
+PASS: make verify ran and wrote app/.workflow/verify.md (exit 0 - not asserted on)
+PASS: ===== 17 PASS, 0 FAIL =====
+PASS: no StatefulSet and no PVC in default
+PASS: S16 - make verify reports 17 PASS, 0 FAIL against out-of-cluster infra
+EXIT=0

@@ -69,7 +69,7 @@ checks — so the guard belongs in the comparisons: R2, R3, R6 and R8 now assert
 are non-empty and name the container when they are not. R4, R7 and R16 compare against
 literals and fail on their own. Demonstrated by running `verify.sh` with
 `REDIS_CONTAINER` / `POSTGRES_CONTAINER` pointed at non-existent containers
-(`/tmp/s16-negative.log`): those checks now FAIL with a readable reason instead of
+(`docs/evidence/s16-negative.log`): those checks now FAIL with a readable reason instead of
 comparing empties. S17's `verify-jit.sh` runs under `set -euo pipefail` and should fail
 fast instead of carrying the pattern over.
 
@@ -160,7 +160,7 @@ terminal until the Deployment changes. Two independent causes, one symptom:
 
 The symptom pointed at the wrong component — the duplicate surfaced as a *pgadmin* apply
 failure, and the ledger's drifting `count` looked like a counting bug on its own. Evidence is
-`/tmp/race-test.sh`: three clean-slate deploys, each asserting three distinct IPs. A single
+`docs/evidence/race-test.sh`: three clean-slate deploys, each asserting three distinct IPs. A single
 green run cannot tell a fixed race from a lucky one.
 
 **A check that was never executed is not a check that passes.** J11 had two defects no earlier

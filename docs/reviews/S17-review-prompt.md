@@ -5,8 +5,9 @@
 
 **Commit range:** a82a6a9 → e00a179 (seven commits: the implementation, its fixes and the step's docs)
 
-**Outside that range, for context:** bookkeeping only, no implementation — `memory-bank/*`, and
-`docs/reviews/` (this prompt plus the S08-S15 artifacts that had never been committed).
+**Outside that range, for context:** bookkeeping only, no implementation — `memory-bank/*`,
+`docs/reviews/`, and `docs/evidence/` (the run logs and probe scripts moved out of `/tmp` so that the
+citations in the step record stay resolvable).
 
 **Read first, in this order:** `docs/jit-infra-poc.md` §Verification (the J1-J11 table) and its
 §Failure modes (four of them; "Destroy fails → finalizer held, namespace stuck in `Terminating`,
@@ -74,11 +75,12 @@ expect it to have changed. The two defects J11 turned out to have were in
    implementation chose, whether it was chosen deliberately, and whether the stale-EndpointSlice
    risk is real here.
 
-5. The evidence that the race is fixed is `/tmp/race-test.sh` — three clean-slate deploys, each
+5. The evidence that the race is fixed is `docs/evidence/race-test.sh` — three clean-slate deploys, each
    requiring three distinct IPs — and not the checkpoint. Judge whether three iterations is adequate
    for a kopf create+update interleaving, whether the test is *capable* of failing (say what it
    prints on a duplicate, and whether it would exit non-zero), and whether a fix whose only
-   regression test lives in `/tmp` is acceptable for a frozen step. Say what you would do instead.
+   regression test is an artifact under `docs/evidence/` rather than a script in `scripts/` is
+   acceptable for a frozen step. Say what you would do instead.
 
 6. J11 had two defects that no earlier run could reveal, because no run had ever reached it: a SigV4
    canonical-query bug (`safe="/"` signed `prefix=ns/`, where the canonical form is `ns%2F`, so MinIO

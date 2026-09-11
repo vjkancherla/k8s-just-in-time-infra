@@ -1,0 +1,9 @@
+[09:32:28] iteration 1 withip=6 distinct=6
+[09:32:28]     ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}, "voting-b": {"offset": 1, "base_ip": "172.19.0.110", "count": 3}}
+[09:32:28]     ips=[voting-a/voting-a-pgadmin=172.19.0.100 voting-a/voting-a-postgres=172.19.0.102 voting-a/voting-a-redis=172.19.0.101 voting-b/voting-b-pgadmin=172.19.0.110 voting-b/voting-b-postgres=172.19.0.112 voting-b/voting-b-redis=172.19.0.111 ]
+[09:32:28]     phases=[voting-a/voting-a-pgadmin: voting-a/voting-a-postgres: voting-a/voting-a-redis:Ready voting-b/voting-b-pgadmin: voting-b/voting-b-postgres: voting-b/voting-b-redis: ]
+[09:34:03] iteration 2 withip=6 distinct=6
+[09:34:03]     ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}, "voting-b": {"offset": 1, "base_ip": "172.19.0.110", "count": 3}}
+[09:34:03]     ips=[voting-a/voting-a-pgadmin=172.19.0.100 voting-a/voting-a-postgres=172.19.0.102 voting-a/voting-a-redis=172.19.0.101 voting-b/voting-b-pgadmin=172.19.0.110 voting-b/voting-b-postgres=172.19.0.112 voting-b/voting-b-redis=172.19.0.111 ]
+[09:34:03]     phases=[voting-a/voting-a-pgadmin: voting-a/voting-a-postgres: voting-a/voting-a-redis:Ready voting-b/voting-b-pgadmin: voting-b/voting-b-postgres: voting-b/voting-b-redis: ]
+[09:35:16] done

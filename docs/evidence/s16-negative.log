@@ -1,0 +1,20 @@
+R1   PASS     200 with exactly two options: Cats / Dogs
+R2   FAIL     redis LLEN unreadable (before='' after='')
+R3   FAIL     tally unreadable from default-postgres-GONE (before='' after='')
+R4   FAIL     got  rows
+R5   PASS     percentages + both option labels present
+R6   FAIL     vote did not appear within 5s
+R7   FAIL     schema mismatch
+R8   FAIL     redis LLEN unreadable from default-redis-GONE during the worker outage
+R9   FAIL     cannot read the tally from default-postgres-GONE before the restart
+R10  PASS     3 liveness + 3 readiness probes
+R11  PASS     3 containers with cpu/mem requests + limits
+R12  PASS     kustomize base + registry image override
+R13  PASS     vote=200 result=200
+R14  PASS     0 NodePort services
+R15  PASS     arm64, no ImagePullBackOff (images imported)
+R16  FAIL     vote=200 result=200 worker=1 redis= postgres=1
+R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+
+===== 9 PASS, 8 FAIL =====
+EXIT=0

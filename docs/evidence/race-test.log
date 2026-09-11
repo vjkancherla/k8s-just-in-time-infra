@@ -1,0 +1,4 @@
+[20:00:46] iteration 1 OK  ips=[voting-a-pgadmin=172.19.0.100 voting-a-postgres=172.19.0.102 voting-a-redis=172.19.0.101 ] ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[20:02:00] iteration 2 OK  ips=[voting-a-pgadmin=172.19.0.100 voting-a-postgres=172.19.0.102 voting-a-redis=172.19.0.101 ] ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[20:03:10] iteration 3 OK  ips=[voting-a-pgadmin=172.19.0.100 voting-a-postgres=172.19.0.102 voting-a-redis=172.19.0.101 ] ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[20:04:08] done
