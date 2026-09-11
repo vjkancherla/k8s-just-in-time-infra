@@ -20,7 +20,9 @@ set -uo pipefail
 #                  `<ns>-redis-redis` / `<ns>-postgres-postgres`.
 
 RELEASE="${RELEASE:-voting-app}"
-NS="${NS:-default}"
+# The demo namespace. Tenants never run in `default` (S17's review settled that): `default`
+# is the control plane's namespace, and the app lives in the voting-a overlay.
+NS="${NS:-voting-a}"
 KUSTOMIZE_DIR="${KUSTOMIZE_DIR:-./kustomize}"
 VOTE_URL="${VOTE_URL:-https://vote.localhost:8082}"
 RESULT_URL="${RESULT_URL:-https://result.localhost:8082}"

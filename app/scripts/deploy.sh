@@ -22,6 +22,21 @@ CLUSTER="${CLUSTER:-voting-app}"
 KUSTOMIZE_DIR="${KUSTOMIZE_DIR:-./kustomize}"
 REGISTRY="${REGISTRY:-0}"
 REGISTRY_PORT="${REGISTRY_PORT:-5000}"
+# The namespace to wait in. Unset means "whatever the current context points at", which is
+# the original behaviour and what a bare `make all` keeps doing; set it to deploy a namespaced
+# overlay (`NS=voting-a KUSTOMIZE_DIR=./kustomize/overlays/voting-a make all`). Without this
+# the waits below looked in `default` for an app the overlay had put in `voting-a`, and failed
+# with `deployments.apps "voting-app-vote" not found` - found by the cold-start run
+# (docs/evidence/s17-cold-path.sh). The frozen S00 gate never sets it.
+NS="${NS:-}"
+
+rollout() {  # <deployment name> - in NS when one was given, else in the context's namespace
+  if [[ -n "$NS" ]]; then
+    kubectl rollout status "deployment/$1" -n "$NS" --timeout=300s
+  else
+    kubectl rollout status "deployment/$1" --timeout=300s
+  fi
+}
 
 # 1. Create the cluster if it does not already exist.
 if ! k3d cluster list 2>/dev/null | grep -qE "^${CLUSTER}[[:space:]]"; then
@@ -41,8 +56,9 @@ REGISTRY="$REGISTRY" REGISTRY_PORT="$REGISTRY_PORT" CLUSTER="$CLUSTER" ./scripts
 #    sit in Init until the 300s timeout, so fail fast with the real reason.
 if ! kubectl get crd infraclaims.jit.io >/dev/null 2>&1; then
   echo "error: the InfraClaim CRD is not installed - the JIT stack must be up first." >&2
-  echo "       Bring up MinIO, the runner, the CRD and the controller" >&2
-  echo "       (deploy/minio.sh, deploy/controller.yaml) and re-run." >&2
+  echo "       From the repo root, run 'make jit-up' (MinIO, runner, CRD, controller), then" >&2
+  echo "       re-run this. On a cold host this script is also what creates the cluster, so" >&2
+  echo "       it stops here by design and the second run is the one that applies the app." >&2
   exit 1
 fi
 
@@ -58,9 +74,9 @@ fi
 #    provisioned out of cluster by the JIT controller + runner, so these pods
 #    stay in Init until the controller has written the jit-redis / jit-postgres
 #    Services and Secrets.
-kubectl rollout status deployment voting-app-vote --timeout=300s
-kubectl rollout status deployment voting-app-worker --timeout=300s
-kubectl rollout status deployment voting-app-result --timeout=300s
+rollout voting-app-vote
+rollout voting-app-worker
+rollout voting-app-result
 
 echo "Deploy complete."
 echo "  vote:   https://vote.localhost:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)"

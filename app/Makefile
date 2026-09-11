@@ -8,6 +8,16 @@
 SHELL := /bin/bash
 .EXPORT_ALL_VARIABLES:
 
+# Tenants never run in `default` (settled by S17's review): the demo app lives in the
+# voting-a / voting-b overlays, and `default` belongs to the control plane - the controller
+# and its `jit-ipam` ledger. Both defaults below follow from that rule. Deploying the base
+# kustomization would put the app in `default`, whose Ingress would then fight `voting-a` for
+# `vote.localhost`, and the J-suite's PREREQ refuses to run in that state ("one namespace per
+# demo host") - which is how this was found (docs/evidence/s17-cold-path-order.log).
+# Override either on the command line as before: `make all NS=voting-b KUSTOMIZE_DIR=./kustomize/overlays/voting-b`.
+NS ?= voting-a
+KUSTOMIZE_DIR ?= ./kustomize/overlays/voting-a
+
 SCRIPTS := scripts
 BUILD   := $(SCRIPTS)/build.sh
 DEPLOY  := $(SCRIPTS)/deploy.sh
