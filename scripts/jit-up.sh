@@ -29,11 +29,27 @@ done
 k3d cluster list 2>/dev/null | grep -qE "^${CLUSTER}[[:space:]]" \
   || fail "k3d cluster '$CLUSTER' does not exist - create it first (app/scripts/deploy.sh)"
 
-# The controller image is built and imported by the earlier stages (S8). Import it
-# again only when Docker does not have it at all; a missing image inside the
-# cluster surfaces below as a rollout failure naming the reason.
+# The controller image must be in Docker *and* inside the cluster, and those are two
+# different stores: `make destroy` deletes the k3d cluster and takes its containerd with
+# it, so on a cold start the image is in Docker and nowhere else - and the rollout at the
+# end of this script waits 180s only to fail on ImagePullBackOff. The earlier stages
+# imported it by hand (S8); a cold host has nobody to do that.
 docker image inspect jit-controller:latest >/dev/null 2>&1 \
   || fail "the 'jit-controller:latest' image is not built (docker build -t jit-controller jit-controller/)"
+
+# Ask kubelet what its containerd holds rather than guessing - `k3d image list` takes no
+# cluster flag in this version. If kubectl cannot answer, import: importing twice is
+# harmless, a missing image is not.
+cluster_has_image() {
+  kubectl get nodes -o jsonpath='{.items[*].status.images[*].names[*]}' 2>/dev/null \
+    | grep -q "$1"
+}
+if cluster_has_image 'jit-controller:latest'; then
+  echo "jit-controller:latest is already in cluster '$CLUSTER'"
+else
+  echo "importing jit-controller:latest into cluster '$CLUSTER'..."
+  k3d image import jit-controller:latest -c "$CLUSTER"
+fi
 
 # 1. MinIO - the Terraform state backend, 172.19.0.11, bucket jit-state.
 ./deploy/minio.sh

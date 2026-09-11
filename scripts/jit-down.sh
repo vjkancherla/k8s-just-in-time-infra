@@ -46,6 +46,12 @@ cd "$ROOT"
 CTRL_NS="default"
 fail() { echo "FAIL: $1"; exit 1; }
 
+# The CRD may not exist at all (a cold host, or a bounce in progress), and under
+# `set -euo pipefail` a kubectl that fails inside a command substitution takes the whole
+# script down with it - which is how this bit the first cold run: `jit-down` exited 1 on
+# a cluster with no InfraClaims to list, and left the module containers behind.
+claims_left() { (kubectl get infraclaims -A -o name 2>/dev/null || true) | wc -l | tr -d ' '; }
+
 command -v docker >/dev/null 2>&1 || fail "'docker' is not on PATH"
 command -v kubectl >/dev/null 2>&1 || fail "'kubectl' is not on PATH"
 
@@ -77,10 +83,10 @@ fi
 # (docs/evidence/s17-jitdown-bounce.sh, and the run it caught in
 # docs/evidence/s17-jitdown-bounce-race.log).
 for _ in $(seq 1 90); do
-  [[ "$(kubectl get infraclaims -A -o name 2>/dev/null | wc -l | tr -d ' ')" == "0" ]] && break
+  [[ "$(claims_left)" == "0" ]] && break
   sleep 2
 done
-remaining="$(kubectl get infraclaims -A -o name 2>/dev/null | wc -l | tr -d ' ')"
+remaining="$(claims_left)"
 if [[ "$remaining" != "0" ]]; then
   echo "WARNING: $remaining InfraClaim(s) are still terminating. The controller finishes"
   echo "         them on the next 'make jit-up' - wait for them to go before touching a"
