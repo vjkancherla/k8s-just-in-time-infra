@@ -1,40 +1,39 @@
-Updated: 2026-09-10
+Updated: 2026-09-11
 
 ## Current focus
-S17 is DONE and committed (`a82a6a9..e00a179`). Its checkpoint has passed on a complete run; the
-review has not been run, so `docs/todo.md`'s S17 `review` box is unticked on purpose.
+S17's checkpoint is green and committed (a82a6a9..328d07b), but **S17 is not done** - the author's own
+verification found and proved a defect in the J1 fix. Stopped, awaiting one decision (see Next step).
+
+## Blocked
+- **The resync retry path leaks the IP block.** `main.py:896` is the only release on the TTL path, the
+  retry branch (`main.py:841-849`) has none, and `main.py:942` makes the delete handler skip. Proven in
+  `/tmp/leak-probe2.log`: claim and container gone, ledger still counting the namespace.
+- Fixing it changes `jit-controller/main.py`, so the green run no longer describes the tree and
+  `bash scripts/checks/S17.sh` (~25 min) must be re-run before S17 is done.
+- The independent review has not run: it needs a different model in a fresh task to write
+  `docs/reviews/S17-findings.md`, so `docs/todo.md`'s S17 review box stays unticked.
 
 ## Done (verified)
-- `bash scripts/checks/S17.sh` → exit 0: `make jit-verify` = J1-J11 **11 PASS, 0 FAIL**, then
-  `make verify` in voting-a = **17 PASS, 0 FAIL**, ending `PASS: S17 - two namespaces, J1-J11 and
-  the R-checks both green`. Run: `/tmp/s17-run.log`; report `/tmp/verify-jit-green.md`.
-- J1's duplicate IP is fixed and shown repeatable, not lucky: `/tmp/race-test.sh` = **3/3 OK**,
-  three distinct IPs and IPAM `count: 3` on every iteration. Two causes - allocation was locked
-  per claim instead of per namespace, and `release_block` fired twice per swept claim.
-- J11 needed two repairs to become assertable at all: its SigV4 prefix must be `ns%2F` (signed as
-  `ns/` it got 403 from MinIO), and it had no `pass` line, so a passing J11 printed nothing.
-- J10's reworked assertion (a claim waiting on a dependency has *no* phase, not `Pending`) passes
-  in a complete run.
-- Also fixed here: pgadmin's servers.json visible to the Docker daemon, `jit-pgadmin` port 80,
-  pgadmin's destroy without `postgres_url`, the runner's destroy never resolving to an unnamed
-  module, R14/R15 namespace scoping, `deploy/minio.sh` 409. S16 committed at 5dd3352; its gate
-  needs `NS=voting-a`.
+- `bash scripts/checks/S17.sh` exit 0: J1-J11 **11 PASS, 0 FAIL**, then R1-R17 **17 PASS, 0 FAIL** in
+  voting-a (`/tmp/s17-run.log`, `/tmp/verify-jit-green.md`).
+- J1's duplicate IP, at the level J1 tests: `/tmp/race-test.sh` 3/3, three distinct addresses and
+  `count: 3` (`/tmp/race-test.log`); the double-release guard works in the normal teardown path.
+- All twelve review questions answered from code, executing wherever possible, in
+  `memory-bank/journal/2026-09-11.md` - which also records the README escape hatch failing for pgAdmin.
 
 ## Checkpoints (final code)
-- PASS: S17, `bash scripts/checks/S17.sh` (third full run; runs 1-2 failed at J11 and are kept -
-  they are what found the two defects)
-- PASS: S0-S16, committed.
+- PASS: S17, `scripts/checks/S17.sh` (exit 0) - true of a82a6a9..328d07b only; re-run if the fix lands.
 
 ## Commits
-S17: 36a86b2 (controller), cfb99c0 (pgadmin), d65f62d (runner), 99a1397 (JIT suite + Makefile),
-15991b5 (app sources + S01-S07 gates), 8a67327 (two namespaces + scoped R-checks), e00a179 (docs).
+S17: 36a86b2, cfb99c0, d65f62d, 99a1397, 15991b5, 8a67327, e00a179; then bookkeeping 4b52099..328d07b (HEAD).
 
 ## Next step
-Run the S17 review in a *fresh* task: `Read and follow docs/reviews/S17-review-prompt.md`. Tick
-`review` in `docs/todo.md` only when `docs/reviews/S17-findings.md` says CLEAR.
+Ask the human to choose: fix the retry-path leak and the README's missing `-var postgres_url`, re-run
+`bash scripts/checks/S17.sh`, then run the independent review - or review the current code first.
 
 ## Watch out
-- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` does not exist; the S17 prompt follows the S13-S16 shape.
-- `scripts/checks/S00.sh` fails by design (pre-migration assertions). Decided in S17, not a
-  regression - do not "fix" it.
-- The controller assumes a single replica, which is what `namespace_lock` and `claim_lock` rely on.
+- Latent, **not** reproduced: `ipam.py` has no lock, so `namespace_lock` cannot serialise two
+  namespaces' `jit-ipam` read-modify-write (`/tmp/block-race.log`); `_allocated_ip` cannot tell a failed
+  read from "no address"; `jit-down` never reconciles the ledger; and the gate never runs jit-up/jit-down.
+- Probe debris: `voting-b-postgres-postgres` and `voting-b-pgadmin-pgadmin` run with no namespace and
+  no claim - `docker rm -f` both. voting-a is deployed and Ready, ledger `count: 3`.

@@ -1,40 +1,40 @@
-Updated: 2026-09-10
+Updated: 2026-09-11
 
 ## Working
-S17 is complete: the two-namespace demo, `make jit-verify` J1-J11 and `make verify` in voting-a all
-green in one `bash scripts/checks/S17.sh` run, and the duplicate-IP race fixed with repeat evidence
-rather than a single lucky run.
+The S17 checkpoint is green and committed, and the duplicate-IP fix works at the level J1 tests. What
+is not working is one teardown path: a claim whose destroy succeeds on the resync *retry* leaks its IP
+block. That, plus the README escape hatch's missing `-var postgres_url`, stands between S17 and "done".
 
 ## Done (verified)
-- S0-S16: checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
-- J1: voting-a deploys 3 claims Ready and 3 containers on three distinct IPs from one block of 10 -
-  `.100/.101/.102` in both complete suite runs, and 3/3 in the race test that repeats it 3x.
-- J2: R1-R17 = 17 PASS, 0 FAIL in voting-a; 3 Secrets + Services + EndpointSlices.
-- J3: pgAdmin HTTP 200 on :5050, `/pgadmin4/servers.json` registers `<postgres-ip>:5432`, Service
-  `jit-pgadmin` port 80.
-- J4/J5: deleting `vote` orphans postgres+pgadmin with `expiresAt` and keeps all 3 containers
-  running; the worker still drains a vote; redeploying inside the window reuses the container ids
-  and the tally survives.
-- J6: past the 2m window the sweep removes the containers, Secrets, Services, EndpointSlices and the
-  postgres data volume, while redis stays up.
-- J8: `kubectl delete ns voting-b` removes 3 containers and their claims in ~30s, no TTL armed,
-  voting-a untouched.
-- J9: controller killed, `vote` deleted, controller restarted - the resync still marks
-  postgres+pgadmin Orphaned and keeps redis Ready.
-- J10: with the runner stopped, redis+postgres go Failed with a readable message, pgadmin has no
-  phase, no container starts and no pod becomes Ready.
-- J11: `ns/voting-a/{redis,postgres,pgadmin}/terraform.tfstate` plus an `ns/voting-b/` prefix, and
-  every key matches `ns/<ns>/<module>/terraform.tfstate`.
+- `bash scripts/checks/S17.sh` exit 0: J1-J11 11 PASS, 0 FAIL and R1-R17 17 PASS, 0 FAIL in voting-a.
+- J1: three distinct IPs and IPAM `count: 3` over three clean-slate iterations, plus a two-namespace
+  deploy (voting-a offset 0, voting-b offset 1) - `/tmp/race-test.log`, `/tmp/block-race.log`.
+- The double-release guard fires correctly in the normal teardown path (controller log: the sweep
+  releases, the handler skips).
+- S0-S16 checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
+
+## Broken (confirmed by execution)
+- **The resync retry path leaks the IP block.** The only release is `main.py:896` (TTL path); the retry
+  branch `main.py:841-849` has none; `main.py:942` makes the delete handler skip. Claim gone,
+  container gone, ledger keeps the entry (`/tmp/leak-probe2.log`).
+- **The README escape hatch fails for pgAdmin.** `tofu destroy` with the documented variables errors
+  `No value for required variable: postgres_url` - the module's variable has no default.
+
+## Suspected (read, not reproduced)
+- `ipam.py` has no lock; `namespace_lock` is per namespace, so two namespaces can interleave the
+  ConfigMap read-modify-write. Not triggered in 2 attempts (`/tmp/block-race.log`).
+- `_allocated_ip` returns `""` on ApiException, which means "allocate" - so a failed read can move a
+  live claim's address and inflate the count.
+- `jit-down` never reconciles `jit-ipam`.
 
 ## In progress
-Nothing - the next action is the S17 review, not another implementation step.
+Nothing. Waiting on the fix-or-review decision; no files are being changed.
 
 ## Blocked
-- S17's `review` box: only a different model's `CLEAR` in `docs/reviews/S17-findings.md` ticks it.
+- S17's "done" claim, on the retry-path leak fix plus a fresh `bash scripts/checks/S17.sh`.
+- The review box, on a different model writing `docs/reviews/S17-findings.md` with CLEAR.
 
 ## Learnings
-- The duplicate IP had two causes: allocation locked per claim instead of per namespace, and a double
-  `release_block` (the ledger's `count: 2` against 3 live claims, not arithmetic noise).
-- A green suite run does not prove a race is fixed; a repeat test does.
-- A check that has never executed is not a passing check - J11 hid both a 403 and a missing PASS.
-- Assert the PASS line, not the exit code: both failing runs exited 0.
+- A guard that stops a second release creates the mirror bug: whoever owns the *first* release owns it
+  on every path, and the retry branch inherited none.
+- The ledger is written incrementally and never reconciled, so every missed decrement is permanent.
