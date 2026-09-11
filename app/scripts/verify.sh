@@ -66,6 +66,13 @@ redis_q() { docker exec "$REDIS_CONTAINER" redis-cli "$@" 2>/dev/null; }
 # Fetch the two option labels from the rendered vote page.
 vote_html="$(curl -sk --compressed "$VOTE_URL/")"
 mapfile -t OPTS < <(printf '%s\n' "$vote_html" | grep -o 'name="choice" value="[^"]*"' | sed -E 's/.*value="([^"]*)".*/\1/')
+# R1 failing means the page never parsed, so OPTS can be an empty array - and then
+# every "${OPTS[0]}" below aborts with "OPTS[0]: unbound variable" (set -u), printing a
+# shell error where the check's own guarded failure belongs. It is worse than noise:
+# `grep -q "${OPTS[0]}"` on an empty name matches *any* line, so R5's two label
+# assertions could pass vacuously on a dead app. Pad to two empty slots so the value is
+# a string, and R5 additionally requires them non-empty.
+while (( ${#OPTS[@]} < 2 )); do OPTS+=(""); done
 
 # ---- R1: Vote page offers exactly two options ----
 vote_code="$(curl -sk --compressed -o /dev/null -w '%{http_code}' "$VOTE_URL/")"
@@ -128,11 +135,12 @@ fi
 # ---- R5: Result page shows counts and percentages for both options ----
 result_html="$(curl -sk --compressed "$RESULT_URL/")"
 if printf '%s\n' "$result_html" | grep -qE '[0-9]+(\.[0-9]+)?%' \
+  && [[ -n "${OPTS[0]}" && -n "${OPTS[1]}" ]] \
   && printf '%s\n' "$result_html" | grep -q "${OPTS[0]}" \
   && printf '%s\n' "$result_html" | grep -q "${OPTS[1]}"; then
   pass "R5" "percentages + both option labels present"
 else
-  fail "R5" "missing percentages or labels"
+  fail "R5" "missing percentages or labels (options '${OPTS[0]}' / '${OPTS[1]}')"
 fi
 
 # ---- R6: New vote appears in results within 5s ----
