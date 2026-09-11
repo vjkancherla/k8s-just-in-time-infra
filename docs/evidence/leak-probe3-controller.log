@@ -1,0 +1,50 @@
+2026-09-11 10:08:40,579 kopf.objects INFO Deployment probe-vote created/updated in hatch-leak
+2026-09-11 10:08:40,628 jit-controller INFO Created InfraClaim hatch-leak-redis in hatch-leak
+2026-09-11 10:08:40,683 jit-ipam INFO Allocated block 172.19.0.110/10 to namespace hatch-leak
+2026-09-11 10:08:41,112 jit-controller INFO InfraClaim hatch-leak-redis allocated 172.19.0.110 (block 172.19.0.110)
+2026-09-11 10:08:41,114 jit-controller INFO provision_infra: hatch-leak-redis phase=, allocatedIP=172.19.0.110
+2026-09-11 10:08:46,519 jit-controller INFO Runner returned 3 outputs for hatch-leak-redis: ['address', 'port', 'url']
+2026-09-11 10:08:46,526 jit-controller INFO Created Secret jit-redis in hatch-leak
+2026-09-11 10:08:46,530 jit-controller INFO Created Service jit-redis in hatch-leak
+2026-09-11 10:08:46,535 jit-controller INFO Created EndpointSlice jit-redis in hatch-leak
+2026-09-11 10:08:46,578 jit-controller INFO InfraClaim hatch-leak-redis phase set to Ready (runner)
+2026-09-11 10:08:46,587 jit-controller INFO provision_infra: hatch-leak-redis phase=Ready, allocatedIP=172.19.0.110
+2026-09-11 10:08:46,601 jit-controller INFO provision_infra: hatch-leak-redis is Ready with Secret data, skipping
+2026-09-11 10:08:46,669 kopf.objects INFO Deployment probe-vote created/updated in hatch-leak
+2026-09-11 10:08:46,671 kopf.objects INFO Resync hatch-leak-redis: referencedBy=['probe-vote'], phase=Ready
+2026-09-11 10:08:46,692 jit-controller INFO InfraClaim hatch-leak-redis already exists in hatch-leak
+2026-09-11 10:08:46,695 jit-controller INFO provision_infra: hatch-leak-redis phase=Ready, allocatedIP=172.19.0.110
+2026-09-11 10:08:46,699 jit-controller INFO provision_infra: hatch-leak-redis is Ready with Secret data, skipping
+2026-09-11 10:09:16,784 kopf.objects INFO Resync hatch-leak-redis: Orphaned, expiresAt=2026-09-11T10:11:16.782035+00:00
+2026-09-11 10:11:17,118 kopf.objects INFO TTL expired on hatch-leak-redis, sweeping
+2026-09-11 10:11:17,121 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:11:31,384 jit-controller WARNING Runner destroy failed for hatch-leak/redis: HTTPConnectionPool(host='172.19.0.10', port=8080): Max retries exceeded with url: /v1/runs/hatch-leak (Caused by NewConnectionError("HTTPConnection(host='172.19.0.10', port=8080): Failed to establish a new connection: [Errno 113] No route to host"))
+2026-09-11 10:11:31,385 kopf.objects WARNING Destroy failed for hatch-leak-redis, claim stays Deleting — will retry next tick
+2026-09-11 10:12:01,398 kopf.objects INFO Resync hatch-leak-redis: retrying destroy (Deleting)
+2026-09-11 10:12:01,398 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:12:04,474 jit-controller WARNING Runner destroy failed for hatch-leak/redis: HTTPConnectionPool(host='172.19.0.10', port=8080): Max retries exceeded with url: /v1/runs/hatch-leak (Caused by NewConnectionError("HTTPConnection(host='172.19.0.10', port=8080): Failed to establish a new connection: [Errno 113] No route to host"))
+2026-09-11 10:12:04,474 kopf.objects WARNING Destroy retry failed for hatch-leak-redis, will retry next tick
+2026-09-11 10:12:34,491 kopf.objects INFO Resync hatch-leak-redis: retrying destroy (Deleting)
+2026-09-11 10:12:34,491 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:12:37,561 jit-controller WARNING Runner destroy failed for hatch-leak/redis: HTTPConnectionPool(host='172.19.0.10', port=8080): Max retries exceeded with url: /v1/runs/hatch-leak (Caused by NewConnectionError("HTTPConnection(host='172.19.0.10', port=8080): Failed to establish a new connection: [Errno 113] No route to host"))
+2026-09-11 10:12:37,561 kopf.objects WARNING Destroy retry failed for hatch-leak-redis, will retry next tick
+2026-09-11 10:13:07,657 kopf.objects INFO Resync hatch-leak-redis: retrying destroy (Deleting)
+2026-09-11 10:13:07,657 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:13:10,712 jit-controller WARNING Runner destroy failed for hatch-leak/redis: HTTPConnectionPool(host='172.19.0.10', port=8080): Max retries exceeded with url: /v1/runs/hatch-leak (Caused by NewConnectionError("HTTPConnection(host='172.19.0.10', port=8080): Failed to establish a new connection: [Errno 113] No route to host"))
+2026-09-11 10:13:10,713 kopf.objects WARNING Destroy retry failed for hatch-leak-redis, will retry next tick
+2026-09-11 10:13:40,757 kopf.objects INFO Resync hatch-leak-redis: retrying destroy (Deleting)
+2026-09-11 10:13:40,757 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:13:45,859 jit-controller INFO Destroy response for hatch-leak/redis: destroyed
+2026-09-11 10:13:45,865 jit-controller INFO Deleted Secret jit-redis in hatch-leak
+2026-09-11 10:13:45,870 jit-controller INFO Deleted Service jit-redis in hatch-leak
+2026-09-11 10:13:45,881 jit-controller INFO Deleted EndpointSlice jit-redis in hatch-leak
+2026-09-11 10:13:45,899 jit-controller INFO Deleted claim hatch-leak-redis after TTL expiry
+2026-09-11 10:13:45,905 jit-ipam INFO Released IP block for namespace hatch-leak
+2026-09-11 10:13:45,911 kopf.objects INFO Hard delete triggered for hatch-leak-redis in hatch-leak, destroying infra
+2026-09-11 10:13:45,911 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:13:50,309 jit-controller INFO Destroy response for hatch-leak/redis: destroyed
+2026-09-11 10:13:50,318 kopf.objects INFO Claim hatch-leak-redis was already swept; not releasing its IP block twice
+2026-09-11 10:14:50,354 kopf.objects INFO Hard delete triggered for hatch-leak-redis in hatch-leak, destroying infra
+2026-09-11 10:14:50,354 jit-controller INFO Destroy hatch-leak/redis vars=['ip', 'name', 'network']
+2026-09-11 10:14:54,615 jit-controller INFO Destroy response for hatch-leak/redis: destroyed
+2026-09-11 10:14:54,623 kopf.objects INFO Claim hatch-leak-redis was already swept; not releasing its IP block twice

@@ -199,8 +199,12 @@ tofu init -backend-config=bucket=jit-state \
   -backend-config=skip_credentials_validation=true -backend-config=skip_metadata_api_check=true \
   -backend-config=force_path_style=true
 tofu destroy -auto-approve -var name=<ns>-<module> -var network=k3d-voting-app -var ip=<ip>
-#    (add -var http_port=<n> for pgadmin; -var postgres_password=<secret> for
-#     postgres/pgadmin, read from the jit-postgres Secret)
+#    redis needs nothing more. postgres also needs -var postgres_password=<secret>,
+#    and pgadmin needs that *and* -var postgres_url=<address>:<port> - neither has a
+#    default, and without them the destroy fails on "No value for required variable".
+#    The controller takes both from the jit-postgres Secret: POSTGRES_PASSWORD, and
+#    address/port joined as "<address>:<port>". Add -var http_port=<n> for pgadmin
+#    only if it was not published on the module's default 5050.
 
 # 3. Take the finalizer off, which lets the claim and its namespace go.
 kubectl patch infraclaim <ns>-<module> -n <ns> --type=json \

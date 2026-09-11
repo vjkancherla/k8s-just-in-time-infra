@@ -760,8 +760,16 @@ def cleanup_k8s_resources(namespace, module):
             logger.warning(f"Failed to delete EndpointSlice {ep_name}: {e}")
 
 
-def remove_finalizer_and_delete(namespace, name, finalizer):
-    """Remove the finalizer from a claim and delete it."""
+def remove_finalizer_and_delete(namespace, name, finalizer) -> bool:
+    """Remove the finalizer from a claim and delete it.
+
+    Returns True only once the claim is gone (a 404 counts: already gone is the
+    desired state, not a failure). Both teardown paths gate their IP-block release
+    on this value, because the release and the claim's removal have to move
+    together: releasing before the claim is really removed releases the block a
+    second time on the next tick, and never releasing it - what this used to do on
+    the retry path - strands the block for good (S17, docs/evidence/leak-probe2.log).
+    """
     api = client.CustomObjectsApi()
     try:
         obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
@@ -774,8 +782,12 @@ def remove_finalizer_and_delete(namespace, name, finalizer):
             )
         api.delete_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
         logger.info(f"Deleted claim {name} after TTL expiry")
+        return True
     except client.exceptions.ApiException as e:
+        if e.status == 404:
+            return True
         logger.warning(f"Failed to delete claim {name}: {e}")
+        return False
 
 
 @kopf.timer("jit.io", "v1alpha1", "infraclaims", interval=30, initial_delay=True)
@@ -844,7 +856,21 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
             if destroy_infra(namespace, module, status.get("allocatedIP", ""),
                              spec.get("params", {})):
                 cleanup_k8s_resources(namespace, module)
-                remove_finalizer_and_delete(namespace, name, FINALIZER)
+                # This branch must release the block itself: it is the one path in
+                # the teardown machine that used to leave the claim in the ledger.
+                # The TTL path's release only runs when its *own* destroy succeeded,
+                # and the delete handler deliberately skips phase Deleting — so a
+                # sweep that failed and a retry that then succeeded left the block
+                # allocated for good, claim and container both gone. Exactly one of
+                # the two paths releases any given claim: reaching this line means
+                # the claim still exists, so the sweep did not remove it.
+                # Found by S17 (docs/evidence/leak-probe2.log).
+                if remove_finalizer_and_delete(namespace, name, FINALIZER):
+                    release_block(namespace)
+                else:
+                    logger.warning(
+                        f"Not releasing the IP block for {name}: the claim survived "
+                        "removal, will retry next tick")
             else:
                 logger.warning(f"Destroy retry failed for {name}, will retry next tick")
         elif phase != "Orphaned":
@@ -892,8 +918,12 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                     if destroy_infra(namespace, module, status.get("allocatedIP", ""),
                                      spec.get("params", {})):
                         cleanup_k8s_resources(namespace, module)
-                        remove_finalizer_and_delete(namespace, name, FINALIZER)
-                        release_block(namespace)
+                        if remove_finalizer_and_delete(namespace, name, FINALIZER):
+                            release_block(namespace)
+                        else:
+                            logger.warning(
+                                f"Not releasing the IP block for {name}: the claim "
+                                "survived removal, will retry next tick")
                     else:
                         logger.warning(
                             f"Destroy failed for {name}, claim stays Deleting — "

@@ -1,0 +1,14 @@
+[10:08:40] ledger before: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[10:08:46] claim is Ready; ledger: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}, "hatch-leak": {"offset": 1, "base_ip": "172.19.0.110", "count": 1}}
+[10:09:17] claim is Orphaned after deleting the Deployment
+[10:09:17] runner stopped
+[10:11:20] claim is Deleting after the TTL expired with the runner down; holding it down 120s more
+[10:11:20]     controller says: 2026-09-11 10:08:46,699 jit-controller INFO provision_infra: hatch-leak-redis is Ready with Secret data, skipping|2026-09-11 10:09:16,784 kopf.objects INFO Resync hatch-leak-redis: Orphaned, expiresAt=2026-09-11T10:11:16.782035+00:00|2026-09-11 10:11:17,118 kopf.objects INFO TTL expired on hatch-leak-redis, sweeping|
+[10:13:20] still down; controller says: 2026-09-11 10:12:37,561 kopf.objects WARNING Destroy retry failed for hatch-leak-redis, will retry next tick|2026-09-11 10:13:07,657 kopf.objects INFO Resync hatch-leak-redis: retrying destroy (Deleting)|2026-09-11 10:13:10,713 kopf.objects WARNING Destroy retry failed for hatch-leak-redis, will retry next tick|
+[10:13:22] runner restarted; waiting for the retry to complete the destroy
+[10:15:07] claim present: no
+[10:15:07] container present: no
+[10:15:07] controller says: 2026-09-11 10:13:50,318 kopf.objects INFO Claim hatch-leak-redis was already swept; not releasing its IP block twice|2026-09-11 10:14:50,354 kopf.objects INFO Hard delete triggered for hatch-leak-redis in hatch-leak, destroying infra|2026-09-11 10:14:54,623 kopf.objects INFO Claim hatch-leak-redis was already swept; not releasing its IP block twice|
+[10:15:07] LEDGER AFTER: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[10:15:07] VERDICT: claim and container gone; the ledger must name voting-a only - any hatch-leak entry is the retry path leaking again
+[10:15:07] done

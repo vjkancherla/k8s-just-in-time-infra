@@ -77,6 +77,28 @@ A step with one box ticked is not done. One step per session.
     than `ns%2F`) and `docs/evidence/s17-run-j11-nopass.log` (J11 passed but printed nothing, so a gate
     requiring `^J11 PASS` could not see it).
   - `make check STEP=NN` routing is asserted in the same script. The S16 gate needs `NS=voting-a`.
+  - **Post-fix re-run.** After the two fixes below: `bash scripts/checks/S17.sh` → exit 0 again,
+    `PASS: J1-J11 all PASS in .workflow/verify-jit.md`, `PASS: ===== 17 PASS, 0 FAIL ===== in
+    voting-a`, `PASS: S17 - two namespaces, J1-J11 and the R-checks both green`
+    (`docs/evidence/s17-run-postfix.log`, suite report `docs/evidence/verify-jit-postfix.md`).
+  - **The resync retry path leaked an IP block.** The TTL path released a swept claim's block in one
+    place, only when its *own* destroy succeeded; the retry branch destroyed, cleaned up and deleted
+    the claim while releasing nothing; and `handle_claim_delete` deliberately skips phase `Deleting`.
+    So a sweep that failed at the expiry — the runner being down, which is what J10 rehearses — and a
+    retry that then succeeded left the block allocated for good, claim and container both gone. One
+    of the ten blocks, lost silently, per occurrence. Proved by executing it:
+    `docs/evidence/leak-probe2.sh` / `leak-probe2.log` (claim gone, container gone, ledger still
+    counting the namespace). Fixed in `jit-controller/main.py`: both teardown paths release, and each
+    releases only once `remove_finalizer_and_delete` reports the claim is gone, so the release and the
+    claim's removal move together and exactly one path releases. Re-proved by
+    `docs/evidence/leak-probe3.sh` / `leak-probe3.log` (`LEDGER AFTER` names voting-a only) with the
+    controller log in `docs/evidence/leak-probe3-controller.log` showing the retry branch releasing
+    before the delete handler skips.
+  - **The README's escape hatch named the wrong variables.** Step 2 of §"If it goes wrong" documented
+    `-var postgres_password` and `-var http_port` for pgadmin but not `postgres_url`, which
+    `jit-modules/modules/pgadmin/variables.tf` requires with no default: the documented manual destroy
+    failed with `No value for required variable: postgres_url`. Step 2 now states what each module
+    requires and where each value comes from.
 
 ## Notes carried from the app's own docs
 

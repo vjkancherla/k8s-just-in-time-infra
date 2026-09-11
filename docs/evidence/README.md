@@ -23,6 +23,8 @@ Nothing here is executed by any workflow. These are artifacts.
 | `block-race-test.sh` / `block-race.log` | Two iterations of `overlays/voting-a` and `overlays/voting-b` applied back to back, looking for the per-namespace lock failing to serialise the shared `jit-ipam` ConfigMap. Did **not** reproduce in two attempts |
 | `leak-probe.sh` / `leak-probe.log` | v1 of the retry-path leak probe. It restarted the runner as soon as the phase went `Deleting`, so the in-flight destroy succeeded and the ledger looked clean — it tested nothing. Kept as the example of a probe that passes for the wrong reason |
 | `leak-probe2.sh` / `leak-probe2.log` | v2, which holds the runner down through two failed retries. It proved the retry path leaks the block: claim and container gone, ledger still `{"hatch-leak": ... "count": 1}` |
+| `leak-probe3.sh` / `leak-probe3.log` | v3, the same scenario after the fix. Same script body, so the two logs are comparable: `LEDGER AFTER: {"voting-a": ... "count": 3}` — no `hatch-leak` entry |
+| `leak-probe3-controller.log` | The controller log for that run, showing the order that makes the release exactly-once: the retry branch destroys, deletes the claim, then `jit-ipam INFO Released IP block for namespace hatch-leak`, and only then does the delete handler run and skip (`already swept; not releasing its IP block twice`) |
 | `clean-slate.sh` | The reset helper every probe above calls: claims, JIT containers, volumes, the demo namespaces and the IPAM ledger |
 | `restore-env.sh` | Puts the demo back after the probes (voting-a deployed, ledger reset) |
 

@@ -178,6 +178,28 @@ run could reveal, because no run had ever reached it:
 Both were caught only because the checkpoint asserts the PASS line and not just the exit code.
 The exit code alone called it fine.
 
+**A guard that prevents a second release hands the first one to a path you must then walk.**
+`handle_claim_delete` skips its release for a claim already in phase `Deleting` — correct, and
+what fixed the duplicate address above. But that also made the `Deleting` paths the owners of the
+release, and the resync **retry** branch (the sweep's destroy fails, a later tick succeeds)
+inherited none: it destroyed, cleaned up and deleted the claim while the handler dutifully
+skipped, so the block stayed in the ledger with the claim and its container both gone. One of the
+ten blocks, lost silently and permanently, on the path the retention window makes routine — the
+runner being down at expiry, which is exactly what J10 rehearses. Both paths now release, and
+both release only once `remove_finalizer_and_delete` reports the claim is gone: the release and
+the claim's removal have to move together, because releasing before the removal releases a second
+time on the next tick. When a guard moves an obligation to one path, enumerate every other path
+that can reach that state. Evidence: `docs/evidence/leak-probe2.sh` (the leak) and
+`docs/evidence/leak-probe3.sh` (the fix, and the controller log that shows which path released).
+
+**A probe can pass by testing nothing.** v1 of the leak probe restarted the runner as soon as the
+phase went `Deleting`, so the sweep's in-flight destroy succeeded after all — the sweep released
+the block itself and the guard skipped the handler, which is precisely the behaviour the probe was
+supposed to be distinguishing itself from. It printed a clean ledger and proved nothing. v2 holds
+the runner down past the expiry **and** through two failed retries, so the success can only come
+from the retry branch. Before believing a green probe, read its log against the component log and
+ask which code path produced the result.
+
 ---
 
 ## Carried forward — do not lose these
