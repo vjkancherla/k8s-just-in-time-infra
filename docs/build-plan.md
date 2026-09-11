@@ -516,7 +516,11 @@ The four that matter:
 
 ## Done
 
-- [ ] `make all` and `make jit-verify` both green from a cold `make destroy`
+- [ ] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:
+      `make all` now targets the `voting-a` overlay (`app/Makefile` defaults `NS`/`KUSTOMIZE_DIR` to it),
+      tenants never run in `default`, and the cold order needs `make jit-down` plus a cluster-creating
+      `make deploy` before `jit-up`. The recipe and its three traps are in the README's "From cold"; the
+      runs that established it are in `docs/evidence/s17-cold-path*.log`.
 - [ ] `docs/todo.md` boxes all ticked, with the checkpoint output that justified each
 - [ ] Review section in `todo.md`: what changed from the design and why
 - [ ] `docs/lessons.md` for anything that had to be reworked

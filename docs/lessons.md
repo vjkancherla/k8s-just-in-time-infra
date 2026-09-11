@@ -200,6 +200,38 @@ the runner down past the expiry **and** through two failed retries, so the succe
 from the retry branch. Before believing a green probe, read its log against the component log and
 ask which code path produced the result.
 
+**A cold start is a different program from a warm one.** The build plan's last Done item — "`make all`
+and `make jit-verify` both green from a cold `make destroy`" — had never been run. Running it found four
+things no warm run can show:
+
+- **A cluster's containerd is not Docker's image store.** `make destroy` deletes the k3d cluster and
+  takes its images with it; `jit-controller:latest` was in `docker images` and nowhere else, so
+  `make jit-up` waited its full 180s to fail on ImagePullBackOff. The earlier stages had imported it by
+  hand (S8), and a cold host has nobody to do that. `jit-up.sh` now imports it when the cluster lacks it.
+- **The module containers live on the daemon, not in the cluster** — so they survive both the app and
+  the cluster, still holding addresses the new stack's empty IPAM ledger is about to hand out again.
+  `cd app && make destroy` is not a cold start on its own; `make jit-down` has to be part of it.
+- **Two scripts can each be right and still deadlock.** `app/scripts/deploy.sh` creates the cluster and
+  then refuses to apply the app until the InfraClaim CRD exists; `scripts/jit-up.sh` refuses to run
+  without the cluster. The first `deploy` of a cold start is therefore a deliberate failure whose only
+  product is the cluster.
+- **A base with no namespace deploys to `default`,** whose Ingress claims `vote.localhost` — the host
+  `voting-a` owns. `make jit-verify` then refuses to run ("one namespace per demo host"), which is the
+  suite's own guard working. Settled by the review: tenants never run in `default`; `app/Makefile` now
+  defaults `NS`/`KUSTOMIZE_DIR` to the `voting-a` overlay.
+- **A retained data volume and a regenerated password cannot both be right.** The same run stopped at
+  `init-db` failing with `FATAL: password authentication failed for user "postgres"`. `jit-down` (and
+  `clean-slate`) remove module containers with `docker rm -f`, which is not a `tofu destroy`, so the
+  `docker_volume` stays — while the controller writes a *new* password into `jit-postgres` for the new
+  stack. Postgres ignores `POSTGRES_PASSWORD` on a data directory that already exists, so the container
+  is up, the Secret is right, and the app can never authenticate. Either the volume goes with the
+  container or the password must be persisted; nothing in the PoC decides that.
+
+The run also caught a bug in that same day's `jit-down` fix: `remaining="$(kubectl get infraclaims …
+| wc -l)"` under `set -euo pipefail`. In a fresh cluster there is no CRD, so kubectl fails, `pipefail`
+makes the whole pipeline fail, and `set -e` kills the script — after which the module containers it was
+supposed to sweep stayed behind. The cold path is where unguarded reads go to die.
+
 ---
 
 ## Carried forward — do not lose these

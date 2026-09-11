@@ -1,37 +1,37 @@
 Updated: 2026-09-11
 
 ## Working
-S17's code is complete, reviewed (CONCERNS, no blockers) and hardened by exercising its failure paths:
-the stack bounce and the R-checks' diagnostics both behave as documented now.
+S17 is reviewed, its concerns are fixed or flagged, the demo namespace convention is pinned in code, and the
+demo runs again. One cold-start blocker is open, and it is a design question.
 
 ## Done (verified)
-- Checkpoint at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL`; `make verify` re-run green (17 PASS)
-  after every later change (`docs/evidence/s17-run-postfix.log`).
-- Bounce: `docs/evidence/s17-jitdown-bounce.log` — ledger absent after `jit-down`, no leftover claims
-  after `jit-up`, three claims and the rebuilt ledger after a Deployment touch, 17 PASS.
-- R-checks against a dead app: `10 PASS, 7 FAIL`, each failure its own reason, no `unbound variable`
-  noise (`docs/evidence/s17-rchecks-negative-options.log`).
-- The teardown leak and its fix: `leak-probe2.*`, `leak-probe3.*`.
-- S0-S16 checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
+- Checkpoint at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL` (`docs/evidence/s17-run-postfix.log`);
+  `make verify` re-run green after every later change.
+- `jit-down` clears the IPAM ledger and waits for its claims; the bounce is green (`s17-jitdown-bounce.log`).
+- The R-checks no longer abort on an empty `OPTS` or let R5 pass vacuously
+  (`s17-rchecks-negative-options.log`: 10 PASS, 7 FAIL with honest reasons).
+- Cold-start traps: `jit-up` imports the controller image; `jit-down` survives no CRD; a bare `make all`
+  deploys to `voting-a`.
+- Demo healthy: three claims Ready, ledger `{"voting-a": {"offset": 0, "count": 3}}`, three pods 1/1.
 
 ## Broken (confirmed by execution)
-- Nothing known. Every defect S17 found, and every one its review or the bounce found, is fixed and
-  re-proved.
+- **A cold start cannot bring the app up**: `init-db` gets
+  `FATAL: password authentication failed for user "postgres"` because the postgres volume outlives its
+  container while the controller regenerates the password (`docs/evidence/s17-cold-path.log`).
 
 ## Suspected (read, not reproduced)
-- The cold path: `make destroy` removes the cluster and `jit-controller:latest` with it, and `jit-up.sh`
-  does not import it. Not run — it deletes the cluster.
-- `ipam.py` has no lock of its own; `_allocated_ip` returns `""` on `ApiException`, which also means
-  "allocate".
-- `var.share_dir` defaults to `/tmp`, correct only when tofu runs on the Docker daemon's host.
+- `ipam.py` has no lock of its own; `namespace_lock` is process-local.
+- `_allocated_ip` returns `""` on `ApiException`, which also means "allocate".
+- A claim can be `Ready` with no container behind it; the stale-Ready check only looks for the Secret.
 
 ## In progress
-Nothing. The next move is the human's: the review box, or the cold-path run.
+Nothing. Waiting on the volume-vs-password decision.
 
 ## Blocked
-- The review box (the human's tick) and the cold-path run (their call; it deletes the cluster).
+- The cold-start Done item (design question above) and the review box (the human's tick).
 
 ## Learnings
-- Run the failure path, not only the happy one: the second bounce found a `jit-down` race and an
-  unguarded `OPTS` that every green run had hidden.
-- `--wait=false` next to a stateful consumer of the deleted object is a race worth writing down.
+- Run the failure path: the cold start found four defects, one of them in the fix made the same day.
+- Two stores of one image, two homes for one app, one volume outliving its password - the expensive bugs
+  here are all "the same thing in two places".
+- Read the comments before spending a cluster: two of the four contradictions were already written down.

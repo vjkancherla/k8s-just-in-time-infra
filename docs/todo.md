@@ -18,6 +18,12 @@ A step with one box ticked is not done. One step per session.
 - [x] Redis, Postgres and pgAdmin all on the annotation path; no manual tier
 - [x] No snapshot guardrail in the PoC - soft delete covers the accident that matters
 - [x] All work in `k8s-just-in-time-infra/`; the voting app is copied into `app/`, never edited in place
+- [x] **Tenants never run in `default`** - the demo app lives in `voting-a`/`voting-b`, and `default` holds
+      the control plane (the controller and its `jit-ipam` ledger). Settled by S17's review: the base
+      kustomization carries no namespace, so a bare `make all` used to land the app in `default`, where its
+      Ingress fought `voting-a` for `vote.localhost` - and the J-suite's PREREQ then refused to run at all
+      (`docs/evidence/s17-cold-path-order.log`). `app/Makefile` now defaults `NS`/`KUSTOMIZE_DIR` to the
+      `voting-a` overlay so the bare command cannot do it again.
 
 ## Stage Z - Before anything
 
@@ -180,14 +186,25 @@ All five S17 verdicts below are **resolved in S17**, each with the assertion tha
   past S17 unchanged — no S17 checkpoint runs it.
 - **Deferred (runner):** move the runner to `tofu output -json` so a module can own a
   sensitive output. Until then the controller writes the postgres password itself.
-- **The cold path is unverified: `cd app && make destroy` → `make all` → `make jit-up` →
-  `make jit-verify`.** Open from S17's review (concern 4). Reading it, the first step deletes the k3d
-  cluster, which takes `jit-controller:latest` out of the cluster's containerd, and `scripts/jit-up.sh`
-  does not import it — the image was "built and imported by the earlier stages (S8)", and after a cold
-  destroy that is no longer true. Expected to need `k3d image import jit-controller:latest -c voting-app`
-  by hand (the hint `jit-up.sh` prints) or an import step inside `jit-up.sh`. **Not run**: it deletes
-  the cluster, so it is the human's call. Related: `make jit-up` does not re-create a tenant's claims —
-  touch the annotated Deployment (see the S17 record above).
+- **Cold start — the namespace side is settled; one blocker is open.** S17's review concern 4, and the runs
+  earned their keep. In order: `s17-cold-path-gaps.log` — the cluster's containerd went with the cluster, so
+  `jit-controller:latest` went with it and `make jit-up` then waited 180s to fail on ImagePullBackOff;
+  the module containers live on the Docker daemon, outside the cluster, and survive both the app and the
+  cluster, holding the addresses the next stack's empty ledger is about to hand out; `app/scripts/deploy.sh`
+  creates the cluster and then stops until the CRD exists while `scripts/jit-up.sh` needs the cluster, so
+  the cluster is created by a `deploy` that stops by design; and a bare `make all` deploys into `default`,
+  whose Ingress claims `vote.localhost` - the host the `voting-a` demo owns - so `make jit-verify` refuses
+  to run ("one namespace per demo host"). Fixed: `jit-up.sh` imports the controller image when the cluster
+  lacks it, and `jit-down` no longer dies on a cluster with no CRD (its own `set -euo pipefail` bug, found
+  by this run), and a bare `make all` no longer lands the app in `default` (`app/Makefile` defaults
+  `NS`/`KUSTOMIZE_DIR` to the `voting-a` overlay — see the decision in "Decisions (settled)"). The third
+  run, `docs/evidence/s17-cold-path.log`, goes as far as provisioning with tenants pinned to `voting-a` —
+  three claims Ready, vote rolled out — and **stops** at a blocker: `init-db` fails with
+  `FATAL: password authentication failed for user "postgres"`, because the postgres data volume outlives
+  the container sweep while the controller generates a fresh password for the new stack (`docker volume ls`
+  still lists `voting-a-postgres-postgres-data`, and a `default-...` one from an older run). **Open, and a
+  design question rather than a bug:** on a bounce or a cold start, either the data volume goes with its
+  container or the password has to be persisted instead of regenerated. Not decided.
 - **`var.share_dir` keeps a `/tmp` default, deliberately.** S17 review concern 3. The default is only
   correct when tofu runs on the Docker daemon's host; the pgadmin module is silently wrong without it
   (Docker creates an empty directory instead of mounting `servers.json`). Requiring the variable is the

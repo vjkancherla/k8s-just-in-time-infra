@@ -1,0 +1,30 @@
+[14:02:12] phase=full
+[14:02:12]     clusters=[] jit-containers=3 claims=0 ledger=<none>
+[14:02:12] --- 1  cd app && make destroy
+[14:02:15]     exit 0
+    | No k3d cluster named 'voting-app' found; skipping cluster delete.
+    | 
+    | Cleanup complete.
+[14:02:15]     clusters=[] jit-containers=3 claims=0 ledger=<none>
+[14:02:15] --- 2  cd app && make deploy   (creates the cluster; stops until the CRD exists)
+[14:02:56]     exit 2
+    |        re-run this. On a cold host this script is also what creates the cluster, so
+    |        it stops here by design and the second run is the one that applies the app.
+    | make: *** [deploy] Error 1
+[14:02:56]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[14:02:56] --- 3  make jit-down   (the module containers outlive the cluster; this removes them)
+[14:02:57]     exit 0
+    | removed the runner and MinIO
+    | removed the IPAM ledger
+    | PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+[14:02:57]     clusters=[voting-app ] jit-containers=0 claims=0 ledger=<none>
+[14:02:57] --- 4  make jit-up
+[14:03:42]     exit 0
+    | deployment "jit-controller" successfully rolled out
+    | controller Ready; watching: 
+    | PASS: jit stack up - MinIO, runner running, CRD, controller
+[14:03:42]     controller: jit-controller-68c4b8d6dc-d896m 1/1 Running 
+[14:03:42] --- 5  kubectl create ns voting-a   (the overlay sets a namespace; it does not create one)
+[14:03:42]     exit 0
+    | namespace/voting-a created
+[14:03:42] --- 6  cd app && make all   (bare: the Makefile now defaults to the voting-a overlay)

@@ -1,0 +1,28 @@
+[13:27:20] phase=gaps
+[13:27:20]     clusters=[voting-app ] jit-containers=3 claims=3 ledger={"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[13:27:20] --- 1  cd app && make destroy
+[13:27:26]     exit 0
+    | [36mINFO[0m[0002] Successfully deleted cluster voting-app!     
+    | 
+    | Cleanup complete.
+[13:27:27]     clusters=[] jit-containers=3 claims=0 ledger=<none>
+[13:27:27] --- 2  cd app && make deploy   (creates the cluster; stops until the CRD exists)
+[13:28:01]     exit 2
+    |        Bring up MinIO, the runner, the CRD and the controller
+    |        (deploy/minio.sh, deploy/controller.yaml) and re-run.
+    | make: *** [deploy] Error 1
+[13:28:01]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[13:28:01] --- 3  make jit-down   (the JIT stack's own teardown, which is what removes the module containers)
+[13:28:02]     exit 2
+    | no InfraClaims to remove
+    | make: *** [jit-down] Error 1
+[13:28:02]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[13:28:02] --- 4  make jit-up
+[13:31:07]     exit 2
+    |       k3d image import jit-controller:latest -c voting-app
+    | FAIL: the controller did not become Ready
+    | make: *** [jit-up] Error 1
+[13:31:07]     controller: jit-controller-68c4b8d6dc-gbrkc 0/1 ImagePullBackOff 
+[13:31:08]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[13:31:08] phase=gaps: stopping before the app and the suite
+[13:31:08] done

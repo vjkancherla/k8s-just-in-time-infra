@@ -156,6 +156,39 @@ failure, unlike `make verify`, whose report always exits 0. The four checks that
 | **J8** | delete a namespace → immediate teardown, other namespaces untouched |
 | **J9** | controller restart → the orphan is still detected |
 
+### From cold
+
+`make destroy` deletes the cluster, so a cold start is two passes of the app's own loop. Every
+line below is load-bearing, and the whole path is recorded in `docs/evidence/s17-cold-path.log`
+along with the two runs that got it wrong first:
+
+```bash
+make jit-down                                  # the module containers live on the host, not the cluster
+cd app && make destroy                         # the app, then the k3d cluster
+cd app && make deploy                          # creates the cluster, then stops - the CRD is not there yet
+make jit-up                                    # MinIO + runner + CRD + controller
+kubectl create ns voting-a                     # namespaces are the platform's; kustomize does not create them
+cd app && make all                             # the app into voting-a, then R1-R17
+make jit-verify                                # J1-J11
+```
+
+(`app/Makefile` defaults `NS` and `KUSTOMIZE_DIR` to the `voting-a` overlay, so `make all`
+lands in the demo namespace. Override them for `voting-b`: `make all NS=voting-b
+KUSTOMIZE_DIR=./kustomize/overlays/voting-b`.)
+
+Three things surprise people here, and all three are real:
+
+- **`make deploy` stopping is the design, not a break.** `scripts/jit-up.sh` refuses to run without a
+  cluster and `app/scripts/deploy.sh` refuses to apply the app without the CRD, so one of them has to
+  go first. That first `deploy` is only there to create the cluster.
+- **`make destroy` leaves the module containers running.** They live on the Docker daemon, outside the
+  cluster, so they survive it - and their addresses have to be free before the next stack's empty IPAM
+  ledger hands out the same ones. `make jit-down` is what removes them.
+- **Tenants never run in `default`.** The base kustomization carries no namespace, so a bare
+  `kubectl apply -k app/kustomize` (or a `make deploy` with `KUSTOMIZE_DIR` pointing at the base) puts
+  the app in `default`, whose Ingress then claims `vote.localhost` - the host the `voting-a` demo owns -
+  and `make jit-verify` refuses to run. Use the overlays, as above.
+
 ---
 
 ## Limits

@@ -1,0 +1,40 @@
+[13:33:46] phase=full
+[13:33:46]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[13:33:46] --- 1  cd app && make destroy
+[13:33:50]     exit 0
+    | [36mINFO[0m[0000] Successfully deleted cluster voting-app!     
+    | 
+    | Cleanup complete.
+[13:33:50]     clusters=[] jit-containers=3 claims=0 ledger=<none>
+[13:33:50] --- 2  cd app && make deploy   (creates the cluster; stops until the CRD exists)
+[13:34:30]     exit 2
+    |        Bring up MinIO, the runner, the CRD and the controller
+    |        (deploy/minio.sh, deploy/controller.yaml) and re-run.
+    | make: *** [deploy] Error 1
+[13:34:30]     clusters=[voting-app ] jit-containers=3 claims=0 ledger=<none>
+[13:34:30] --- 3  make jit-down   (the module containers outlive the cluster; this removes them)
+[13:34:31]     exit 0
+    | removed the runner and MinIO
+    | removed the IPAM ledger
+    | PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+[13:34:31]     clusters=[voting-app ] jit-containers=0 claims=0 ledger=<none>
+[13:34:31] --- 4  make jit-up
+[13:34:47]     exit 0
+    | deployment "jit-controller" successfully rolled out
+    | controller Ready; watching: 
+    | PASS: jit stack up - MinIO, runner running, CRD, controller
+[13:34:48]     controller: jit-controller-68c4b8d6dc-dhv49 1/1 Running 
+[13:34:48] --- 5  cd app && make all     (applies the app now the CRD exists, then the R-checks)
+[13:37:55]     exit 0
+    | R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+    | 
+    | ===== 17 PASS, 0 FAIL =====
+[13:37:55]     verify: ===== 17 PASS, 0 FAIL =====
+[13:37:55] --- 6  make jit-verify
+[13:37:56]     exit 2
+    | 
+    | ===== 0 PASS, 1 FAIL =====
+    | make: *** [jit-verify] Error 1
+[13:37:56]     suite: ===== 0 PASS, 1 FAIL =====
+[13:37:56]     clusters=[voting-app ] jit-containers=3 claims=3 ledger={"default": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[13:37:56] done
