@@ -3,11 +3,15 @@
 **Step:** S17
 **Goal:** the demo, and the acceptance tests from the design note.
 
-**Commit range:** a82a6a9 → e00a179 (seven commits: the implementation, its fixes and the step's docs)
+**Commit range:** a82a6a9 → c95c051 (the seven implementation commits, the bookkeeping that followed, and
+`c95c051` — the fix this step's own verification forced after the first green checkpoint)
 
-**Outside that range, for context:** bookkeeping only, no implementation — `memory-bank/*`,
-`docs/reviews/`, and `docs/evidence/` (the run logs and probe scripts moved out of `/tmp` so that the
-citations in the step record stay resolvable).
+**Outside that range, for context:** bookkeeping only, no implementation — `memory-bank/*` and
+`docs/reviews/S17-review-prompt.md` as updated after `c95c051`. **Inside it, besides the code:**
+bookkeeping as well — `memory-bank/*`, the earlier `docs/reviews/` commits, and `docs/evidence/`, which
+is where the run logs and probe scripts the step record cites live (moved out of `/tmp` so those
+citations stay resolvable). Judge the code and the step's records, not either. `docs/evidence/` gained
+two files inside this range that matter: the probes that proved the teardown leak and then the fix.
 
 **Read first, in this order:** `docs/jit-infra-poc.md` §Verification (the J1-J11 table) and its
 §Failure modes (four of them; "Destroy fails → finalizer held, namespace stuck in `Terminating`,
@@ -18,6 +22,13 @@ the implementation that grew around them.
 **Files changed:**
 - jit-controller/main.py (namespace_lock; release_block released once; Service re-stated on 409;
   pgadmin's destroy variable; a logger level)
+- jit-controller/main.py again, in `c95c051` (post-checkpoint): the teardown machine's second exit — the
+  resync retry branch — now releases the IP block, and `remove_finalizer_and_delete` reports whether the
+  claim is really gone so both exits release exactly once. The probes under `docs/evidence/` are what
+  found it and what prove it: `leak-probe2.sh`/`.log` (claim and container gone, ledger still counting
+  the namespace) and `leak-probe3.sh`/`.log` plus `leak-probe3-controller.log`. `README.md`'s escape
+  hatch gained the `-var postgres_url` the pgadmin module requires; `docs/evidence/s17-run-postfix.log`
+  and `verify-jit-postfix.md` are the checkpoint re-run against that tree.
 - jit-modules/modules/pgadmin/{main.tf,outputs.tf,variables.tf} (the port output, var.share_dir,
   Host/Port split out of postgres_url)
 - jit-runner/main.py, deploy/runner.sh (an explicit module always wins; a logger; the shared dir)
