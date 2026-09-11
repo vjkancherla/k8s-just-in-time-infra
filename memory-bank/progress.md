@@ -1,40 +1,36 @@
 Updated: 2026-09-11
 
 ## Working
-The S17 checkpoint is green and committed, and the duplicate-IP fix works at the level J1 tests. What
-is not working is one teardown path: a claim whose destroy succeeds on the resync *retry* leaks its IP
-block. That, plus the README escape hatch's missing `-var postgres_url`, stands between S17 and "done".
+S17 is complete on the code side: every teardown exit releases its IP block exactly once, the README's
+escape hatch matches the modules, and the checkpoint is green on the fixed tree. The one open item is the
+independent review.
 
 ## Done (verified)
-- `bash scripts/checks/S17.sh` exit 0: J1-J11 11 PASS, 0 FAIL and R1-R17 17 PASS, 0 FAIL in voting-a.
-- J1: three distinct IPs and IPAM `count: 3` over three clean-slate iterations, plus a two-namespace
-  deploy (voting-a offset 0, voting-b offset 1) - `docs/evidence/race-test.log`, `docs/evidence/block-race.log`.
-- The double-release guard fires correctly in the normal teardown path (controller log: the sweep
-  releases, the handler skips).
+- `bash scripts/checks/S17.sh` exit 0 at c95c051: `11 PASS, 0 FAIL` then `17 PASS, 0 FAIL`
+  (`docs/evidence/s17-run-postfix.log`).
+- The retry-path release, proved by running it: `docs/evidence/leak-probe3.sh` + `leak-probe3-controller.log`.
+- The escape hatch's variables now match `jit-modules/modules/*/variables.tf`.
 - S0-S16 checkpoints pass and are committed. S00 fails by design (pre-migration assertions).
 
 ## Broken (confirmed by execution)
-- **The resync retry path leaks the IP block.** The only release is `main.py:896` (TTL path); the retry
-  branch `main.py:841-849` has none; `main.py:942` makes the delete handler skip. Claim gone,
-  container gone, ledger keeps the entry (`docs/evidence/leak-probe2.log`).
-- **The README escape hatch fails for pgAdmin.** `tofu destroy` with the documented variables errors
-  `No value for required variable: postgres_url` - the module's variable has no default.
+- Nothing known. Both defects this step opened with are fixed and re-proved.
 
 ## Suspected (read, not reproduced)
-- `ipam.py` has no lock; `namespace_lock` is per namespace, so two namespaces can interleave the
-  ConfigMap read-modify-write. Not triggered in 2 attempts (`docs/evidence/block-race.log`).
-- `_allocated_ip` returns `""` on ApiException, which means "allocate" - so a failed read can move a
+- `ipam.py` has no lock; `namespace_lock` is process-local, so a second controller replica would not
+  serialise the ledger's read-modify-write.
+- `_allocated_ip` returns `""` on `ApiException`, which also means "allocate" — a failed read can move a
   live claim's address and inflate the count.
-- `jit-down` never reconciles `jit-ipam`.
+- `jit-down` never reconciles `jit-ipam`, so a stack bounce can start from a stale count.
+- Both exits now release only after the claim is gone, but that ordering is asserted by a probe on one
+  path, not by a test that enumerates them.
 
 ## In progress
-Nothing. Waiting on the fix-or-review decision; no files are being changed.
+Nothing. Waiting on the independent review.
 
 ## Blocked
-- S17's "done" claim, on the retry-path leak fix plus a fresh `bash scripts/checks/S17.sh`.
 - The review box, on a different model writing `docs/reviews/S17-findings.md` with CLEAR.
 
 ## Learnings
-- A guard that stops a second release creates the mirror bug: whoever owns the *first* release owns it
-  on every path, and the retry branch inherited none.
-- The ledger is written incrementally and never reconciled, so every missed decrement is permanent.
+- A guard that stops a second release makes one path the owner of the first; walk every other path that can
+  reach that state (`docs/lessons.md`).
+- A probe can pass by testing nothing: read its log against the component log before believing it.
