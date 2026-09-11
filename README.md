@@ -227,11 +227,14 @@ kubectl get configmap jit-ipam -n default -o json \
 
 # 4. Or leave the stack entirely.
 make jit-down
-#    That takes the stack, the claims and the IPAM ledger with it, but not the tenant
-#    namespaces: their Deployments survive, and nothing re-creates the claims on the
-#    way back up - kopf does not replay create for objects that already existed, and an
-#    unchanged `kubectl apply` is a no-op. After `make jit-up`, touch the annotated
-#    Deployment and the claims come back:
+#    That takes the stack, the claims and the IPAM ledger with it - and it waits for the
+#    claims to actually disappear, because a stack that comes down mid-destroy leaves
+#    them Terminating and they return as *Ready* with nothing behind them, which stops
+#    the tenant being re-provisioned at all. It does not touch the tenant namespaces:
+#    their Deployments survive, and nothing re-creates the claims on the way back up -
+#    kopf does not replay create for objects that already existed, and an unchanged
+#    `kubectl apply` is a no-op. After `make jit-up`, touch the annotated Deployment and
+#    the claims come back:
 #      kubectl rollout restart deployment/<name> -n <ns>
 #    (Verified by running the bounce: jit-down, jit-up, touch -> three claims Ready and
 #    the ledger rebuilt as {"<ns>": {"offset": 0, "count": 3}}.)

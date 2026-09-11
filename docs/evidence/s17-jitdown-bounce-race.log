@@ -1,0 +1,27 @@
+[12:50:26] ledger before: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[12:50:26] claims Ready before: 3
+[12:50:26] --- make jit-down
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+[12:50:27] ledger after jit-down (must be <absent>): <absent>
+[12:50:28] claims cluster-wide right after jit-down: 3 - jit-down deletes them with --wait=false, so these may still be terminating
+[12:52:32] claims cluster-wide once the deletes have settled (must be 0): 3
+[12:52:32] --- make jit-up
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+[12:53:07] ledger after jit-up with no claims yet (must be <absent>): <absent>
+[12:53:07] --- touch the tenant Deployment: the only thing that re-creates the claims
+[12:53:08] claims: voting-a-pgadmin Ready ["voting-app-vote"]|voting-a-postgres Ready ["voting-app-vote"]|voting-a-redis Ready ["voting-app-vote","voting-app-worker"]|
+[12:53:08] ledger rebuilt: <absent>
+[12:53:08] containers up: 0 of 3
+[12:53:08] MISSING container voting-a-redis-redis
+[12:53:08] MISSING container voting-a-postgres-postgres
+[12:53:08] MISSING container voting-a-pgadmin-pgadmin
+[12:53:08] --- make verify (R1-R17 in voting-a)
+./scripts/verify.sh: line 88: OPTS[0]: unbound variable
+R2   FAIL     redis LLEN unreadable (before='' after='')
+./scripts/verify.sh: line 103: OPTS[0]: unbound variable
+[12:55:18] done

@@ -9,7 +9,11 @@ set -euo pipefail
 # Order is load-bearing. The claims are torn down *first*, while the runner is
 # still up, so the containers they own are destroyed properly rather than left
 # behind; only then do the runner and the controller go away. Anything the
-# destroy missed is removed by name at the end.
+# destroy missed is removed by name at the end. The claims are also *waited* for:
+# their deletion is asynchronous, the controller owns a finalizer on them, and a
+# stack that comes down mid-destroy leaves them Terminating (see the note at step
+# 1 - they return as Ready with no container behind them and block the tenant's
+# recovery).
 #
 # The CRD is deliberately NOT deleted: it is cheap to re-apply, and leaving it
 # means the claim objects (and their history) survive a stack bounce. `make
@@ -61,6 +65,29 @@ if [[ -n "$claims" ]]; then
   echo "removed $(printf '%s\n' "$claims" | wc -l | tr -d ' ') InfraClaim(s)"
 else
   echo "no InfraClaims to remove"
+fi
+
+# The deletes above are asynchronous: the controller destroys the infra and holds a
+# finalizer of its own, so the objects outlive the command. Wait for them to actually
+# go before the runner does - that is the whole point of deleting them first. Without
+# this wait the stack comes down mid-destroy and the claims are left Terminating; they
+# come back as *Ready* on the next `make jit-up` with no container behind them, and
+# since Ready is what the controller checks, the tenant is never re-provisioned and its
+# pods never start. Found by running the bounce twice, the second time failing
+# (docs/evidence/s17-jitdown-bounce.sh, and the run it caught in
+# docs/evidence/s17-jitdown-bounce-race.log).
+for _ in $(seq 1 90); do
+  [[ "$(kubectl get infraclaims -A -o name 2>/dev/null | wc -l | tr -d ' ')" == "0" ]] && break
+  sleep 2
+done
+remaining="$(kubectl get infraclaims -A -o name 2>/dev/null | wc -l | tr -d ' ')"
+if [[ "$remaining" != "0" ]]; then
+  echo "WARNING: $remaining InfraClaim(s) are still terminating. The controller finishes"
+  echo "         them on the next 'make jit-up' - wait for them to go before touching a"
+  echo "         Deployment to bring the tenant back, or its claims will look Ready with"
+  echo "         nothing behind them."
+else
+  echo "InfraClaims gone; the infra they owned is destroyed"
 fi
 
 # 2. Leftover JIT containers. Module containers are named "<ns>-<module>-<module>"

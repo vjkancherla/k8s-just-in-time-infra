@@ -1,0 +1,26 @@
+[12:57:22] ledger before: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[12:57:22] claims Ready before: 3
+[12:57:22] --- make jit-down
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+[12:57:28] ledger after jit-down (must be <absent>): <absent>
+[12:57:28] claims cluster-wide right after jit-down: 0 - jit-down deletes them with --wait=false, so these may still be terminating
+[12:57:28] claims cluster-wide once the deletes have settled (must be 0): 0
+[12:57:28] --- make jit-up
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+[12:57:34] ledger after jit-up with no claims yet (must be <absent>): <absent>
+[12:57:34] claims left over from the bounce (must be 0): 0
+[12:57:34] --- touch the tenant Deployment: the only thing that re-creates the claims
+[12:58:11] claims: voting-a-pgadmin Ready ["voting-app-vote"]|voting-a-postgres Ready ["voting-app-vote"]|voting-a-redis Ready ["voting-app-vote","voting-app-worker"]|
+[12:58:11] ledger rebuilt: {"voting-a": {"offset": 0, "base_ip": "172.19.0.100", "count": 3}}
+[12:58:11] containers up: 3 of 3
+[12:58:11] --- make verify (R1-R17 in voting-a)
+R16  PASS     vote/result/worker/redis/postgres all healthy
+R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+
+===== 17 PASS, 0 FAIL =====
+[12:59:01] done
