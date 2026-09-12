@@ -1,40 +1,37 @@
-Updated: 2026-09-11
+Updated: 2026-09-12
 
 ## Current focus
-**S17 is complete.** Its review concerns are dispositioned, the cold start runs green end to end, and the
-build plan's last Done item is ticked. The demo is healthy on the cluster that cold run rebuilt: three
-claims Ready, ledger `{"voting-a": {"offset": 0, "count": 3}}`, three pods 1/1.
+**S18 is complete on the code side and closed on the frozen gate.** The console's surface exists -
+`demo-up`, `demo-soft`, `demo-restore`, `ns-delete`, `test-up`, `state`, `targets` - its read model comes
+from `make state`, and `bash scripts/checks/S18.sh` prints PASS. It waits now on an independent review.
 
 ## Blocked
-- Nothing. The 18 review boxes in `docs/todo.md` are the human's to tick; S17's is unticked like the rest.
+- Nothing. S18's `check` box in `docs/todo.md` is unticked, and so are the review boxes: the human's to
+  tick, as they have been for every step.
 
 ## Done (verified)
-- **The cold start, closed** (`docs/evidence/s17-cold-path-green.log`): destroy → deploy (creates the
-  cluster, stops by design) → `jit-down` → `jit-up` → `make all` (`17 PASS, 0 FAIL`) → `make jit-verify`
-  (`11 PASS, 0 FAIL`), start to finish on a cold host.
-- **The last blocker settled, not patched: a container removal takes its volume.** `tofu destroy` always
-  did (J6: `postgres data volume removed`; the module's comment forbids the `random_password`
-  alternative); `jit-down`'s by-name sweep now removes `<container>-data` too — `scripts/jit-down.sh`
-  step 2. Persisting the password could not have rescued the existing volume: its password lives in the
-  data directory.
-- Gate on the final code: `bash scripts/checks/S17.sh`, ends on its own last PASS line
-  (`docs/evidence/s17-final-gate.log`).
-- Earlier in S17: the ledger clear, the `OPTS` guard, the image import, the `voting-a` pin, the IP release.
+- Gate: `bash scripts/checks/S18.sh` -> twelve `ok:` lines, `PASS` (`docs/evidence/s18-final-gate.log`),
+  after the human approved the two-mechanic fix to the frozen checkpoint (`13c2502`).
+- `make demo-up` from cold: `rc=0`, `17 PASS, 0 FAIL` (`docs/evidence/demo-up.log`).
+- `make state`: the design's object, block `172.19.0.100-109`, `expiresAt` normalised (`""` -> null), and
+  `up:false` with empty lists when there is no cluster.
+- `make verify NS=voting-a` -> 17 PASS exit 0; `NS=does-not-exist` -> exit 2. `make targets` prints the
+  allowlist and nothing else; `ns-delete` refuses no-NS, `default` and `kube-system`.
 
 ## Checkpoints (final code)
-- PASS: S17, `docs/evidence/s17-final-gate.log` — J1-J11 `11 PASS`, R1-R17 `17 PASS` in `voting-a`. Code
-  since c95c051: `scripts/jit-down.sh` (the sweep's volume), `docs/evidence/s17-cold-path.sh`, docs.
+- S18: PASS. S17's gate untouched (`make verify` = 17 PASS, `scripts/verify-jit.sh` unmodified).
 
 ## Commits
-HEAD before this work: ab00fd8. This task: `jit-down` takes the swept container's volume, the cold-path
-evidence, and the docs that recorded the question as open.
+`13c2502` the checkpoint fix, `5a1b59c` the implementation, `47c0f19` the review prompt. HEAD before this
+work: `2831f1c`.
 
 ## Next step
-Nothing queued for S17. Next, from `docs/todo.md`: the reviewer's open items (tenant visibility of an
-`Orphaned` claim; `var.share_dir`'s `/tmp` default) or the S-1 frozen-gate question.
+Stop. S18 is done when a different model writes CLEAR in `docs/reviews/S18-findings.md` from
+`docs/reviews/S18-review-prompt.md`. Do not start S19.
 
 ## Watch out
-- Latent: `ipam.py` has no lock; `_allocated_ip` cannot tell a failed read from "no address"; a claim can sit
-  `Ready` with no container (the stale-Ready detector needs the Secret to be gone).
-- Untracked but referenced by README/todo/systemPatterns: `docs/jit-infra-poc.md`, `docs/jit-infra-flows.md`,
-  `docs/01-jit-poc.md`, `docs/decisions/`. Also untracked: `terraform.tfstate%`, from a bad redirect.
+- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` is in neither the tree nor git history; the prompt mirrors
+  `S17-review-prompt.md`, the last one generated from it. The template should be restored.
+- A warm bring-up (app deployed, claims destroyed) leaves postgres's data directory, its
+  `POSTGRES_PASSWORD` and the `jit-postgres` Secret disagreeing, and the pods are rejected. Out of this
+  step's scope; `demo-up` avoids the shape by always starting cold.
