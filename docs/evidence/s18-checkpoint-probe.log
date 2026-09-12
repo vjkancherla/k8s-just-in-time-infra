@@ -1,0 +1,38 @@
+# NOT the gate. scripts/checks/S18.sh as written cannot pass: two mechanical defects in the
+# frozen file stop it before any assertion about the implementation is evaluated.
+#
+#   1. scripts/checks/S18.sh:19 - target_defined() is
+#        make -pRrq : 2>/dev/null | grep -Eq "^$1:( |$)"
+#      `make -pRrq :` exits 2 ("No rule to make target `:'") and a Makefile cannot define a
+#      target named `:` - a bare `:` line is make's empty rule, not that target. When grep -q
+#      matches it closes the pipe early, and make dies of SIGPIPE (141). The script runs under
+#      `set -o pipefail`, so the pipeline is non-zero either way and target_defined() is false
+#      even for a target that is defined: `FAIL: no make target 'demo-up'`. Without pipefail
+#      the same pipeline returns 0.
+#
+#   2. scripts/checks/S18.sh:40 - `python3 - <<'PY' <<<"$state"`
+#      The herestring is applied after the heredoc, so the JSON replaces the script on fd 0 and
+#      python executes the read model as its own source: NameError: name 'true' is not defined.
+#
+# This log is that same file with those two mechanics corrected in a throwaway copy
+# (scripts/checks/S18-probe.sh: the make pipeline grouped with `|| true` before grep, and the
+# read model passed as argv instead of as stdin). No assertion was changed, weakened or added.
+# The gate itself stays frozen for the human to rule on - see the session report.
+# ----- `make check STEP=18` as written today (exit 2) -----
+FAIL: no make target 'demo-up'
+make: *** [check] Error 1
+
+----- the same file, with only those two mechanics corrected (exit 0) -----
+  ok: all 11 targets defined
+  ok: make targets prints the allowlist and nothing else
+  ok: make state emits the documented JSON
+  ok: claim count matches kubectl (3)
+  ok: every reported phase matches the cluster
+  ok: container count matches docker (3)
+  ok: make state degrades to up=false instead of erroring
+  ok: ns-delete refuses a missing or unlisted namespace
+  ok: a failing target exits non-zero
+  ok: demo-soft orphans with an expiry, keeps redis Ready, destroys nothing
+  ok: demo-restore returns every claim to Ready with the expiry cleared
+  ok: each run left its log in docs/evidence/
+PASS
