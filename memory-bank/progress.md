@@ -12,6 +12,9 @@ settled and in the code, and the demo runs on the cluster that cold run rebuilt.
   volume outlives the password that opens it — the rule the destroy path always followed (J6 records it).
 - Earlier S17: ledger cleared on `jit-down`; R-checks guard an empty `OPTS`; `jit-up` imports the controller
   image; `jit-down` survives no CRD; a bare `make all` deploys to `voting-a`.
+- `docs/todo.md` restored to a tracker — boxes and links only (97 lines, from 273). The S15-S17 detail that
+  had accumulated in it was checked present in `docs/lessons.md`, `docs/reviews/`, `docs/evidence/` and the
+  journal before removal; the old text stays in git at `e7ef515`.
 
 ## Broken (confirmed by execution)
 - None open. The cold start was the last one — four defects, all fixed and re-run green.

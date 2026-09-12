@@ -86,6 +86,15 @@ shared helpers and R7's direct `kubectl exec "$PGPOD"`) and six unaffected (R1, 
 R12-R15). S16's section was corrected in place with a dated note; the "Do not change R1,
 R3-R7, R12-R15" sentence was wrong about R3-R7 for the same reason.
 
+**Where the reworked checks now read from.** Kept here rather than in the tracker, which is a
+checkbox list: R9 no longer names a pod — it polls `pg_isready` inside the Postgres container and
+then waits for the `result` Deployment to be Ready; R10 and R11 are namespace-scoped *and* counted at
+3, because the JIT controller's own Deployment also runs in `default`, so a cluster-wide count would
+be wrong regardless of the 5→3 change; R14 and R15 read `-n "$NS"` for the same reason; R17 reads the
+`jit-postgres` outputs Secret rather than the app's deleted `voting-app-postgres`. The code carries
+the same note at each site (`app/scripts/verify.sh`), so the assertion and the record cannot drift
+apart.
+
 ---
 
 ## From S17 — the demo, the J-suite and the fixes it exposed
