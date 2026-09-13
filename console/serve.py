@@ -14,7 +14,6 @@ happens, so both the terminal and the page fill while a long target runs
 instead of waiting for it to finish.
 """
 
-import functools
 import http.server
 import json
 import pathlib
@@ -56,7 +55,7 @@ def log_path(name):
     return EVIDENCE / f"console-{name}.log"
 
 
-class Handler(http.server.SimpleHTTPRequestHandler):
+class Handler(http.server.BaseHTTPRequestHandler):
 
     # ------------------------------------------------------------------ util
 
@@ -104,8 +103,20 @@ class Handler(http.server.SimpleHTTPRequestHandler):
                                    "running": lock.locked()})
 
         if path in ("/", "/index.html"):
-            self.path = "/console/index.html"
-        return super().do_GET()
+            try:
+                body = (HERE / "index.html").read_bytes()
+            except Exception:
+                return self.send_error(500, "console/index.html is missing")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return self.wfile.write(body)
+
+        # Nothing else is served. This process must never hand out repo files:
+        # deploy/.env and app/kustomize/postgres-secret.env live under ROOT.
+        return self.send_error(404)
 
     # ------------------------------------------------------------------ POST
 
@@ -118,35 +129,45 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         if not lock.acquire(blocking=False):
             return self.send_json({"rc": 1, "out": "another run is in progress"}, 409)
 
+        # The lock is released before the response is sent. Releasing in a
+        # `finally` after send_json leaves a window where the client has been
+        # told the run finished but the next one is still refused with a 409.
         try:
             EVIDENCE.mkdir(parents=True, exist_ok=True)
             path = log_path(name)
             print(f"--> {' '.join(cmd)}", flush=True)
 
-            with path.open("w") as f:          # truncate before the page polls
+            with path.open("w") as f:
                 p = subprocess.Popen(cmd, cwd=ROOT, text=True,
                                      stdout=subprocess.PIPE,
                                      stderr=subprocess.STDOUT,
                                      bufsize=1)
-                for line in p.stdout:
-                    sys.stdout.write(line)
-                    sys.stdout.flush()
-                    f.write(line)
-                    f.flush()
+                with p.stdout:
+                    for line in p.stdout:
+                        sys.stdout.write(line)
+                        sys.stdout.flush()
+                        f.write(line)
+                        f.flush()
                 rc = p.wait()
 
             print(f"<-- exit {rc}", flush=True)
-            return self.send_json({"rc": rc, "out": ""})   # the page has it via /log
+            result, code = {"rc": rc, "out": ""}, 200   # the page has it via /log
         except Exception as e:
-            return self.send_json({"rc": 1, "out": f"could not run {name}: {e}"}, 500)
+            result, code = {"rc": 1, "out": f"could not run {name}: {e}"}, 500
         finally:
             lock.release()
 
+        return self.send_json(result, code)
+
+
+def build_server(port=PORT):
+    """Separated so the tests can start one on an ephemeral port."""
+    return http.server.ThreadingHTTPServer(("127.0.0.1", port), Handler)
+
 
 if __name__ == "__main__":
-    handler = functools.partial(Handler, directory=str(ROOT))
     print(f"console on http://127.0.0.1:{PORT}   (Ctrl-C to stop)")
     try:
-        http.server.ThreadingHTTPServer(("127.0.0.1", PORT), handler).serve_forever()
+        build_server().serve_forever()
     except KeyboardInterrupt:
         print()
