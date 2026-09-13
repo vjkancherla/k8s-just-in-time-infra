@@ -41,6 +41,6 @@
 - Avoid host port 5000 (AirPlay conflict).
 
 ## Do not touch
-- `local-ai-dev-workflow-voting-app/` — read-only reference; copy into `app/` before editing.
-- Anything outside `k8s-just-in-time-infra/`.
+- Anything outside `k8s-just-in-time-infra/`; the voting app the demo runs is already copied into `app/`, so no
+  sibling `local-ai-dev-workflow-voting-app/` checkout is needed.
 
