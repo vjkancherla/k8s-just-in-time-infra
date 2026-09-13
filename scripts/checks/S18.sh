@@ -12,6 +12,19 @@
 # instead of its stdin. Both are visible in docs/evidence/s18-checkpoint-probe.log, which
 # records this file's failure and the same file's PASS with only those two mechanics fixed.
 #
+# Renamed 2026-09-12, again on the human's approval and again names only: the console took
+# `demo-undeploy` and `demo-redeploy` as its labels, so the Makefile's two targets were
+# renamed to match. Every assertion, and every `ok:` line's meaning, is unchanged. The
+# renamed Makefile against this file as it stood is the FAIL in
+# docs/evidence/s18-checkpoint-rename.log, and the same file's twelve ok lines and PASS once
+# only the names moved is the rest of it.
+#
+# Extended 2026-09-12, again on the human's approval: `destroy` joined the console's allowlist when
+# the root target was added (the page already had the button and the proxy already allowed it; the
+# Makefile had no target). One name added to the array below - the assertion code is unchanged.
+# docs/evidence/s18-checkpoint-destroy.log records the 11-name failure against a 12-name Makefile,
+# and the same file's PASS once the name was added.
+#
 # Precondition: the demo stack is up (make demo-up). This checkpoint asserts against a
 # live cluster; it fails rather than skips if there is nothing there.
 set -euo pipefail
@@ -21,7 +34,7 @@ cd "$(dirname "$0")/../.."
 fail() { echo "FAIL: $1"; exit 1; }
 ok()   { echo "  ok: $1"; }
 
-TARGETS=(demo-up demo-soft demo-restore ns-delete test-up jit-up verify jit-verify jit-down state targets)
+TARGETS=(demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state targets)
 
 # ---------------------------------------------------------------- 1. allowlist exists
 target_defined() { { make -pRrq : 2>/dev/null || true; } | grep -Eq "^$1:( |$)"; }
@@ -116,32 +129,32 @@ fi
 ok "a failing target exits non-zero"
 
 # ----------------------------------------------- 8. the soft path is visible in state
-make -s demo-soft >/dev/null 2>&1 || fail "make demo-soft exited non-zero"
+make -s demo-undeploy >/dev/null 2>&1 || fail "make demo-undeploy exited non-zero"
 sleep 35   # one resync tick plus slack
 
 soft="$(make -s state)"
 jq -e '[.namespaces[].claims[] | select(.phase == "Orphaned")] | length >= 1' <<<"$soft" >/dev/null \
-  || fail "no claim went Orphaned after demo-soft"
+  || fail "no claim went Orphaned after demo-undeploy"
 jq -e '[.namespaces[].claims[] | select(.phase == "Orphaned" and .expiresAt != null)] | length >= 1' <<<"$soft" >/dev/null \
   || fail "an Orphaned claim has no expiresAt - the console has nothing to count down"
 jq -e '[.namespaces[].claims[] | select(.module == "redis" and .phase == "Ready")] | length == 1' <<<"$soft" >/dev/null \
   || fail "redis did not stay Ready - worker still references it"
 jq -e '[.containers[] | select(.running)] | length == 3' <<<"$soft" >/dev/null \
   || fail "a container stopped during the retention window - nothing should be destroyed yet"
-ok "demo-soft orphans with an expiry, keeps redis Ready, destroys nothing"
+ok "demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing"
 
-make -s demo-restore >/dev/null 2>&1 || fail "make demo-restore exited non-zero"
+make -s demo-redeploy >/dev/null 2>&1 || fail "make demo-redeploy exited non-zero"
 sleep 35
 
 back="$(make -s state)"
 jq -e '[.namespaces[].claims[] | select(.phase != "Ready")] | length == 0' <<<"$back" >/dev/null \
-  || fail "a claim did not return to Ready after demo-restore"
+  || fail "a claim did not return to Ready after demo-redeploy"
 jq -e '[.namespaces[].claims[] | select(.expiresAt != null)] | length == 0' <<<"$back" >/dev/null \
   || fail "expiresAt was not cleared on resurrection"
-ok "demo-restore returns every claim to Ready with the expiry cleared"
+ok "demo-redeploy returns every claim to Ready with the expiry cleared"
 
 # ---------------------------------------------------------------- 9. evidence is written
-for t in demo-soft demo-restore; do
+for t in demo-undeploy demo-redeploy; do
   [ -s "docs/evidence/$t.log" ] || fail "no docs/evidence/$t.log after running $t"
 done
 ok "each run left its log in docs/evidence/"

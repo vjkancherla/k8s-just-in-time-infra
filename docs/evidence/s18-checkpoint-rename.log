@@ -1,0 +1,33 @@
+# S18 checkpoint vs. the renamed Makefile - 2026-09-12
+#
+# The human authorised renaming demo-soft -> demo-undeploy and demo-restore -> demo-redeploy
+# (the console already used the new names). This records the frozen file's failure against the
+# renamed Makefile, then the same file's PASS once only those names were updated.
+
+--- BEFORE: scripts/checks/S18.sh as frozen, Makefile already renamed
+
+$ bash scripts/checks/S18.sh
+FAIL: no make target 'demo-soft'
+exit=1
+
+--- NOTE: an earlier attempt at the run below stopped on the checkpoint's precondition -
+# the demo stack was down, so 'make state' reported up=false. 'make demo-up' was run first
+# (rc=0, 17 PASS, 0 FAIL, docs/evidence/demo-up.log), and the run below is against that stack.
+
+--- AFTER: the same file with only those two names updated
+
+$ bash scripts/checks/S18.sh
+  ok: all 11 targets defined
+  ok: make targets prints the allowlist and nothing else
+  ok: make state emits the documented JSON
+  ok: claim count matches kubectl (3)
+  ok: every reported phase matches the cluster
+  ok: container count matches docker (3)
+  ok: make state degrades to up=false instead of erroring
+  ok: ns-delete refuses a missing or unlisted namespace
+  ok: a failing target exits non-zero
+  ok: demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing
+  ok: demo-redeploy returns every claim to Ready with the expiry cleared
+  ok: each run left its log in docs/evidence/
+PASS
+exit=0

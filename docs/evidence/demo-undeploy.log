@@ -1,3 +1,2 @@
 deployment.apps "voting-app-vote" deleted from voting-a namespace
 deployment.apps "voting-app-vote" deleted from voting-a namespace
-deployment.apps "voting-app-vote" deleted from voting-a namespace

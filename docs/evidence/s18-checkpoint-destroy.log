@@ -1,0 +1,56 @@
+# S18 checkpoint vs. the console's destroy button - 2026-09-12
+#
+# The human authorised adding 'destroy' to the allowlist once the root target existed (the console
+# already had the button; the Makefile had no target for it). This records the frozen file's
+# failure with 11 expected names against a Makefile that prints 12, then the same file's PASS
+# once the expected array was updated - the assertion code unchanged.
+
+--- BEFORE: scripts/checks/S18.sh with its 11-name TARGETS array, Makefile printing 12
+
+$ bash scripts/checks/S18.sh
+  ok: all 11 targets defined
+FAIL: make targets disagrees with the allowlist
+  listed:
+demo-redeploy
+demo-undeploy
+demo-up
+destroy
+jit-down
+jit-up
+jit-verify
+ns-delete
+state
+targets
+test-up
+verify
+  expected:
+demo-redeploy
+demo-undeploy
+demo-up
+jit-down
+jit-up
+jit-verify
+ns-delete
+state
+targets
+test-up
+verify
+exit=1
+
+--- AFTER: the same file with 'destroy' added to its TARGETS array
+
+$ bash scripts/checks/S18.sh
+  ok: all 12 targets defined
+  ok: make targets prints the allowlist and nothing else
+  ok: make state emits the documented JSON
+  ok: claim count matches kubectl (3)
+  ok: every reported phase matches the cluster
+  ok: container count matches docker (3)
+  ok: make state degrades to up=false instead of erroring
+  ok: ns-delete refuses a missing or unlisted namespace
+  ok: a failing target exits non-zero
+  ok: demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing
+  ok: demo-redeploy returns every claim to Ready with the expiry cleared
+  ok: each run left its log in docs/evidence/
+PASS
+exit=0
