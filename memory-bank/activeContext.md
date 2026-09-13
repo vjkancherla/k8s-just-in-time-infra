@@ -27,7 +27,7 @@ Human: give the console a step in `docs/build-plan.md` — line 608 assigns the 
 and the proxy to S20, but neither step exists and `console/` is already committed without them.
 
 ## Watch out
-- `app/opencode.jsonc` is ignored but still on disk, holding a live-looking DeepSeek key (`sk-515c…`) in a
+- `app/opencode.jsonc` is ignored but still on disk, holding a live-looking DeepSeek key (`sk-…`) in a
   comment. It was never published; rotate the key if you ever un-ignore, copy or mirror that file.
 - `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` is in neither the tree nor git history; restore it from `S17-review-prompt.md`.
 - `docs/build-plan.md:616` and `docs/lessons.md:118` cite README sections by name ("From cold", the wedged
