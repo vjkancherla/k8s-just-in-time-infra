@@ -10,6 +10,79 @@ Proof of concept on k3d. **Not production grade** — see [Limits](#limits).
 
 ---
 
+## Table of Contents
+
+1. [Start here: the console](#start-here-the-console)
+2. [What it does](#what-it-does)
+3. [How it works](#how-it-works)
+   - [Architecture at a glance](#architecture-at-a-glance)
+   - [The two things worth knowing](#the-two-things-worth-knowing)
+4. [What this simulates](#what-this-simulates)
+5. [Prerequisites](#prerequisites)
+6. [Running it](#running-it)
+   - [Make targets](#make-targets)
+   - [Key lifecycle checks](#key-lifecycle-checks)
+   - [From cold](#from-cold)
+7. [Layout](#layout)
+8. [Key documents](#key-documents)
+   - [Running & operating](#running--operating)
+   - [Design & architecture](#design--architecture)
+   - [Implementation & tracking](#implementation--tracking)
+   - [Learning & evidence](#learning--evidence)
+9. [Claim state machine](#claim-state-machine)
+10. [Troubleshooting](#troubleshooting)
+    - [pgAdmin shows no server](#pgadmin-shows-no-server)
+    - [Namespace stuck in `Terminating`](#namespace-stuck-in-terminating)
+    - [A step fails twice](#a-step-fails-twice)
+11. [Limits](#limits)
+
+---
+
+## Start here: the console
+
+The shortest path in. One command serves a page that starts the stack and then shows you
+what it made; every button on it is one of the `make` targets in
+[Make targets](#make-targets).
+
+```bash
+python3 console/serve.py      # python3 only, no dependencies
+open http://127.0.0.1:8090
+```
+
+Open it before there is a cluster: the page says **Nothing is running yet** and polls `make state`
+every two seconds. **Start the demo** then runs the whole cold path for one namespace — about three
+minutes, `make demo-up` — and the log pane fills as it goes. `Ctrl-C` stops the page and leaves the
+stack up; ending the stack is what **Shut the JIT plane down** is for.
+
+| Mode | The buttons, in order |
+|---|---|
+| **Demo** — one namespace | **Start the demo** → **Delete the deployment** → **Redeploy inside the window** → **Delete the namespace** |
+| **Testing** — both namespaces | **Set everything up** → **Start the control plane** → **Check the app works** → **Check the JIT behaviour** → **Delete `voting-b`** → **Shut the JIT plane down** → **Delete everything** |
+
+`voting-b` exists for one check, **J8**: a hard delete takes one namespace and leaves the other alone.
+
+| Tab | What it shows |
+|---|---|
+| **Setup** | The buttons. Each one is a single `make` target from [Make targets](#make-targets). |
+| **Infrastructure** | Claims and their phase, the live countdown on anything Orphaned, the containers, the state objects. |
+| **Voting app** | The vote and result pages for the selected namespace, as real iframes. |
+| **Guide** | What every tab, mode, claim state and button does. |
+
+The console holds no state and computes nothing. Everything it displays is read from the
+same sources the frozen checks read, and every button is one entry in `serve.py`'s
+`ALLOWED` dict — there is no command box. If the page ever computed a phase or an expiry
+for itself, it would disagree with `make jit-verify` eventually, and that disagreement
+would be the thing you debug instead of the system.
+
+> [!TIP]
+> Endpoints, the no-state rule, how to add an action, known rough edges:
+> [`console/README.md`](console/README.md). The target behind each button is
+> [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md); to run the same steps by
+> hand, one command at a time, see
+> [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md).
+
+---
+
 ## What it does
 
 ```yaml
@@ -39,33 +112,40 @@ the same pattern you would use for an RDS endpoint.
 
 ### Architecture at a glance
 
-```
-+---------------------------------------------------------------------+
-|                     k3d cluster  voting-app                         |
-|                                                                     |
-|   vote --> worker --> result          jit-controller                 |
-|                                           |                         |
-|   Service + EndpointSlice (no selector)   |  HTTP + bearer token    |
-+-------------------------------------------+-------------------------+
-                                            v
-+---------------------------------------------------------------------+
-|               docker network  k3d-voting-app                        |
-|                                                                     |
-|   .10  jit-runner  (holds docker.sock, calls tofu)                  |
-|   .11  MinIO       (S3-compatible TF state backend)                 |
-|   .100 redis       (provisioned per-tenant)                         |
-|   .101 postgres    (provisioned per-tenant)                         |
-|   .102 pgadmin     (provisioned per-tenant)                         |
-+---------------------------------------------------------------------+
+```mermaid
+flowchart LR
+    subgraph cluster["k3d cluster voting-app"]
+        direction TB
+        V[vote] --- W[worker] --- RS[result]
+        CTRL[jit-controller]
+    end
+
+    subgraph net["docker network k3d-voting-app 172.19.0.0/16"]
+        direction TB
+        RUN[".10 jit-runner<br/>holds docker.sock"]
+        MIN[".11 MinIO<br/>tf state"]
+        RED[".100 redis"]
+        PG[".101 postgres"]
+        PGA[".102 pgadmin"]
+    end
+
+    CTRL -->|"HTTP + bearer"| RUN
+    RUN --> MIN
+    RUN -->|tofu apply| RED
+    RUN --> PG
+    RUN --> PGA
+    V -.->|Service + EndpointSlice| RED
+    W -.->|Service + EndpointSlice| PG
 ```
 
-Solid lines are control flow; dotted lines (Service + EndpointSlice) are data. The
-controller never touches Docker and never holds state credentials — that separation is
-the point of the split-plane design.
+Solid arrows are control flow, dotted are data: the controller never touches Docker and never
+holds state credentials, which is the point of the split-plane design. The three containers get
+static addresses from the block the IPAM ledger hands each namespace (`172.19.0.100-109`).
 
-> **Full Mermaid diagrams:** [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md) —
-> create flow, soft delete, hard delete, claim state machine, resync loop, and component
-> layout.
+> [!NOTE]
+> Mermaid: GitHub renders it, VS Code needs the *Markdown Preview Mermaid Support* extension.
+> The full set — create, soft delete, hard delete, resync — is in
+> [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md).
 
 ### The two things worth knowing
 
@@ -97,41 +177,64 @@ Not simulated: IAM, network policy, approval gates, provisioning latency.
 
 - **k3d**, **kubectl**, **Docker**
 - **OpenTofu** (arm64 build on Apple silicon)
-- The **voting app repo** in the same VS Code workspace, read-only
+- **python3** — for the console; standard library only, no `pip install`
 - Cluster created with `--subnet 172.19.0.0/16` — the static IP allocation depends on it
+
+The app the demo deploys is already in this repo at `app/` — nothing to clone alongside it.
+
+[`docs/JIT-MANUAL-GUIDE.md` §2](docs/JIT-MANUAL-GUIDE.md#2-prerequisites) has the same
+list as a table, with the command that checks each tool.
 
 ## Running it
 
-```bash
-# 1. Start the JIT stack (MinIO + runner + CRD + controller)
-make jit-up
+Two guides, split by how much you want to see:
 
-# 2. Deploy one or two demo tenants
-kubectl apply -k app/kustomize/overlays/voting-a   # primary demo
-kubectl apply -k app/kustomize/overlays/voting-b   # second tenant, same base
+| Guide | Use it when |
+|---|---|
+| [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | You want the short path: every target, its variables, the common workflows, and what a passing run exits with |
+| [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | You want to watch it happen: cluster creation to teardown, one `kubectl` or `docker` command at a time, each with the output that says it worked |
 
-# 3. Verify
-make jit-verify          # lifecycle suite J1-J11 (exits non-zero on failure)
-make verify              # app checks R1-R17 (NS=voting-a by default)
-
-# 4. Tear down
-make jit-down            # remove the stack, claims, and IPAM ledger
-```
-
-The two demo namespaces come from one base; only the namespace, ingress hosts, and
+Both demo namespaces come from one kustomize base; only the namespace, ingress hosts, and
 pgAdmin's host port differ (see `app/kustomize/overlays/voting-b/kustomization.yaml`).
+To start from a machine with nothing on it, follow [From cold](#from-cold) — the sequence
+`docs/evidence/s17-cold-path-green.log` records.
 
 ### Make targets
 
-| Target | What it does |
+[`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) is the reference: what every
+target runs, the four variables (`DEMO_NS`, `TENANTS`, `NS`, `STEP`), worked workflows, and
+the `tee` + `PIPESTATUS` idiom that keeps a target's exit code honest. `make help` lists
+them all.
+
+One name covers two buttons — `ns-delete` serves `voting-a` and `voting-b` — and two are
+reads the page makes for itself rather than buttons.
+
+| Console button | Target |
 |---|---|
-| `make jit-up` | Boot the out-of-cluster half: MinIO, runner, CRD, controller |
-| `make jit-verify` | Run the J1-J11 lifecycle suite; writes `.workflow/verify-jit.md` |
-| `make jit-down` | Tear down the stack; waits for claims to disappear |
-| `make verify` | Run the app's R1-R17 in NS (default `voting-a`); writes `.workflow/verify.md` |
-| `make check STEP=NN` | Run one frozen checkpoint from `scripts/checks/` |
-| `make all` | `make jit-up` + `make verify` (from `app/Makefile`) |
-| `make destroy` | Delete the k3d cluster entirely |
+| Start the demo | `make demo-up` |
+| Delete the deployment | `make demo-undeploy` |
+| Redeploy inside the window | `make demo-redeploy` |
+| Delete the namespace | `make ns-delete NS=voting-a` |
+| Set everything up | `make test-up` |
+| Start the control plane | `make jit-up` |
+| Check the app works | `make verify NS=voting-a` |
+| Check the JIT behaviour | `make jit-verify` |
+| Delete `voting-b` | `make ns-delete NS=voting-b` |
+| Shut the JIT plane down | `make jit-down` |
+| Delete everything | `make destroy` |
+| *(read, not a button)* | `make state`, `make targets` |
+
+`make targets` prints the allowlist — anything not on that list cannot be reached from the
+page. `make ns-delete` refuses an empty `NS`, and any `NS` outside `TENANTS`. `make state`
+and `make targets` print payloads something else parses, so nothing else may write to their
+stdout.
+
+Outside the allowlist: `make check STEP=NN` runs one frozen checkpoint, and the app's own
+loop lives in `app/Makefile` — run from `app/`, `make all` is its `deploy` then its `verify`.
+
+> [!WARNING]
+> Three of these cannot be undone: `make ns-delete`, `make jit-down`, `make destroy`.
+> `make demo-undeploy` can, but only by a redeploy inside the window.
 
 ### Key lifecycle checks
 
@@ -144,16 +247,23 @@ pgAdmin's host port differ (see `app/kustomize/overlays/voting-b/kustomization.y
 
 ### From cold
 
-`make destroy` deletes the cluster, so a cold start is two passes of the app's own loop.
-Every line below is load-bearing: the green run is `docs/evidence/s17-cold-path-green.log`,
-and the three runs before it show each defect the green run fixed.
+**`make demo-up` is this sequence.** It is written out because when the cold path breaks,
+these are the seven commands that tell you which one broke it.
+
+Two passes of the app's own loop: step 2 stops by design — there is no CRD yet — and step 6 is
+the pass that succeeds. Every line is load-bearing: the green run is
+`docs/evidence/s17-cold-path-green.log`, and the three runs before it show each defect it fixed.
+The console's **Delete everything** is the root `make destroy`, which does both teardown steps in
+one command.
 
 ```bash
-make destroy                      # delete the cluster
-make jit-down                     # idempotent on an empty cluster
-make jit-up                       # imports the controller image, starts the stack
-make all                          # 17 PASS, 0 FAIL
-make jit-verify                   # 11 PASS, 0 FAIL
+cd app && make destroy            # 1. the cluster goes, and with it the app
+cd app && make deploy             # 2. creates the cluster; stops until the CRD exists - expected, not a failure
+make jit-down                     # 3. the module containers and their volumes outlive the cluster
+make jit-up                       # 4. imports the controller image, starts the stack
+kubectl create ns voting-a        # 5. an overlay sets a namespace; it does not create one
+cd app && make all                # 6. 17 PASS, 0 FAIL
+make jit-verify                   # 7. 11 PASS, 0 FAIL
 ```
 
 ---
@@ -166,7 +276,11 @@ make jit-verify                   # 11 PASS, 0 FAIL
 +-- RUNBOOK.md               <- the page to keep open while building
 +-- Makefile                 <- root orchestration (jit-up, jit-down, verify, check)
 |
-+-- app/                     <- copy of the voting app (the reference repo is read-only)
++-- console/                 <- the console: a local page, no build step, no dependencies
+|   +-- serve.py             <- the page, /state (make state), /log, POST /run/{name} (ALLOWED)
+|   +-- index.html           <- the page itself
+|
++-- app/                     <- the voting app: copied in, edited here
 |   +-- Makefile             <- app build/deploy/verify (make all, make verify)
 |   +-- kustomize/           <- base + per-tenant overlays (voting-a, voting-b)
 |   +-- scripts/             <- build.sh, deploy.sh, verify.sh, cleanup.sh
@@ -200,23 +314,33 @@ make jit-verify                   # 11 PASS, 0 FAIL
 |   +-- jit-up.sh            <- bring the whole stack up
 |   +-- jit-down.sh          <- tear it down (waits for claims)
 |   +-- verify-jit.sh        <- J1-J11 lifecycle test suite
-|   +-- checks/              <- frozen checkpoint scripts (S-1 through S17)
+|   +-- checks/              <- frozen checkpoint scripts, one per step
 |
 +-- docs/
     +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
     +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
-    +-- build-plan.md        <- the 18-step implementation plan
+    +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
+    +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
+    +-- build-plan.md        <- the implementation plan, one step at a time
     +-- todo.md              <- step tracker (check + review boxes)
     +-- lessons.md           <- corrections that became rules
     +-- 01-jit-poc.md        <- working rules for AI agent sessions
     +-- decisions/           <- Architecture Decision Records (template)
     +-- evidence/            <- verbatim run logs and probe scripts
-    +-- reviews/             <- review prompts and findings (S08-S17)
+    +-- reviews/             <- review prompts and findings, one per reviewed step
 ```
 
 ---
 
 ## Key documents
+
+### Running & operating
+
+| Document | What it covers | Read when |
+|---|---|---|
+| [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
+| [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
+| [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, how to add an action, known rough edges | Running or changing the console |
 
 ### Design & architecture
 
@@ -232,7 +356,7 @@ make jit-verify                   # 11 PASS, 0 FAIL
 | Document | What it covers | Read when |
 |---|---|---|
 | [`RUNBOOK.md`](RUNBOOK.md) | **Daily page** — the implement -> review -> resolve loop, one step at a time | Every session. Keep it open. |
-| [`docs/build-plan.md`](docs/build-plan.md) | **18 steps** — each with scope, checkpoints, and acceptance criteria | Checking what a step involves |
+| [`docs/build-plan.md`](docs/build-plan.md) | **The steps** — each with scope, checkpoints, and acceptance criteria | Checking what a step involves |
 | [`docs/todo.md`](docs/todo.md) | **Tracker** — check and review boxes per step, settled decisions | Seeing where things stand |
 
 ### Learning & evidence
@@ -241,7 +365,7 @@ make jit-verify                   # 11 PASS, 0 FAIL
 |---|---|---|
 | [`docs/lessons.md`](docs/lessons.md) | **Rules from rework** — each entry is a rule with the evidence that produced it | Something looks like a pattern you've seen before |
 | [`docs/evidence/`](docs/evidence/) | **Run logs and probes** — verbatim output from checkpoints and diagnostic scripts | Verifying a claim or reproducing a run |
-| [`docs/reviews/`](docs/reviews/) | **Review prompts and findings** — S08 through S17, each with a prompt and findings | Understanding what a review caught |
+| [`docs/reviews/`](docs/reviews/) | **Review prompts and findings** — one pair per reviewed step | Understanding what a review caught |
 
 ---
 
@@ -249,48 +373,39 @@ make jit-verify                   # 11 PASS, 0 FAIL
 
 The novel logic — everything in Stage C of the build plan exists to make this correct.
 
-```
-                  +----------+
-     annotation   |          |  apply succeeded
-     seen -------> | Pending  | ---------------> Ready
-                  |          |                  |  ^
-                  +----------+                  |  |
-                       |                        |  | a reference
-                  runner error                  |  | returns
-                       |                        v  |
-                       v                   +----------+
-                  +----------+             |          |
-                  |  Failed  |             | Orphaned |
-                  |          |             |          |
-                  +----------+             +----------+
-                       |                   |         |
-                  retry with               |         | namespace
-                  backoff                  |         | deleted
-                       |                   v         v
-                       +---> Pending    +----------+
-                                      | Deleting  |
-                                      |           |
-                                      +----------+
-                                           |
-                             destroy done   |   destroy failed
-                                  +---------+---------+
-                                  v                     v
-                                [*]              (finalizer held,
-                                                  retry on next
-                                                  resync tick)
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: annotation seen
+    Pending --> Ready: apply succeeded
+    Pending --> Failed: runner error
+    Failed --> Pending: retry with backoff
+    Ready --> Orphaned: last reference gone
+    Orphaned --> Ready: a reference returns
+    Orphaned --> Deleting: TTL expired
+    Ready --> Deleting: namespace deleted
+    Orphaned --> Deleting: namespace deleted
+    Deleting --> Deleting: destroy failed, finalizer held
+    Deleting --> [*]: destroyed, finalizer released
 ```
 
 Two transitions carry the design:
 
-- **Orphaned -> Ready** is resurrection. It is why a rollout costs nothing.
-- **Orphaned -> Deleting** on namespace delete bypasses the TTL. Soft and hard paths
+- **`Orphaned` -> `Ready`** is resurrection. It is why a rollout costs nothing.
+- **`Orphaned` -> `Deleting`** on namespace delete bypasses the TTL. Soft and hard paths
   converge on the same destroy, at different speeds.
 
-> Full state diagram in Mermaid: [`docs/jit-infra-flows.md` S4](docs/jit-infra-flows.md)
+A destroy that fails keeps the finalizer and retries on the next resync tick, which is what holds
+a namespace in `Terminating` — the escape hatch is under [Troubleshooting](#troubleshooting). The
+same diagram, with more surrounding detail, is in [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md) section 4.
 
 ---
 
 ## Troubleshooting
+
+Symptom→fix tables for the common failures are in
+[`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md#troubleshooting) and
+[`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md#15-when-something-is-wrong). The three
+below need more room than a table row.
 
 ### pgAdmin shows no server
 
@@ -342,15 +457,20 @@ the code.
 
 This is a proof of concept. Things it deliberately does not address:
 
-- **No IAM or RBAC.** The runner has unrestricted Docker access.
-- **No network policy.** All containers share one Docker bridge network.
-- **No approval gates.** Anything annotated gets provisioned immediately.
-- **No provisioning latency modelling.** Containers start in seconds, not minutes.
-- **No multi-node scheduling.** Everything runs on one Docker host.
-- **No Terraform locking.** MinIO provides the S3 backend but no DynamoDB-style lock table.
-- **No snapshot or backup.** Soft delete covers the accident case; there is no point-in-time recovery.
-- **No horizontal scaling.** One controller, one runner, one MinIO.
-- **No monitoring or alerting.** Logs go to stdout.
-- **No secret rotation.** Passwords are generated once and live until the infra is destroyed.
+| Limit | What production would add |
+|---|---|
+| **No IAM or RBAC** — the runner has unrestricted Docker access | Scoped credentials, and a runner that does not need the socket |
+| **No console auth or TLS** — it binds `127.0.0.1` and runs an allowlist | Authentication in front of that same allowlist |
+| **No network policy** — every container shares one Docker bridge | Per-tenant network isolation |
+| **No approval gates** — anything annotated is provisioned immediately | A policy step between the annotation and the apply |
+| **No provisioning latency modelling** — containers start in seconds | Async provisioning with a declared, honest wait |
+| **No multi-node scheduling** — one Docker host | A real scheduler and placement rules |
+| **No horizontal scaling** — one controller, one runner, one MinIO | An HA controller and runner |
+| **No Terraform locking** — MinIO is an S3 backend with no lock table | A lock, so two applies cannot race over one workspace |
+| **No snapshot or backup** — soft delete covers the accident case | Snapshot before destroy, and `retain: true` |
+| **No monitoring or alerting** — logs go to stdout | Metrics on claim phases, and alerts when one sticks |
+| **No secret rotation** — passwords live until the infra is destroyed | Rotation, and an answer for the pods already holding the Secret |
+
+*(The right-hand column is this README's summary of what the PoC leaves open, not a schedule — the design note has the detail.)*
 
 For production, start with the [design note](docs/jit-infra-poc.md) and work forward.
