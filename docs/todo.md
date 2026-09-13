@@ -28,6 +28,10 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
 - [x] **A container removal takes its volume** - `tofu destroy` always did it; `jit-down`'s by-name sweep
       now does too. A Postgres data directory carries its own password, so a volume outliving its container
       makes the next stack's fresh password unusable. *(docs/evidence/s17-cold-path-green.log)*
+- [x] **The console owns no behaviour** - every action it can take is a single make target from
+      `make targets`, and everything it displays comes from `make state`, which reads the same
+      sources the frozen checks do. A page that computes its own phase or expiry would disagree
+      with `make jit-verify` eventually, and the disagreement would be the thing you debug.
 
 ## Stage Z - Before anything
 
@@ -64,7 +68,11 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
 
 - [x] check  - [x] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
 - [x] check  - [x] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
-- [x] check  - [ ] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
+- [x] check  - [x] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
+
+## Stage F - The console
+
+- [x] check  - [x] review  **S18** Every console action is one make target; `make state` is the read model
 
 ## Notes carried from the app's own docs
 

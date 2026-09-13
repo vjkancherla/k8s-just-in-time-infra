@@ -514,6 +514,100 @@ The four that matter:
 
 ---
 
+# S18 — Makefile targets the console drives
+
+Paste into `docs/build-plan.md` after S17, and add the tracker line to `docs/todo.md`:
+
+```
+## Stage F - The console
+
+- [ ] check  - [ ] review  **S18** Every console action is one make target; `make state` emits the read model
+```
+
+---
+
+### S18. Makefile targets the console drives
+
+**Goal:** every action the console can take is a single make target, and the console's
+read model comes from `make state` — so the page cannot drift from the CLI, and nothing
+in the console shells out to `kubectl` on its own.
+
+**Read:** `Makefile`, `app/Makefile`, `scripts/jit-down.sh`, `scripts/verify-jit.sh`,
+`docs/evidence/s17-cold-path-green.log`.
+
+**Do:**
+
+- Add the targets below. Existing ones are listed so the allowlist is complete in one
+  place; do not change their behaviour.
+
+  | Console action | Target | New |
+  |---|---|---|
+  | Demo · Start the demo | `make demo-up` | yes |
+  | Demo · Stop asking for the app | `make demo-soft` | yes |
+  | Demo · Change your mind | `make demo-restore` | yes |
+  | Demo · Finish it | `make ns-delete NS=voting-a` | yes |
+  | Testing · Set everything up | `make test-up` | yes |
+  | Testing · Start the infra control plane | `make jit-up` | no |
+  | Testing · Check the app works | `make verify NS=voting-a` | no |
+  | Testing · Check the JIT behaviour | `make jit-verify` | no |
+  | Testing · Delete the voting-b namespace | `make ns-delete NS=voting-b` | yes |
+  | Testing · Shut everything down | `make jit-down` | no |
+  | (state poll) | `make state` | yes |
+  | (allowlist) | `make targets` | yes |
+
+- `demo-up` is the cold path for **one** namespace, in the order the evidence log
+  established: `jit-down`, then a cluster-creating `deploy`, then `jit-up`, then
+  `make all NS=voting-a`. `test-up` is the same with `make all` for both namespaces.
+  Neither may introduce a new cold path — both call the same targets S17 left green.
+
+- `demo-soft` deletes the `vote` Deployment in `voting-a`. `demo-restore` re-applies the
+  overlay. Both are one `kubectl` line wrapped in a target, so the console never issues a
+  `kubectl` of its own.
+
+- `ns-delete` takes `NS` and **refuses any namespace not in `voting-a voting-b`**. Without
+  `NS`, it fails. This is the only destructive target the console can reach.
+
+- `make targets` prints the allowlist above, one name per line, and nothing else. The
+  console reads its buttons from this, so a target that is not listed cannot be run.
+
+- `make state` prints one JSON object to stdout and nothing else:
+
+  ```json
+  {
+    "up": true,
+    "generatedAt": "2026-09-12T10:00:00Z",
+    "namespaces": [
+      { "name": "voting-a",
+        "block": "172.19.0.100-109",
+        "claims": [
+          { "module": "redis", "phase": "Ready", "address": "172.19.0.100",
+            "referencedBy": ["vote","worker"], "expiresAt": null } ] } ],
+    "containers": [ { "name": "voting-a-redis-redis", "address": "172.19.0.100", "running": true } ],
+    "stateObjects": [ "ns/voting-a/redis/terraform.tfstate" ]
+  }
+  ```
+
+  Every field is read from `kubectl`, the `jit-ipam` ConfigMap, `docker ps` and the MinIO
+  listing — the same sources the frozen checks read. It computes nothing: `expiresAt` is
+  passed through as the controller wrote it, and the countdown is the caller's problem.
+
+- `make state` must exit 0 and emit valid JSON with `"up": false` when there is no
+  cluster. The console polls it before anything exists.
+
+- Every target appends its output to `docs/evidence/<target>.log` and exits non-zero on
+  failure. `verify` and `jit-verify` keep their existing behaviour of parsing the
+  `.workflow/` file for the count.
+
+**Checkpoint** `scripts/checks/S18.sh`: the allowlist is complete and self-describing,
+`make state` agrees with `kubectl` and `docker`, `ns-delete` refuses a namespace outside
+the two, and the soft path is visible in the read model.
+
+Precondition: run it with the demo stack up (`make demo-up`). The checkpoint says so and
+fails rather than skipping if it is not.
+
+**Not in this step:** serving the page, the HTTP proxy, SSE. S19 is the page over
+`make state`; S20 is the proxy that POSTs to these targets.
+
 ## Done
 
 - [x] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:
