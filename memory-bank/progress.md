@@ -9,12 +9,12 @@ Nothing open. Five README commands were wrong (there is no root `make all`); doc
 - README through an external review pass: hand-kept TOC and duplicate guide prose removed, `make check` out
   of the console table, state-machine diagram dropped, the `tofu` escape hatch moved to the manual guide §10,
   `console/state.py` deleted. Script-checked: every anchor, relative link, fence and table.
-- Independent review (`docs/reviews/S18-findings.md`, `16fa4ad`): no blockers; four concerns — `ALLOWED_NS` vs
-  the `TENANTS` fence, `demo-up.sh` swallowing non-CRD failures, `verify`'s exit change, hand-written SigV4.
-- `bash scripts/checks/S18.sh` → twelve `ok:` lines, `PASS`, exit 0 (`docs/evidence/s18-final-gate.log`; it predates
-  the `demo-soft`/`demo-restore` rename). `destroy` joined the root Makefile and `CONSOLE_TARGETS`; names match.
+- Independent review (`docs/reviews/S18-findings.md`, `16fa4ad`): no blockers; four concerns, listed there.
+- `bash scripts/checks/S18.sh` → twelve `ok:` lines, `PASS` (`docs/evidence/s18-final-gate.log`); that run predates the rename.
 - `make demo-up` from cold: `rc=0`, `17 PASS, 0 FAIL`; `make verify` exits on the summary it wrote (0 at 17
   PASS, 2 at 11 FAIL); every allowlisted target appends `docs/evidence/<target>.log` and keeps its exit code.
+- 44 files committed in eight logical commits, pushed as `bd2a2fb`; remote tip == local HEAD, tree clean.
+  `app/opencode.jsonc` was excluded: a live-looking DeepSeek key sits in a comment, though it never reached git.
 
 ## Broken (confirmed by execution)
 - None open.
@@ -29,7 +29,7 @@ Nothing open. Five README commands were wrong (there is no root `make all`); doc
 Nothing.
 
 ## Blocked
-- The uncommitted docs, the untracked `console/` and the new `.gitignore` need a commit-or-discard call.
+- Nothing blocked. The tree is clean and level with `origin/main`; the console's missing plan step is the open item.
 
 ## Learnings
 - Link and anchor checks belong in a script: a README's `](#anchor)` targets and relative paths all validate in

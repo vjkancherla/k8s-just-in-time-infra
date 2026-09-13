@@ -1,35 +1,34 @@
 Updated: 2026-09-13
 
 ## Current focus
-S18 is complete and ticked; the README has been through an external review pass. This session's open work is
-`.gitignore`, widened to drop local tooling/state noise, with the S18 docs set still uncommitted.
+S18 is complete, ticked and published: the console, the guides and the `.gitignore` pass went up as eight
+commits ending at `bd2a2fb`. The tree is clean and level with `origin/main`.
 
 ## Blocked
-- Nothing blocks. The tree's uncommitted work and the untracked `console/` are the human's call.
+- Nothing blocks. `app/opencode.jsonc` stays local — a live-looking DeepSeek key sits in one of its comments.
 
 ## Done (verified)
-- `.gitignore` (uncommitted, this session): sections for secrets (`.env`, `.env.*`, any depth), Python,
-  Terraform state, agent runtime (`.omo/`, `.workflow/` — which also covers `app/.workflow/`), OS/editor and
-  backup noise. No global `*.log`, so the evidence logs stay committable. Executed: every rule bites, 0 tracked
-  files newly ignored, untracked entries 45 → 24.
-- README (uncommitted, this session): the reviewer's cuts applied — TOC and the Running-it table gone, `make
-  check` out of the allowlist table, WARNING reworded to three irreversible targets, state-machine diagram
-  cut, stale "voting app repo, read-only" prerequisite gone, `console/state.py` deleted (it was dead).
-  Script-checked: every anchor, relative link, fence and table.
+- `.gitignore` (committed `629bb3b`): secrets (`.env`, `.env.*`, any depth), Python, Terraform state, agent
+  runtime (`.omo/`, `.workflow/` — also covers `app/.workflow/`) and `app/opencode.jsonc`, plus OS/editor noise.
+  No global `*.log`, so evidence logs stay committable; 0 tracked files newly ignored, untracked 45 → 24.
+- README (committed `b8879cf`): the reviewer's cuts applied — TOC and the Running-it table gone, `make check`
+  out of the allowlist table, WARNING reworded to three irreversible targets, state-machine diagram cut, the
+  stale "voting app repo, read-only" prerequisite gone. Script-checked: anchors, links, fences, tables.
 - Gate: `bash scripts/checks/S18.sh` → twelve `ok:` lines, `PASS` (`docs/evidence/s18-final-gate.log`), after
   the human approved the two-mechanic fix to the frozen checkpoint (`13c2502`).
+- Pushed `bd2a2fb` — eight commits covering `.gitignore`, the make targets, the plan, README, `console/`,
+  reviews and both memory banks. Remote tip == local HEAD; `git grep` finds no key in the published tree.
 
 ## Checkpoints (final code)
 - S18: PASS. S17's gate untouched (`make verify` = 17 PASS, `scripts/verify-jit.sh` unmodified).
 
 ## Next step
-Human: commit the README with the rest of the uncommitted S18 set — the `destroy` target and allowlist, the
-checkpoint's two name edits, `docs/evidence/s18-checkpoint-*.log`, this `.gitignore` — or discard them.
-`console/` is untracked, so a commit that claims the console works has to add it.
+Human: give the console a step in `docs/build-plan.md` — line 608 assigns the page, over `make state`, to S19
+and the proxy to S20, but neither step exists and `console/` is already committed without them.
 
 ## Watch out
-- `console/` is untracked and its step is not in the plan: `docs/build-plan.md:608` calls the page over
-  `make state` S19 and the proxy S20. It now holds `index.html` and `serve.py` (`state.py` deleted today).
+- `app/opencode.jsonc` is ignored but still on disk, holding a live-looking DeepSeek key (`sk-515c…`) in a
+  comment. It was never published; rotate the key if you ever un-ignore, copy or mirror that file.
 - `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` is in neither the tree nor git history; restore it from `S17-review-prompt.md`.
 - `docs/build-plan.md:616` and `docs/lessons.md:118` cite README sections by name ("From cold", the wedged
   namespace); both survive the rewrite.
