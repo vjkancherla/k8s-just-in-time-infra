@@ -1,0 +1,875 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JIT Console</title>
+<style>
+  :root{
+    --bg:#fbfbfd;--surface:#fff;--ink:#1d1d1f;--ink-2:#6e6e73;--ink-3:#a1a1a6;
+    --hair:rgba(0,0,0,.08);--blue:#0071e3;--green:#30a46c;--amber:#c76a15;--red:#c9342b;
+    --green-bg:#e8f6ee;--amber-bg:#fdf1e2;--radius:18px;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;font-size:16px;line-height:1.5}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 24px}
+
+  .bar{position:sticky;top:0;z-index:20;background:rgba(251,251,253,.82);
+    backdrop-filter:saturate(180%) blur(20px);-webkit-backdrop-filter:saturate(180%) blur(20px);
+    border-bottom:1px solid var(--hair)}
+  .bar-in{display:flex;align-items:center;gap:14px;height:56px}
+  .logo{font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .seg{display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px}
+  .seg.mid{margin:0 auto}
+  .seg button{font:inherit;font-size:13px;font-weight:500;color:var(--ink-2);border:0;
+    background:transparent;padding:6px 16px;border-radius:7px;cursor:pointer;
+    transition:background .18s,color .18s,opacity .25s}
+  .seg.small button{font-size:12px;padding:5px 11px}
+  .seg button[aria-selected="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}
+  .seg button.sleeping{opacity:.45}
+  .seg button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+  .pill{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--ink-2);white-space:nowrap}
+  .led{width:8px;height:8px;border-radius:50%;background:var(--ink-3);transition:background .3s}
+  .led.on{background:var(--green)} .led.warn{background:var(--amber)}
+  @media(max-width:760px){.bar-in{height:auto;padding:10px 0;flex-wrap:wrap}.seg.mid{margin:0}}
+
+  h1{font-size:36px;font-weight:600;letter-spacing:-.025em;margin:0;line-height:1.12}
+  h2{font-size:20px;font-weight:600;letter-spacing:-.015em;margin:0}
+  .sub{color:var(--ink-2);font-size:17px;margin:10px 0 0;max-width:52ch}
+  .tiny{font-size:13px;color:var(--ink-3)}
+  .mono{font-family:var(--mono);font-size:.9em}
+  .view{display:none;padding:46px 0 80px}
+  .view.on{display:block}
+  .card{background:var(--surface);border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
+  .btn{font:inherit;font-size:15px;font-weight:500;color:#fff;background:var(--blue);border:0;
+    padding:11px 22px;border-radius:980px;cursor:pointer}
+  .btn:hover{opacity:.85}
+  .btn.ghost{background:rgba(0,0,0,.05);color:var(--ink)}
+  .btn:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+  .btn[disabled]{opacity:.35;cursor:not-allowed}
+
+  .empty{text-align:center;padding:84px 24px 96px;max-width:42ch;margin:0 auto}
+  .empty h2{font-size:23px;margin-bottom:8px}
+  .empty p{color:var(--ink-2);font-size:15.5px;margin:0 0 24px}
+
+  /* actions */
+  .runs{margin-top:26px}
+  .list{background:var(--surface);border-radius:var(--radius);overflow:hidden;
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
+  .item{display:flex;align-items:flex-start;gap:14px;width:100%;text-align:left;font:inherit;
+    background:transparent;border:0;padding:17px 20px;cursor:pointer;
+    border-bottom:1px solid var(--hair);transition:background .15s}
+  .item:last-child{border-bottom:0}
+  .item:hover{background:rgba(0,0,0,.025)}
+  .item:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+  .item[disabled]{opacity:.38;cursor:not-allowed}
+  .item .body{flex:1;min-width:0}
+  .item .t{display:block;font-size:15px;font-weight:500;letter-spacing:-.01em;line-height:1.35}
+  .item .d{display:block;font-size:13px;color:var(--ink-2);margin-top:4px;line-height:1.45}
+  .item .tgt{font-family:var(--mono);font-size:11px;color:var(--ink-3);white-space:nowrap;padding-top:4px}
+  .item.running .t::after{content:'…';color:var(--blue)}
+  .log{background:var(--surface);border-radius:var(--radius);padding:22px 24px;margin-top:20px;
+    font-family:var(--mono);font-size:12.5px;line-height:1.8;color:var(--ink-2);
+    min-height:200px;max-height:520px;overflow:auto;white-space:pre-wrap;
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
+  .log .cmd{color:var(--ink);font-weight:500}
+  .log .ok{color:var(--green)} .log .warn{color:var(--amber)} .log .err{color:var(--red)}
+  .notice{font-size:13.5px;color:var(--ink-2);background:rgba(0,0,0,.03);border-radius:12px;
+    padding:13px 17px;margin-top:16px;max-width:66ch}
+
+  /* namespaces */
+  .nsblock{margin-top:32px}
+  .nshead{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+  .nsname{font-family:var(--mono);font-size:15px;font-weight:600}
+  .nsmeta{font-size:13px;color:var(--ink-3)}
+  .claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:12px}
+  .claim{background:var(--surface);border-radius:14px;padding:16px 18px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 6px 18px rgba(0,0,0,.04)}
+  .claim .name{font-size:15px;font-weight:500}
+  .claim .addr{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-top:2px}
+  .tag{display:inline-block;font-size:12px;font-weight:500;padding:3px 10px;border-radius:980px;margin-top:11px}
+  .tag.ready{background:var(--green-bg);color:var(--green)}
+  .tag.orphaned{background:var(--amber-bg);color:var(--amber)}
+  .tag.other{background:rgba(0,0,0,.05);color:var(--ink-3)}
+  .tag.failed{background:#fdecea;color:var(--red)}
+  .claim .note{font-size:13px;color:var(--ink-2);margin-top:9px;min-height:19px}
+  .claim.stale{opacity:.45}
+  .count{font-family:var(--mono);font-variant-numeric:tabular-nums;font-weight:600;color:var(--amber)}
+
+  .strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:14px}
+  .chip{font-family:var(--mono);font-size:12px;color:var(--ink-2);background:var(--surface);
+    border-radius:980px;padding:6px 13px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+  .chip.off{color:var(--ink-3);text-decoration:line-through}
+
+  /* app panes */
+  .nsswitch{margin-top:22px;width:fit-content}
+  .apps{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-top:18px}
+  @media(max-width:760px){.apps{grid-template-columns:1fr}}
+  .app{overflow:hidden;background:var(--surface);border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.06)}
+  .chrome{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--hair);
+    background:rgba(0,0,0,.02)}
+  .chrome .dots{display:flex;gap:5px}
+  .chrome i{width:9px;height:9px;border-radius:50%;background:rgba(0,0,0,.12);display:block}
+  .url{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin:0 auto;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .chrome a{font-size:12px;color:var(--blue);text-decoration:none;white-space:nowrap}
+  .frame{width:100%;height:330px;border:0;display:block;background:#fff}
+  .framefall{height:330px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;text-align:center;color:var(--ink-3);font-size:14px;padding:24px}
+
+  /* start here */
+  .oh{font-size:13px;font-weight:600;color:var(--ink-3);margin:34px 0 10px}
+  .panel{background:var(--surface);border-radius:var(--radius);padding:22px 24px;
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
+  .lede{font-size:19px;line-height:1.45;margin:0}
+  .lede .mono{font-size:15px}
+  .kv{display:flex;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--ink-2);margin-top:10px}
+  .rows{font-size:14.5px}
+  .rowline{display:flex;gap:14px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--hair)}
+  .rowline:last-child{border-bottom:0}
+  .rowline .id{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
+    margin-left:auto;white-space:nowrap}
+  .rowline .st{font-size:11px;font-weight:600;padding:2px 8px;border-radius:980px;white-space:nowrap}
+  .st.pass{background:var(--green-bg);color:var(--green)}
+  .st.fail{background:#fdecea;color:var(--red)}
+  details{margin-top:12px}
+  details>summary{cursor:pointer;font-size:13.5px;color:var(--blue);list-style:none}
+  details>summary::-webkit-details-marker{display:none}
+  details>summary::before{content:'▸ ';font-size:11px}
+  details[open]>summary::before{content:'▾ '}
+  details>summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+
+  /* infrastructure */
+  .group{margin-top:30px}
+  .grouph{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
+  .grouph h2{font-size:17px}
+  .grouph .n{font-size:13px;color:var(--ink-3)}
+  .sentence{font-size:14.5px;color:var(--ink-2);margin-top:8px;line-height:1.45}
+  .sentence b{color:var(--ink);font-weight:500}
+  .claim .who{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  .feed{font-size:13.5px;color:var(--ink-2)}
+  .feed div{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--hair)}
+  .feed div:last-child{border-bottom:0}
+  .feed .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding-top:2px}
+  .feed .none{color:var(--ink-3);border:0;padding:4px 0}
+
+  .foot{border-top:1px solid var(--hair);padding:26px 0 60px;color:var(--ink-3);font-size:13px}
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="wrap bar-in">
+    <div class="logo">JIT</div>
+    <div class="seg small" id="modeSwitch" role="tablist" aria-label="Mode">
+      <button role="tab" aria-selected="true" data-mode="demo">Demo</button>
+      <button role="tab" aria-selected="false" data-mode="test">Testing</button>
+    </div>
+    <div class="seg mid" role="tablist" aria-label="Section">
+      <button role="tab" aria-selected="true" data-view="setup">Setup</button>
+      <button role="tab" aria-selected="false" data-view="infra">Infrastructure</button>
+      <button role="tab" aria-selected="false" data-view="app">Voting app</button>
+      <button role="tab" aria-selected="false" data-view="guide">Guide</button>
+    </div>
+    <div class="pill"><span class="led" id="led"></span><span id="ledText">—</span></div>
+  </div>
+</div>
+
+<!-- ── setup ── -->
+<div class="view on" id="view-setup">
+  <div class="wrap">
+    <h1 id="setupH1">—</h1>
+    <p class="sub" id="setupSub"></p>
+    <div class="runs">
+      <div>
+        <div class="list" id="actionList"></div>
+        <p class="notice" id="modeNote"></p>
+      </div>
+      <pre class="log" id="log"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ── infrastructure ── -->
+<div class="view" id="view-infra">
+  <div class="wrap">
+    <div class="empty" id="infraEmpty" hidden>
+      <h2>No infrastructure yet</h2>
+      <p>Claims appear once the control plane is up and a deployment has asked for something.</p>
+      <button class="btn" data-goto="setup">Go to setup</button>
+    </div>
+    <div id="infraLive" hidden>
+      <h1 id="infraH1">—</h1>
+      <p class="sub" id="infraSub"></p>
+
+      <div id="nsHost"></div>
+
+      <div class="oh">What changed since you opened this page</div>
+      <div class="panel feed" id="feed"></div>
+
+      <details>
+        <summary>Containers and state objects</summary>
+        <div class="panel" style="margin-top:10px">
+          <div class="strip" id="containers"></div>
+          <div class="strip" id="objects" style="margin-top:14px"></div>
+        </div>
+      </details>
+    </div>
+  </div>
+</div>
+
+<!-- ── voting app ── -->
+<div class="view" id="view-app">
+  <div class="wrap">
+    <div class="empty" id="appEmpty" hidden>
+      <h2>The app isn't up</h2>
+      <p>Once a namespace is running, its vote and result pages load here.</p>
+      <button class="btn" data-goto="setup">Go to setup</button>
+    </div>
+    <div id="appLive" hidden>
+      <h1>The app, where it actually runs.</h1>
+      <p class="sub">Both pages are served by Traefik on 8081. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
+      <div class="seg small nsswitch" id="nsSwitch" role="tablist"></div>
+      <div class="apps">
+        <div class="app">
+          <div class="chrome"><div class="dots"><i></i><i></i><i></i></div>
+            <div class="url" id="voteUrl"></div><a id="voteOpen" target="_blank" rel="noopener">Open</a></div>
+          <div id="votePane"></div>
+        </div>
+        <div class="app">
+          <div class="chrome"><div class="dots"><i></i><i></i><i></i></div>
+            <div class="url" id="resultUrl"></div><a id="resultOpen" target="_blank" rel="noopener">Open</a></div>
+          <div id="resultPane"></div>
+        </div>
+      </div>
+      <div class="strip" id="appChips" style="margin-top:24px"></div>
+      <p class="tiny" id="pgadminLine" style="margin-top:16px"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── guide ── -->
+<div class="view" id="view-guide">
+  <div class="wrap">
+    <h1>What each part of this does.</h1>
+    <p class="sub">The console runs make targets and shows what the cluster says. It stores nothing of its own, so anything here that looks wrong is the stack, not the page.</p>
+
+    <div class="oh">The two modes</div>
+    <div class="panel">
+      <div class="rows">
+        <div class="rowline"><span style="min-width:80px"><b>Demo</b></span>
+          <span>One namespace, <span class="mono">voting-a</span>, and four steps in order. Fewer containers and faster to start. Use it to show someone what the design does.</span></div>
+        <div class="rowline"><span style="min-width:80px"><b>Testing</b></span>
+          <span>Both namespaces and the check suites. <span class="mono">voting-b</span> exists so the hard-delete check can prove one namespace going away leaves the other alone.</span></div>
+      </div>
+      <p class="tiny" style="margin-top:14px">Switching mode changes which actions are listed. It does not change the cluster.</p>
+    </div>
+
+    <div class="oh">The tabs</div>
+    <div class="panel">
+      <div class="rows">
+        <div class="rowline"><span style="min-width:120px"><b>Setup</b></span>
+          <span>Runs things. Each row is one make target; output streams into the log underneath and is also written to <span class="mono">docs/evidence/</span>.</span></div>
+        <div class="rowline"><span style="min-width:120px"><b>Infrastructure</b></span>
+          <span>What exists right now, grouped by what state it is in rather than which namespace it belongs to. The feed below shows phase changes observed while this page has been open.</span></div>
+        <div class="rowline"><span style="min-width:120px"><b>Voting app</b></span>
+          <span>The vote and result pages embedded, for whichever namespace is selected. Hosts and ports come from the cluster's Ingress objects, not from anything typed here.</span></div>
+      </div>
+    </div>
+
+    <div class="oh">What a claim's state means</div>
+    <div class="panel">
+      <div class="rows" id="guidePhases"></div>
+      <p class="tiny" style="margin-top:14px">The countdown is worked out in the browser from the expiry the controller wrote. The console never decides when something expires.</p>
+    </div>
+
+    <div class="oh">Every action, and what it runs</div>
+    <div class="panel">
+      <div class="rows" id="guideActions"></div>
+      <p class="tiny" style="margin-top:14px">These come from the page's own list, so this table cannot drift from the buttons. The names must also appear in <span class="mono">make targets</span> or the run is refused.</p>
+    </div>
+
+    <div class="oh">Things that will confuse you otherwise</div>
+    <div class="panel">
+      <div class="rows">
+        <div class="rowline"><span>The app panes are blank.</span>
+          <span class="tiny" style="margin-left:auto;text-align:right;max-width:56ch">HTTPS with a self-signed certificate. Use <b>Open</b> once per host, accept the warning, reload. The browser gives the page no way to detect this.</span></div>
+        <div class="rowline"><span>The log is empty after a restart.</span>
+          <span class="tiny" style="margin-left:auto;text-align:right;max-width:56ch">The output is still in <span class="mono">docs/evidence/</span>. The page only reads a log while its run is in progress.</span></div>
+        <div class="rowline"><span>Ctrl-C during a run.</span>
+          <span class="tiny" style="margin-left:auto;text-align:right;max-width:56ch">Stops the server, not the <span class="mono">make</span> it started. Check <span class="mono">docker ps</span> and <span class="mono">k3d cluster list</span> before starting again.</span></div>
+        <div class="rowline"><span>Nothing appears at all.</span>
+          <span class="tiny" style="margin-left:auto;text-align:right;max-width:56ch">Run <span class="mono">make -s state</span> in a terminal. If that prints nothing useful, the console is reporting it correctly.</span></div>
+      </div>
+    </div>
+
+    <div class="oh">Where the numbers come from</div>
+    <div class="panel">
+      <p style="margin:0;font-size:14.5px;color:var(--ink-2);max-width:70ch">Claims, phases, addresses, expiry, containers, state objects and Ingress hosts all arrive from one call to <span class="mono">make state</span>, polled every two seconds. That reads the same sources the frozen checkpoints read, which is what keeps this page and <span class="mono">make jit-verify</span> from ever disagreeing.</p>
+    </div>
+  </div>
+</div>
+
+<div class="foot"><div class="wrap"><span id="footNote"></span></div></div>
+
+<!-- Replaced by `make console`. Delete the contents and the page fetches /state instead. -->
+<script type="application/json" id="state">
+{
+  "up": true,
+  "generatedAt": "2026-09-12T09:41:06Z",
+  "namespaces": [
+    { "name": "voting-a", "block": "172.19.0.100-109", "claims": [
+      { "module": "redis",    "phase": "Ready",    "address": "172.19.0.100", "referencedBy": ["vote","worker"], "expiresAt": null },
+      { "module": "postgres", "phase": "Orphaned", "address": "172.19.0.101", "referencedBy": [], "expiresAt": "2099-01-01T00:01:40Z" },
+      { "module": "pgadmin",  "phase": "Ready",    "address": "172.19.0.102", "referencedBy": ["vote"], "expiresAt": null } ] }
+  ],
+  "containers": [
+    { "name": "voting-a-redis-redis",       "address": "172.19.0.100", "running": true },
+    { "name": "voting-a-postgres-postgres", "address": "172.19.0.101", "running": true },
+    { "name": "voting-a-pgadmin-pgadmin",   "address": "172.19.0.102", "running": true },
+    { "name": "jit-runner",                 "address": "172.19.0.10",  "running": true },
+    { "name": "jit-minio",                  "address": "172.19.0.11",  "running": true }
+  ],
+  "stateObjects": [
+    "ns/voting-a/redis/terraform.tfstate",
+    "ns/voting-a/postgres/terraform.tfstate",
+    "ns/voting-a/pgadmin/terraform.tfstate"
+  ]
+}
+</script>
+
+<script>
+(function(){
+"use strict";
+
+/* ─── actions: the S18 allowlist, nothing else ─────────────────────────── */
+var ACTIONS = [
+  {mode:'demo', name:'demo-up',      cmd:'make demo-up',            t:'Start the demo',            d:'Cluster, control plane and the app in one namespace.', hint:'~3 min'},
+  {mode:'demo', name:'demo-undeploy', cmd:'make demo-undeploy',          t:'Delete the deployment',   d:'The pods go. The containers keep running and a retention clock starts.'},
+  {mode:'demo', name:'demo-redeploy', cmd:'make demo-redeploy',       t:'Redeploy inside the window',          d:'The claim goes back to Ready. Same container, same data, nothing reprovisioned.'},
+  {mode:'demo', name:'ns-delete-a',  cmd:'make ns-delete NS=voting-a', t:'Delete the namespace',              d:'All three containers destroyed at once. The retention clock is ignored.', danger:true},
+  {mode:'test', name:'test-up',      cmd:'make test-up',            t:'Set everything up',         d:'The cold path, both namespaces, then the app checks.', hint:'4 targets'},
+  {mode:'test', name:'jit-up',       cmd:'make jit-up',             t:'Start the control plane',   d:'State store, runner, claim type, controller. No app.', hint:'jit-up'},
+  {mode:'test', name:'verify',       cmd:'make verify NS=voting-a', t:'Check the app works',       d:'The app\u2019s own checks in voting-a.', hint:'R1\u2013R17'},
+  {mode:'test', name:'jit-verify',   cmd:'make jit-verify',         t:'Check the JIT behaviour',   d:'Orphan, resurrect, refcount, hard delete, restart.', hint:'J1\u2013J11'},
+  {mode:'test', name:'ns-delete-b',  cmd:'make ns-delete NS=voting-b', t:'Delete voting-b',        d:'The fast path on its own, while voting-a carries on.', hint:'J8', danger:true},
+  {mode:'test', name:'jit-down',     cmd:'make jit-down',           t:'Shut the JIT plane down',   d:'Removes the controller, runner and state store, and sweeps every container it created. The cluster and the app stay.', hint:'jit-down'},
+  {mode:'test', name:'destroy',      cmd:'make destroy',            t:'Delete everything',         d:'The plane first, then the k3d cluster and the generated secret. Nothing is left; about three minutes to get back.', hint:'destroy', danger:true}
+];
+
+var S = {data:null, mode:'demo', ns:0, live:false, busy:null, feed:[], seen:null};
+var $ = function(id){ return document.getElementById(id); };
+
+/* ─── state source: inlined by `make console`, or fetched when served ──── */
+function readInlined(){
+  var el = $('state');
+  if(!el) return null;
+  var raw = el.textContent.trim();
+  if(!raw) return null;
+  try { return JSON.parse(raw); } catch(e){ return null; }
+}
+async function poll(){
+  try{
+    var r = await fetch('/state', {cache:'no-store'});
+    if(!r.ok) throw 0;
+    S.data = await r.json(); S.live = true; render();
+  }catch(e){ /* keep the last good state */ }
+}
+
+/* ─── chrome ───────────────────────────────────────────────────────────── */
+document.querySelectorAll('.seg.mid button').forEach(function(b){
+  b.addEventListener('click', function(){ show(b.dataset.view); });
+});
+document.querySelectorAll('[data-goto]').forEach(function(b){
+  b.addEventListener('click', function(){ show(b.dataset.goto); });
+});
+function show(v){
+  if(v === 'guide') renderGuide();
+  document.querySelectorAll('.seg.mid button').forEach(function(x){
+    x.setAttribute('aria-selected', String(x.dataset.view === v));
+  });
+  document.querySelectorAll('.view').forEach(function(x){ x.classList.remove('on'); });
+  $('view-' + v).classList.add('on');
+  window.scrollTo(0,0);
+}
+document.querySelectorAll('#modeSwitch button').forEach(function(b){
+  b.addEventListener('click', function(){
+    S.mode = b.dataset.mode;
+    document.querySelectorAll('#modeSwitch button').forEach(function(x){
+      x.setAttribute('aria-selected', String(x.dataset.mode === S.mode));
+    });
+    render();
+  });
+});
+
+/* ─── running an action ────────────────────────────────────────────────── */
+function logLine(text, cls){
+  var s = document.createElement('span');
+  s.className = cls || '';
+  s.textContent = text + '\n';
+  $('log').appendChild(s);
+  $('log').scrollTop = $('log').scrollHeight;
+}
+async function run(a){
+  if(S.busy) return;
+  if(a.danger && !confirm(a.cmd + '\n\n' + (a.d || '') + '\n\nThere is no undo. Continue?')) return;
+  S.busy = a.name; render();
+  $('log').textContent = '';
+  logLine('$ ' + a.cmd, 'cmd');
+
+  var offset = 0;
+
+  async function drain(){
+    try{
+      var r = await fetch('/log?name=' + encodeURIComponent(a.name) + '&offset=' + offset,
+                          {cache:'no-store'});
+      if(!r.ok) return;
+      var j = await r.json();
+      if(j.text){
+        offset = j.offset;
+        j.text.split('\n').forEach(function(l){ if(l !== '') logLine(l, lineClass(l)); });
+      }
+    }catch(e){ /* the run is what matters; a missed poll is harmless */ }
+  }
+
+  var pump = setInterval(drain, 500);
+
+  try{
+    var r = await fetch('/run/' + encodeURIComponent(a.name), {method:'POST'});
+    var body = await r.json();
+    clearInterval(pump);
+    await drain();                                  // whatever landed after the last poll
+    if(body.out) body.out.split('\n').forEach(function(l){
+      if(l !== '') logLine(l, lineClass(l));
+    });
+    logLine(body.rc === 0 ? 'exit 0' : 'exit ' + body.rc, body.rc === 0 ? 'ok' : 'err');
+  }catch(e){
+    clearInterval(pump);
+    logLine('could not reach the console process \u2014 is it still running?', 'err');
+  }
+
+  S.busy = null;
+  poll(); render();
+}
+function lineClass(l){
+  if(/\b0 FAIL\b/.test(l)) return 'ok';            // "17 PASS, 0 FAIL" is a good line
+  if(/\bFAIL\b|error|Error|refused/.test(l)) return 'err';
+  if(/\bPASS\b|Ready|untouched|^exit 0$/.test(l)) return 'ok';
+  if(/still running|ignored|swept|Orphaned/.test(l)) return 'warn';
+  return '';
+}
+function copy(a, btn){
+  navigator.clipboard.writeText(a.cmd).then(function(){
+    var t = btn.querySelector('.tgt'), old = t.textContent;
+    t.textContent = 'copied'; setTimeout(function(){ t.textContent = old; }, 1400);
+  });
+}
+
+/* ─── render ───────────────────────────────────────────────────────────── */
+function phaseClass(p){
+  return p === 'Ready' ? 'ready' : p === 'Orphaned' ? 'orphaned' : p === 'Failed' ? 'failed' : 'other';
+}
+function remaining(iso){
+  var ms = new Date(iso).getTime() - Date.now();
+  if(isNaN(ms)) return null;
+  if(ms <= 0) return '0:00';
+  var s = Math.floor(ms/1000);
+  return Math.floor(s/60) + ':' + String(s % 60).padStart(2,'0');
+}
+
+function renderActions(){
+  var host = $('actionList');
+  host.textContent = '';
+  ACTIONS.filter(function(a){ return a.mode === S.mode; }).forEach(function(a){
+    var b = document.createElement('button');
+    b.className = 'item' + (S.busy === a.name ? ' running' : '');
+    b.disabled = !!S.busy;
+    b.innerHTML = '<span class="body"><span class="t"></span><span class="d"></span></span>' +
+                  '<span class="tgt"></span>';
+    b.querySelector('.t').textContent = a.t;
+    b.querySelector('.d').textContent = a.d;
+    b.querySelector('.tgt').textContent = S.live ? (a.hint || '') : 'copy';
+    b.title = a.cmd;
+    b.addEventListener('click', function(){ S.live ? run(a) : copy(a, b); });
+    host.appendChild(b);
+  });
+
+  $('modeNote').textContent = S.mode === 'demo'
+    ? 'Demo runs one namespace, voting-a. Fewer containers, faster to start, the same targets underneath.'
+    : 'Testing runs both namespaces. voting-b exists so J8 can prove a hard delete is bounded — its three containers go while voting-a keeps running.';
+}
+
+function claimSentence(c, ns){
+  var n = (c.referencedBy || []).length;
+  if(c.phase === 'Ready' && n)
+    return 'Used by <b>' + c.referencedBy.join('</b> and <b>') + '</b>.';
+  if(c.phase === 'Ready')
+    return 'Ready. Nothing references it yet.';
+  if(c.phase === 'Orphaned')
+    return 'Nothing is using it. Destroyed in <b class="count" data-expires="' +
+           (c.expiresAt || '') + '"></b> unless something asks for it again.';
+  if(c.phase === 'Failed')
+    return 'Provisioning failed. The controller will retry with backoff.';
+  if(c.phase === 'Deleting')
+    return 'Being destroyed. The finalizer is held until the runner confirms.';
+  if(c.phase === 'Pending')
+    return 'Waiting on the runner. Pods that need it cannot start yet.';
+  return c.phase + '.';
+}
+
+var GROUPS = [
+  {key:'use',   phases:['Ready'],               title:'In use',        note:'A deployment is asking for these.'},
+  {key:'clock', phases:['Orphaned'],            title:'On the clock',  note:'Still running. Nothing is asking for them.'},
+  {key:'work',  phases:['Pending','Deleting'],  title:'In flight',     note:'Mid-transition.'},
+  {key:'bad',   phases:['Failed'],              title:'Failed',        note:'The runner returned an error.'}
+];
+
+function renderNamespaces(){
+  var host = $('nsHost');
+  host.textContent = '';
+
+  var all = [];
+  (S.data.namespaces || []).forEach(function(ns){
+    (ns.claims || []).forEach(function(c){ all.push({ns:ns, c:c}); });
+  });
+
+  GROUPS.forEach(function(g){
+    var rows = all.filter(function(r){ return g.phases.indexOf(r.c.phase) >= 0; });
+    if(!rows.length) return;
+
+    var block = document.createElement('div');
+    block.className = 'group';
+    var head = document.createElement('div');
+    head.className = 'grouph';
+    head.innerHTML = '<h2></h2><span class="n"></span>';
+    head.querySelector('h2').textContent = g.title;
+    head.querySelector('.n').textContent = rows.length + ' \u00b7 ' + g.note;
+    block.appendChild(head);
+
+    var grid = document.createElement('div');
+    grid.className = 'claims';
+    rows.forEach(function(r){
+      var el = document.createElement('div');
+      el.className = 'claim';
+      el.innerHTML = '<div class="name"></div><div class="who"></div><div class="sentence"></div>';
+      el.querySelector('.name').textContent = r.c.module;
+      el.querySelector('.who').textContent =
+        r.ns.name + (r.c.address ? '  \u00b7  ' + r.c.address : '');
+      el.querySelector('.sentence').innerHTML = claimSentence(r.c, r.ns);
+      grid.appendChild(el);
+    });
+    block.appendChild(grid);
+    host.appendChild(block);
+  });
+
+  if(!all.length){
+    host.innerHTML = '<p class="tiny" style="margin-top:26px">' +
+      'The control plane is up but no deployment has asked for anything yet.</p>';
+  }
+
+  var missing = (S.data.namespaces || []).filter(function(ns){ return !(ns.claims || []).length; });
+  if(missing.length && all.length){
+    var note = document.createElement('p');
+    note.className = 'tiny';
+    note.style.marginTop = '24px';
+    note.textContent = 'No claims in ' + missing.map(function(n){ return n.name; }).join(' or ') + '.';
+    host.appendChild(note);
+  }
+
+  renderFeed();
+  ticks();
+}
+
+/* what changed while this page has been open - observed, not stored anywhere */
+function noteTransitions(){
+  var now = {};
+  (S.data.namespaces || []).forEach(function(ns){
+    (ns.claims || []).forEach(function(c){ now[ns.name + '/' + c.module] = c.phase; });
+  });
+  if(S.seen){
+    Object.keys(now).forEach(function(k){
+      var was = S.seen[k];
+      if(was && was !== now[k]){
+        S.feed.unshift({at:new Date(), what:k, from:was, to:now[k]});
+      }
+    });
+    Object.keys(S.seen).forEach(function(k){
+      if(!(k in now)) S.feed.unshift({at:new Date(), what:k, from:S.seen[k], to:'gone'});
+    });
+  }
+  S.seen = now;
+  if(S.feed.length > 20) S.feed.length = 20;
+}
+
+function renderFeed(){
+  var host = $('feed');
+  host.textContent = '';
+  if(!S.feed.length){
+    host.innerHTML = '<div class="none">Nothing yet. Phase changes show up here as they happen.</div>';
+    return;
+  }
+  S.feed.forEach(function(e){
+    var d = document.createElement('div');
+    var t = document.createElement('span'); t.className = 't';
+    t.textContent = e.at.toTimeString().slice(0,8);
+    var w = document.createElement('span');
+    w.innerHTML = '<b>' + e.what + '</b> ' + e.from + ' \u2192 ' + e.to;
+    d.appendChild(t); d.appendChild(w);
+    host.appendChild(d);
+  });
+}
+
+function ticks(){
+  document.querySelectorAll('[data-expires]').forEach(function(el){
+    var r = remaining(el.dataset.expires);
+    el.textContent = r === null ? '—' : r;
+  });
+}
+
+function renderStrips(){
+  var cs = $('containers'); cs.textContent = '';
+  (S.data.containers || []).forEach(function(c){
+    var el = document.createElement('span');
+    el.className = 'chip' + (c.running ? '' : ' off');
+    el.textContent = c.name + (c.address ? '  ' + c.address : '');
+    cs.appendChild(el);
+  });
+  if(!(S.data.containers || []).length) cs.innerHTML = '<span class="tiny">none</span>';
+
+  var os = $('objects'); os.textContent = '';
+  (S.data.stateObjects || []).forEach(function(k){
+    var el = document.createElement('span');
+    el.className = 'chip';
+    el.textContent = k;
+    os.appendChild(el);
+  });
+  if(!(S.data.stateObjects || []).length) os.innerHTML = '<span class="tiny">none</span>';
+}
+
+function renderApp(){
+  var list = S.data.namespaces || [];
+  var sw = $('nsSwitch'); sw.textContent = '';
+  sw.hidden = list.length < 2;
+  list.forEach(function(ns, i){
+    var b = document.createElement('button');
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected', String(i === S.ns));
+    b.textContent = ns.name;
+    b.addEventListener('click', function(){ S.ns = i; render(); });
+    sw.appendChild(b);
+  });
+  if(!list.length) return;
+
+  var ns = list[Math.min(S.ns, list.length - 1)];
+  var ing = ns.ingresses || [];
+  var ports = S.data.ingressPorts || {};
+  var anyTls = ing.some(function(i){ return i.tls; });
+
+  function pick(word){
+    return ing.filter(function(i){
+      return (i.service || '').indexOf(word) >= 0 || (i.host || '').indexOf(word) >= 0;
+    })[0];
+  }
+  function url(i){
+    var scheme = i.tls ? 'https' : 'http';
+    var port = ports[scheme] ? ':' + ports[scheme] : '';
+    return scheme + '://' + (i.host || 'localhost') + port +
+           (i.path === '/' ? '' : (i.path || ''));
+  }
+
+  // vote and result by name; anything else falls back to first and second
+  var v = pick('vote')   || ing[0];
+  var r = pick('result') || ing.filter(function(i){ return i !== v; })[0];
+
+  pane('vote',   v, 'vote');
+  pane('result', r, 'result');
+
+  function pane(which, entry, word){
+    var label = $(which + 'Url'), open = $(which + 'Open'), host = $(which + 'Pane');
+    if(!entry){
+      label.textContent = 'no Ingress for ' + word;
+      open.removeAttribute('href');
+      frame(host, null, 'No Ingress in ' + ns.name + ' routes to ' + word + '.');
+      return;
+    }
+    var u = url(entry);
+    label.textContent = u.replace('http://', '');
+    open.href = u;
+    frame(host, u);
+  }
+
+  var chips = $('appChips'); chips.textContent = '';
+  (ns.claims || []).forEach(function(c){
+    var el = document.createElement('span');
+    el.className = 'chip' + (c.phase === 'Ready' ? '' : ' off');
+    el.textContent = c.module + '  ' + (c.address || '');
+    chips.appendChild(el);
+  });
+
+  var notes = [];
+  if(anyTls){
+    notes.push('These pages are served over HTTPS with a self-signed certificate. ' +
+               'A pane will stay blank until the browser trusts it \u2014 use Open, accept the ' +
+               'warning once per host, then reload this page.');
+  }
+  var pg = (ns.claims || []).filter(function(c){ return c.module === 'pgadmin'; })[0];
+  if(pg && pg.phase === 'Ready'){
+    notes.push('pgAdmin is up on its own host port \u2014 open it to see the votes table the worker writes to.');
+  }
+  $('pgadminLine').textContent = notes.join(' ');
+}
+function frame(host, url, message){
+  var key = url || ('msg:' + message);
+  if(host.dataset.url === key) return;
+  host.dataset.url = key;
+  host.textContent = '';
+
+  if(!url){
+    var box = document.createElement('div');
+    box.className = 'framefall';
+    box.textContent = message || 'Nothing to show.';
+    host.appendChild(box);
+    return;
+  }
+
+  var f = document.createElement('iframe');
+  f.className = 'frame'; f.src = url; f.loading = 'lazy';
+
+  var fallback = document.createElement('div');
+  fallback.className = 'framefall';
+  fallback.innerHTML = '<div>This page would not embed.<br>Usually the self-signed certificate ' +
+    'has not been accepted for this host yet.</div>';
+  var link = document.createElement('a');
+  link.className = 'btn ghost'; link.href = url; link.target = '_blank'; link.rel = 'noopener';
+  link.textContent = 'Open in a tab'; link.style.textDecoration = 'none';
+  fallback.appendChild(link);
+
+  f.addEventListener('error', function(){ host.textContent = ''; host.appendChild(fallback); });
+  host.appendChild(f);
+}
+
+function render(){
+  if(!S.data){
+    $('setupH1').textContent = 'No state.';
+    $('setupSub').textContent = 'Run `make console` to generate this page, or serve it from the console process.';
+    return;
+  }
+  var d = S.data;
+  var claims = (d.namespaces || []).reduce(function(a, ns){ return a.concat(ns.claims || []); }, []);
+  var orphaned = claims.some(function(c){ return c.phase === 'Orphaned'; });
+  var failed   = claims.some(function(c){ return c.phase === 'Failed'; });
+
+  $('led').className = 'led' + (!d.up ? '' : (orphaned || failed) ? ' warn' : ' on');
+  $('ledText').textContent = !d.up ? 'Nothing running'
+    : failed ? 'Failed claim' : orphaned ? 'Retention window' : 'All ready';
+
+  var names = (d.namespaces || []).map(function(n){ return n.name; });
+  var running = (d.containers || []).filter(function(c){ return c.running; }).length;
+
+  $('setupH1').textContent = !d.up ? 'Nothing is running yet.'
+    : !names.length ? 'Control plane up. Nothing has asked for infrastructure yet.'
+    : names.join(' and ') + (names.length > 1 ? ' are running.' : ' is running.');
+
+  var counts = !d.up ? '' :
+    claims.length + (claims.length === 1 ? ' claim, ' : ' claims, ') +
+    running + (running === 1 ? ' container' : ' containers') +
+    (orphaned ? ', one on the clock. ' : '. ');
+  $('setupSub').textContent = counts + (S.live
+    ? 'Each row runs one make target and streams it back here.'
+    : 'This is a snapshot — each row copies its command instead.');
+
+  document.querySelectorAll('.seg.mid button').forEach(function(b){
+    if(b.dataset.view !== 'setup') b.classList.toggle('sleeping', !d.up);
+  });
+  $('infraEmpty').hidden = d.up; $('infraLive').hidden = !d.up;
+  $('appEmpty').hidden = d.up;   $('appLive').hidden = !d.up;
+
+  $('infraH1').textContent = orphaned ? 'Nothing was destroyed. A clock started.'
+    : claims.length + ' claims across ' + (d.namespaces || []).length + ' namespace' + ((d.namespaces||[]).length === 1 ? '' : 's') + '.';
+  $('infraSub').textContent = orphaned
+    ? 'The pods are gone, the containers are not. Put the deployment back and the claim returns to Ready with the same data.'
+    : 'Each one was declared by an annotation on a deployment and created before its pods could start.';
+
+  noteTransitions();
+  renderActions();
+  if(d.up){ renderNamespaces(); renderStrips(); renderApp(); }
+
+  $('footNote').textContent = S.live
+    ? 'Live. Polling make state every 2s.'
+    : 'Snapshot generated ' + (d.generatedAt || 'unknown') + '. Re-run make console to refresh.';
+}
+
+function esc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ─── guide: the action table is generated from ACTIONS itself ────────── */
+var PHASES = [
+  ['Pending',  'The claim exists and the runner has been asked. Pods that need it are stuck on the missing Secret until it is Ready.'],
+  ['Ready',    'The infrastructure is up and at least one deployment references it.'],
+  ['Orphaned', 'Nothing references it any more. It is still running, and it is destroyed when the clock reaches zero.'],
+  ['Deleting', 'Being destroyed. The finalizer is held until the runner confirms, so a failure here leaves it visible rather than silently stuck.'],
+  ['Failed',   'The runner returned an error. The controller retries with backoff.']
+];
+
+function renderGuide(){
+  var host = $('guidePhases');
+  if(!host || host.dataset.done) return;
+  host.dataset.done = '1';
+
+  PHASES.forEach(function(p){
+    var d = document.createElement('div');
+    d.className = 'rowline';
+    d.innerHTML = '<span class="tag ' +
+      (p[0] === 'Ready' ? 'ready' : p[0] === 'Orphaned' ? 'orphaned' :
+       p[0] === 'Failed' ? 'failed' : 'other') +
+      '" style="margin-top:0;min-width:78px;text-align:center">' + p[0] + '</span>' +
+      '<span>' + esc(p[1]) + '</span>';
+    host.appendChild(d);
+  });
+
+  var acts = $('guideActions');
+  ['demo','test'].forEach(function(mode){
+    var head = document.createElement('div');
+    head.className = 'rowline';
+    head.innerHTML = '<span class="tiny"><b>' +
+      (mode === 'demo' ? 'Demo' : 'Testing') + '</b></span>';
+    acts.appendChild(head);
+
+    ACTIONS.filter(function(a){ return a.mode === mode; }).forEach(function(a){
+      var d = document.createElement('div');
+      d.className = 'rowline';
+      d.innerHTML =
+        '<span style="min-width:190px"><b>' + esc(a.t) + '</b>' +
+          (a.danger ? ' <span class="tiny" style="color:var(--red)">destructive</span>' : '') +
+        '</span>' +
+        '<span class="tiny" style="max-width:46ch">' + esc(a.d) + '</span>' +
+        '<span class="id">' + esc(a.cmd) + '</span>';
+      acts.appendChild(d);
+    });
+  });
+}
+
+/* ─── boot ─────────────────────────────────────────────────────────────── */
+S.data = readInlined();
+render();
+
+setInterval(ticks, 1000);
+fetch('/state', {cache:'no-store'}).then(function(r){
+  if(!r.ok) throw 0;
+  return r.json();
+}).then(function(j){
+  S.data = j; S.live = true; render();
+  setInterval(poll, 2000);
+}).catch(function(){ /* static mode; the inlined state stands */ });
+})();
+</script>
+</body>
+</html>
