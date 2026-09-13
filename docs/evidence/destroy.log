@@ -1,0 +1,28 @@
+removed 3 InfraClaim(s)
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+Deleting Kubernetes resources from 'voting-app' using ./kustomize/overlays/voting-a ...
+secret "voting-app-secret-key" deleted from voting-a namespace
+service "voting-app-result" deleted from voting-a namespace
+service "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-result" deleted from voting-a namespace
+deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-worker" deleted from voting-a namespace
+ingress.networking.k8s.io "voting-app-ingress" deleted from voting-a namespace
+
+Remaining voting-app workloads (if any):
+No resources found in default namespace.
+
+Deleting k3d cluster 'voting-app' ...
+[36mINFO[0m[0000] Deleting cluster 'voting-app'                
+[36mINFO[0m[0001] Deleting 1 attached volumes...               
+[36mINFO[0m[0001] Removing cluster details from default kubeconfig... 
+[36mINFO[0m[0001] Removing standalone kubeconfig file (if there is one)... 
+[36mINFO[0m[0001] Successfully deleted cluster voting-app!     
+
+Cleanup complete.

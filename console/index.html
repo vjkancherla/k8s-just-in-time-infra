@@ -77,6 +77,7 @@
     min-height:200px;max-height:520px;overflow:auto;white-space:pre-wrap;
     box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
   .log .cmd{color:var(--ink);font-weight:500}
+  .log .dim{color:var(--ink-3)}
   .log .ok{color:var(--green)} .log .warn{color:var(--amber)} .log .err{color:var(--red)}
   .notice{font-size:13.5px;color:var(--ink-2);background:rgba(0,0,0,.03);border-radius:12px;
     padding:13px 17px;margin-top:16px;max-width:66ch}
@@ -157,6 +158,12 @@
   .feed div:last-child{border-bottom:0}
   .feed .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding-top:2px}
   .feed .none{color:var(--ink-3);border:0;padding:4px 0}
+  .claim.pick{cursor:pointer}
+  .claim.pick:hover{box-shadow:0 1px 2px rgba(0,0,0,.06),0 6px 18px rgba(0,0,0,.09)}
+  .claim.on{box-shadow:0 0 0 2px var(--blue),0 6px 18px rgba(0,0,0,.06)}
+  .yaml{font-family:var(--mono);font-size:12.5px;line-height:1.7;color:var(--ink-2);
+    margin:0;white-space:pre-wrap;max-height:460px;overflow:auto}
+  .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
 
   .foot{border-top:1px solid var(--hair);padding:26px 0 60px;color:var(--ink-3);font-size:13px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -208,7 +215,13 @@
       <h1 id="infraH1">—</h1>
       <p class="sub" id="infraSub"></p>
 
+      <div class="oh">Namespaces</div>
+      <div class="panel" id="nsSummary"></div>
+
       <div id="nsHost"></div>
+
+      <div class="oh" id="objectHead" hidden>The claim itself</div>
+      <div class="panel" id="objectPanel" hidden></div>
 
       <div class="oh">What changed since you opened this page</div>
       <div class="panel feed" id="feed"></div>
@@ -234,7 +247,7 @@
     </div>
     <div id="appLive" hidden>
       <h1>The app, where it actually runs.</h1>
-      <p class="sub">Both pages are served by Traefik on 8081. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
+      <p class="sub">Both pages come from the cluster's own Ingress — host, scheme and port are read from it, not assumed. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
       <div class="seg small nsswitch" id="nsSwitch" role="tablist"></div>
       <div class="apps">
         <div class="app">
@@ -354,6 +367,7 @@ var ACTIONS = [
   {mode:'demo', name:'demo-undeploy', cmd:'make demo-undeploy',          t:'Delete the deployment',   d:'The pods go. The containers keep running and a retention clock starts.'},
   {mode:'demo', name:'demo-redeploy', cmd:'make demo-redeploy',       t:'Redeploy inside the window',          d:'The claim goes back to Ready. Same container, same data, nothing reprovisioned.'},
   {mode:'demo', name:'ns-delete-a',  cmd:'make ns-delete NS=voting-a', t:'Delete the namespace',              d:'All three containers destroyed at once. The retention clock is ignored.', danger:true},
+  {mode:'demo', name:'destroy',      cmd:'make destroy',            t:'Delete everything',         d:'Cluster, control plane and containers. Use it when the demo is over and you want the laptop back.', hint:'destroy', danger:true},
   {mode:'test', name:'test-up',      cmd:'make test-up',            t:'Set everything up',         d:'The cold path, both namespaces, then the app checks.', hint:'4 targets'},
   {mode:'test', name:'jit-up',       cmd:'make jit-up',             t:'Start the control plane',   d:'State store, runner, claim type, controller. No app.', hint:'jit-up'},
   {mode:'test', name:'verify',       cmd:'make verify NS=voting-a', t:'Check the app works',       d:'The app\u2019s own checks in voting-a.', hint:'R1\u2013R17'},
@@ -363,7 +377,7 @@ var ACTIONS = [
   {mode:'test', name:'destroy',      cmd:'make destroy',            t:'Delete everything',         d:'The plane first, then the k3d cluster and the generated secret. Nothing is left; about three minutes to get back.', hint:'destroy', danger:true}
 ];
 
-var S = {data:null, mode:'demo', ns:0, live:false, busy:null, feed:[], seen:null};
+var S = {data:null, mode:'demo', ns:0, live:false, busy:null, feed:[], seen:null, picked:null};
 var $ = function(id){ return document.getElementById(id); };
 
 /* ─── state source: inlined by `make console`, or fetched when served ──── */
@@ -530,7 +544,43 @@ var GROUPS = [
   {key:'bad',   phases:['Failed'],              title:'Failed',        note:'The runner returned an error.'}
 ];
 
+function renderNsSummary(){
+  var host = $('nsSummary');
+  host.textContent = '';
+  var list = S.data.namespaces || [];
+
+  if(!list.length){
+    host.innerHTML = '<p class="tiny" style="margin:0">No tenant namespaces.</p>';
+    return;
+  }
+
+  var rows = document.createElement('div');
+  rows.className = 'rows';
+  list.forEach(function(ns){
+    var cl = ns.claims || [];
+    var by = {};
+    cl.forEach(function(c){ by[c.phase] = (by[c.phase] || 0) + 1; });
+    var phases = Object.keys(by).map(function(k){ return by[k] + ' ' + k; }).join(', ');
+
+    var d = document.createElement('div');
+    d.className = 'rowline';
+    d.innerHTML =
+      '<span class="mono" style="min-width:110px;font-weight:600"></span>' +
+      '<span class="tiny"></span>' +
+      '<span class="id"></span>';
+    d.children[0].textContent = ns.name;
+    d.children[1].textContent = cl.length
+      ? cl.length + (cl.length === 1 ? ' claim \u00b7 ' : ' claims \u00b7 ') + phases
+      : 'no claims yet';
+    d.children[2].textContent = ns.block || 'no block allocated';
+    rows.appendChild(d);
+  });
+  host.appendChild(rows);
+}
+
 function renderNamespaces(){
+  renderNsSummary();
+
   var host = $('nsHost');
   host.textContent = '';
 
@@ -559,8 +609,21 @@ function renderNamespaces(){
       el.className = 'claim';
       el.innerHTML = '<div class="name"></div><div class="who"></div><div class="sentence"></div>';
       el.querySelector('.name').textContent = r.c.module;
-      el.querySelector('.who').textContent =
-        r.ns.name + (r.c.address ? '  \u00b7  ' + r.c.address : '');
+      var multi = (S.data.namespaces || []).length > 1;
+      var who = el.querySelector('.who');
+      who.textContent = r.ns.name + (r.c.address ? '  \u00b7  ' + r.c.address : '');
+      if(multi) who.style.color = 'var(--ink-2)';
+
+      if(S.live){
+        var key = r.ns.name + '/' + r.c.module;
+        el.classList.add('pick');
+        if(S.picked === key) el.classList.add('on');
+        el.title = 'Show the InfraClaim object';
+        el.addEventListener('click', function(){
+          S.picked = (S.picked === key) ? null : key;
+          showClaim(r.ns.name, r.c.module);
+        });
+      }
       el.querySelector('.sentence').innerHTML = claimSentence(r.c, r.ns);
       grid.appendChild(el);
     });
@@ -584,6 +647,46 @@ function renderNamespaces(){
 
   renderFeed();
   ticks();
+}
+
+/* the object behind a card - fetched when asked for, never in the 2s poll */
+async function showClaim(ns, module){
+  var head = $('objectHead'), panel = $('objectPanel');
+
+  if(!S.picked){
+    head.hidden = panel.hidden = true;
+    renderNamespaces();
+    return;
+  }
+
+  head.hidden = panel.hidden = false;
+  panel.innerHTML = '<p class="tiny" style="margin:0">Reading ' + esc(ns + '-' + module) + '…</p>';
+  renderNamespaces();
+
+  try{
+    var r = await fetch('/claim?ns=' + encodeURIComponent(ns) +
+                        '&module=' + encodeURIComponent(module), {cache:'no-store'});
+    var j = await r.json();
+    if(!j.text){
+      panel.innerHTML = '<p class="tiny" style="margin:0">' +
+        esc(j.error || 'No object came back.') + '</p>';
+      return;
+    }
+    panel.innerHTML =
+      '<p class="tiny" style="margin:0 0 14px">' +
+      'Owned by the <b>Namespace</b>, not the Deployment \u2014 which is why a rollout does not ' +
+      'touch it. The <b>finalizer</b> is what holds a namespace in Terminating if a destroy fails.' +
+      '</p><pre class="yaml"></pre>';
+    panel.querySelector('.yaml').innerHTML = highlightClaim(j.text);
+  }catch(e){
+    panel.innerHTML = '<p class="tiny" style="margin:0">Could not reach the console process.</p>';
+  }
+}
+
+/* the two fields worth looking at, marked so they are findable in 60 lines of YAML */
+function highlightClaim(text){
+  return esc(text).replace(/^(\s*)(ownerReferences|finalizers|phase|expiresAt|referencedBy):/gm,
+                           '$1<b>$2</b>:');
 }
 
 /* what changed while this page has been open - observed, not stored anywhere */
@@ -766,8 +869,16 @@ function render(){
   var failed   = claims.some(function(c){ return c.phase === 'Failed'; });
 
   $('led').className = 'led' + (!d.up ? '' : (orphaned || failed) ? ' warn' : ' on');
-  $('ledText').textContent = !d.up ? 'Nothing running'
-    : failed ? 'Failed claim' : orphaned ? 'Retention window' : 'All ready';
+  var nReady    = claims.filter(function(c){ return c.phase === 'Ready'; }).length;
+  var nOrphaned = claims.filter(function(c){ return c.phase === 'Orphaned'; }).length;
+  var nFailed   = claims.filter(function(c){ return c.phase === 'Failed'; }).length;
+
+  $('ledText').textContent =
+      !d.up          ? 'Nothing running'
+    : !claims.length ? 'No claims'
+    : nFailed        ? nFailed + ' claim' + (nFailed === 1 ? '' : 's') + ' failed'
+    : nOrphaned      ? nOrphaned + ' on the clock'
+    : nReady + ' claim' + (nReady === 1 ? '' : 's') + ' Ready';
 
   var names = (d.namespaces || []).map(function(n){ return n.name; });
   var running = (d.containers || []).filter(function(c){ return c.running; }).length;
@@ -799,6 +910,12 @@ function render(){
   noteTransitions();
   renderActions();
   if(d.up){ renderNamespaces(); renderStrips(); renderApp(); }
+
+  if(!S.busy && !$('log').textContent){
+    $('log').innerHTML = '<span class="dim">Output from a run appears here, as it happens.\n\n' +
+      'It starts empty every time the page loads \u2014 the log of an earlier run is still in\n' +
+      'docs/evidence/, the page just does not read it back.</span>';
+  }
 
   $('footNote').textContent = S.live
     ? 'Live. Polling make state every 2s.'

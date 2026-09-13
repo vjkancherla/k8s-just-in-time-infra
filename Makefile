@@ -15,10 +15,11 @@
 # action is one of the names `make targets` prints, and a target that is not printed
 # cannot be run from the page.
 #
-# Every target in that allowlist appends its output to docs/evidence/<target>.log and keeps
-# its exit code: `| tee` would hand make tee's status, so each recipe re-exits on
-# ${PIPESTATUS[0]}. `state` and `targets` are read rather than run - their stdout *is* the
-# payload the console parses - so only their stdout is logged, and nothing else may touch it.
+# A target that runs appends its output to docs/evidence/<target>.log and keeps its exit code:
+# `| tee` would hand make tee's status, so each recipe re-exits on ${PIPESTATUS[0]}. `state`,
+# `claim` and `targets` are read rather than run - their stdout *is* the payload the console
+# parses - so nothing else may touch it; `claim` keeps stderr on stderr, because that is the
+# error the page shows rather than a log line.
 
 SHELL := /bin/bash
 
@@ -30,9 +31,10 @@ EVIDENCE := docs/evidence
 DEMO_NS ?= voting-a
 TENANTS := voting-a voting-b
 
-# The allowlist, in the order the design's action table gives it. `make targets` prints
-# exactly this list, and the console builds its buttons from that output.
-CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state targets
+# The allowlist, in the order the design's action table gives it, plus `claim` - the one claim the
+# page fetches on demand rather than as a button. `make targets` prints exactly this list, and the
+# console builds its buttons from that output.
+CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim targets
 
 .DEFAULT_GOAL := help
 
@@ -116,6 +118,11 @@ test-up: ## Testing · Set everything up: both namespaces, deployed and verified
 state: ## Print the read model: one JSON object, from kubectl, the ledger, docker, MinIO
 	@mkdir -p $(EVIDENCE)
 	@./$(SCRIPTS)/state.sh | tee -a $(EVIDENCE)/state.log; exit $${PIPESTATUS[0]}
+
+.PHONY: claim
+claim: ## Print one InfraClaim as YAML: make claim NS=voting-a MODULE=redis
+	@if [ -z "$(NS)" ] || [ -z "$(MODULE)" ]; then echo "FAIL: claim needs NS= and MODULE=" >&2; exit 1; fi
+	@kubectl get infraclaim $(NS)-$(MODULE) -n $(NS) -o yaml
 
 .PHONY: targets
 targets: ## Print the console's allowlist, one target per line (its buttons come from this)

@@ -1,0 +1,109 @@
+# S18 checkpoint vs. the console's claim target - 2026-09-13
+#
+# The human authorised adding 'claim' to the allowlist once the page needed it: console/serve.py's
+# GET /claim runs `make -s claim NS=... MODULE=...`, and the Makefile had no such target. This
+# records the frozen file's failure with 12 expected names against a Makefile that prints 13, then
+# the same file's PASS with only that one name added - the assertion code unchanged.
+#
+# The frozen file was never edited while it was failing. `git hash-object scripts/checks/S18.sh` and
+# `git rev-parse HEAD:scripts/checks/S18.sh` were both e4d858c3feee2bccffd064814b6b3394dfdc1bf3
+# before the runs and after them. The copy the second run used is shown below - one line - and it was
+# deleted once the run finished, so scripts/checks/ holds the frozen file alone.
+
+--- BEFORE: scripts/checks/S18.sh as frozen, Makefile printing 13 names (2026-09-13 02:13:41)
+
+$ bash scripts/checks/S18.sh
+  ok: all 12 targets defined
+FAIL: make targets disagrees with the allowlist
+  listed:
+claim
+demo-redeploy
+demo-undeploy
+demo-up
+destroy
+jit-down
+jit-up
+jit-verify
+ns-delete
+state
+targets
+test-up
+verify
+  expected:
+demo-redeploy
+demo-undeploy
+demo-up
+destroy
+jit-down
+jit-up
+jit-verify
+ns-delete
+state
+targets
+test-up
+verify
+exit=1
+
+--- The copy the second run used - one line, and nothing else
+
+$ diff -u scripts/checks/S18.sh scripts/checks/S18-claim-patched.sh
+--- scripts/checks/S18.sh	2026-09-13 00:37:57
++++ scripts/checks/S18-claim-patched.sh	2026-09-13 02:13:37
+@@ -34,7 +34,7 @@
+ fail() { echo "FAIL: $1"; exit 1; }
+ ok()   { echo "  ok: $1"; }
+ 
+-TARGETS=(demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state targets)
++TARGETS=(demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim targets)
+ 
+ # ---------------------------------------------------------------- 1. allowlist exists
+ target_defined() { { make -pRrq : 2>/dev/null || true; } | grep -Eq "^$1:( |$)"; }
+exit=1
+
+--- AFTER: a copy of the same file with 'claim' added to its TARGETS array (02:25:27)
+
+$ bash scripts/checks/S18-claim-patched.sh
+  ok: all 13 targets defined
+  ok: make targets prints the allowlist and nothing else
+  ok: make state emits the documented JSON
+  ok: claim count matches kubectl (3)
+  ok: every reported phase matches the cluster
+  ok: container count matches docker (3)
+  ok: make state degrades to up=false instead of erroring
+  ok: ns-delete refuses a missing or unlisted namespace
+  ok: a failing target exits non-zero
+  ok: demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing
+  ok: demo-redeploy returns every claim to Ready with the expiry cleared
+  ok: each run left its log in docs/evidence/
+PASS
+exit=0
+
+--- Why this PASS is evidence, and an earlier one was not
+#
+# The checkpoint's last two assertions read the cluster, and a read of an empty cluster satisfies
+# them vacuously. The run above is the second attempt. The first (02:13:41-02:15:52) is DISCARDED: at
+# 01:15:11Z a `make destroy` started from the console's own destroy button took the whole stack down
+# while that run was asleep, so its last two ok lines were computed against zero claims. That is what
+# docs/evidence/state.log shows for it, the final reads being
+# `up=false running=0 claims=` at 01:15:18Z and 01:15:20Z.
+#
+# The stack was then rebuilt with `make demo-up` and the run above made these reads (same log):
+#
+#   2026-09-13T01:25:27Z up=true  running=3  claims=pgadmin:Ready,postgres:Ready,redis:Ready
+#   2026-09-13T01:25:28Z up=false running=0  claims=      <- assertion 5, the deliberate no-cluster read
+#   2026-09-13T01:26:22Z up=true  running=3  claims=pgadmin:Orphaned,postgres:Orphaned,redis:Ready
+#   2026-09-13T01:26:57Z up=true  running=3  claims=pgadmin:Ready,postgres:Ready,redis:Ready
+#
+# The Orphaned read is assertion 8's first half with real data; the all-Ready read is its second half,
+# and it is the read the two disputed assertions were computed from. `docker ps` showed 3/3 containers
+# afterwards, and docs/evidence/{destroy,console-destroy}.log mtimes were unchanged (02:15:11).
+
+--- One thing the rebuild exposed, recorded as an observation
+#
+# That `make demo-up` exited 2: the app's own R-checks were `12 PASS, 5 FAIL`, and all five are the
+# Ingress-facing checks - R1, R2, R5, R6, R8, every one reporting curl `code=000`, no connection.
+# R13 and R16 use the identical `curl -sk --compressed` against the same https://vote.localhost:8082
+# and PASSED later in the same run, and the probe before the checkpoint returned `vote=200
+# result=200`, so the endpoint became reachable while verify was running. That is the observation;
+# the cause is not established here, and it is not one of this checkpoint's assertions. It is
+# independent of the allowlist change, which adds a target and a name and touches no HTTP path.

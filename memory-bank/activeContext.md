@@ -1,8 +1,8 @@
 Updated: 2026-09-13
 
 ## Current focus
-S18 is complete, ticked and published at `5a7c7f2`. The tree is level with `origin/main` and holds two
-uncommitted items: your in-progress `console/serve.py` and the recovered `console/state.py` reference.
+The console is mid-build — `serve.py` grew a GET /claim, so `claim` joined `CONSOLE_TARGETS` in the
+Makefile. That reopens S18 by design: the frozen checkpoint expects 12 names, `make targets` prints 13.
 
 ## Blocked
 - Nothing blocks. `app/opencode.jsonc` stays local — a live-looking DeepSeek key sits in one of its comments.
@@ -16,25 +16,25 @@ uncommitted items: your in-progress `console/serve.py` and the recovered `consol
   stale "voting app repo, read-only" prerequisite gone. Script-checked: anchors, links, fences, tables.
 - Gate: `bash scripts/checks/S18.sh` → twelve `ok:` lines, `PASS` (`docs/evidence/s18-final-gate.log`), after
   the human approved the two-mechanic fix to the frozen checkpoint (`13c2502`).
-- Pushed `bd2a2fb` — eight commits covering `.gitignore`, the make targets, the plan, README, `console/`,
-  reviews and both memory banks. Remote tip == local HEAD; `git grep` finds no key in the published tree.
+- `make claim NS=... MODULE=...` added beside `state` (uncommitted): one InfraClaim as YAML, stderr left alone
+  so `serve.py`'s /claim shows kubectl's error. Verified live: 35-line YAML; a NotFound exits non-zero.
 - `console/state.py` was reported missing and recovered from a checkpoint snapshot (`16cd174`, blob `c1602802`).
   Measured against `make state` it is stale — 7 vs 3 containers, 0 vs 21 state objects, `expiresAt: ""` vs null.
 
 ## Checkpoints (final code)
-- S18: PASS. S17's gate untouched (`make verify` = 17 PASS, `scripts/verify-jit.sh` unmodified).
+- S18: PASS at `13c2502`, now red by design (12 vs 13 names). S17's gate untouched: `make verify` = 17 PASS.
 
 ## Next step
-Human: decide the console's read model. `make state` emits no `ingresses`/`ingressPorts` and `index.html:670`
-reads both, so the app panes have no URLs; the recovered `console/state.py` is stale, not the answer.
+Human: approve the S18.sh fourth amendment — the header block plus `claim` in its `TARGETS` array, both
+drafted in chat. `docs/evidence/claim-allowlist.log` is its evidence. Then I apply it and the gate is green.
 
 ## Watch out
 - `app/opencode.jsonc` is ignored but still on disk, holding a live-looking DeepSeek key (`sk-…`) in a
   comment. It was never published; rotate the key if you ever un-ignore, copy or mirror that file.
 - `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` is in neither the tree nor git history; restore it from `S17-review-prompt.md`.
-- `console/state.py` is untracked and **not** ignored (the checkpoint refs preserve it), so `git add -A` would
-  commit it. It is a reference only: `/state` still runs `make state`, per `console/README.md`.
-- `.workflow/` is ignored wholesale, so `app/.workflow/*.md` (design, requirements, synthesis) stays uncommitted.
+- `scripts/checks/S18.sh` is byte-identical (blob `e4d858c3`) and must stay so until the amendment is approved:
+  prove changes on a one-line copy, the way `docs/evidence/claim-allowlist.log` does.
+- The console's `/state` poll runs `make state`, which tees into the tracked `docs/evidence/state.log` — a page left
+  open appends a JSON line every 2s (197 by 02:16). It is also how a finished run's reads are audited after the fact.
 - `refs/cline/checkpoints/*` — 119 local refs — snapshot the whole tree, `.env` and `terraform.tfstate` with it.
   Never `git push --all`/`--mirror`; `git push origin main` is safe (GitHub holds only `main`, verified).
-- Untracked+unignored files leave no deletion record (`git log --diff-filter=D` is empty here); `console/generate.py` is still missing — recover from `7232782`.

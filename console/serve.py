@@ -6,6 +6,7 @@ Serve the console page live on http://127.0.0.1:8090
 
 GET  /                        -> console/index.html
 GET  /state                   -> make state
+GET  /claim?ns=&module=       -> make claim (one InfraClaim as YAML)
 GET  /log?name=x&offset=n     -> whatever the current run has written since n
 POST /run/{name}              -> the command in ALLOWED, and nothing else
 
@@ -16,6 +17,7 @@ instead of waiting for it to finish.
 
 import http.server
 import json
+import re
 import pathlib
 import subprocess
 import sys
@@ -46,6 +48,12 @@ ALLOWED = {
 }
 
 STATE = ["make", "-s", "state"]
+CLAIM = ["make", "-s", "claim"]
+
+# NS and MODULE are interpolated into a make invocation, so they are checked
+# rather than trusted. Nothing goes through a shell, but a stray "=" or ".."
+# would still reach make as something it did not expect.
+SAFE = re.compile(r"^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$")
 
 EVIDENCE = ROOT / "docs" / "evidence"
 lock = threading.Lock()
@@ -86,6 +94,17 @@ class Handler(http.server.BaseHTTPRequestHandler):
                     print(r.stderr.strip(), flush=True)
                 return self.send_json({"up": False, "namespaces": [],
                                        "containers": [], "stateObjects": []})
+
+        if path == "/claim":
+            q = parse_qs(urlparse(self.path).query)
+            ns = q.get("ns", [""])[0]
+            module = q.get("module", [""])[0]
+            if not (SAFE.match(ns) and SAFE.match(module)):
+                return self.send_json({"text": "", "error": "bad ns or module"}, 400)
+            r = subprocess.run(CLAIM + [f"NS={ns}", f"MODULE={module}"],
+                               capture_output=True, text=True, cwd=ROOT)
+            return self.send_json({"text": r.stdout,
+                                   "error": "" if r.returncode == 0 else r.stderr.strip()})
 
         if path == "/log":
             q = parse_qs(urlparse(self.path).query)
