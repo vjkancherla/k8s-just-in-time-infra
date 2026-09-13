@@ -1,6 +1,42 @@
 # Local secrets / generated state (never commit)
-deploy/.env
-jit-runner/.env
-jit-controller/.env
+# Bare ".env" matches at any depth, so deploy/, jit-runner/ and future dirs are covered.
+.env
+.env.*
+!.env.example
+
+# Python
 __pycache__/
+*.py[cod]
+.venv/
+venv/
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+*.egg-info/
+
+# Terraform - local state and caches only; the modules in jit-modules/ are source
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform/
+crash.log
+
+# Agent / session tooling - local runtime state and generated reports
+# .workflow/ also matches app/.workflow/ (verify.md and verify-jit.md are rewritten per run)
+.omo/
+.workflow/
+# Local model config: holds a literal API key in a commented block. Never commit; rotate the key.
+app/opencode.jsonc
+
+# Editor / OS / manual backup noise
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*~
+*.bak
+*.orig
+*-BAK.md
+
+# NOTE: docs/evidence/*.log is deliberate evidence. Never add a global *.log rule here.
