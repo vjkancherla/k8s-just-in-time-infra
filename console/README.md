@@ -79,9 +79,15 @@ have nothing to point at.
 
 ## The page
 
-Two modes in the toolbar. **Demo** is one namespace and a short ordered
-walkthrough. **Testing** is both namespaces and the checks — `voting-b` exists
-so J8 can show that a hard delete is bounded.
+Two modes in the toolbar:
+
+| Mode | What it does | Buttons (in order) |
+|---|---|---|
+| **Demo** | One namespace (`voting-a`), guided walkthrough | **Start the demo** → **Delete the deployment** → **Redeploy inside the window** → **Delete the namespace** |
+| **Testing** | Both namespaces (`voting-a` + `voting-b`), full lifecycle | **Set everything up** → **Start the control plane** → **Check the app works** → **Check the JIT behaviour** → **Delete `voting-b`** → **Shut the JIT plane down** → **Delete everything** |
+
+Demo is for showing the JIT concept in ~3 minutes. Testing is for running the full
+J1-J11 lifecycle suite — `voting-b` exists so J8 can show that a hard delete is bounded.
 
 Three tabs. **Setup** runs things, with the log below the actions at full width.
 **Infrastructure** shows the claims, their phase, the live countdown on anything
@@ -92,6 +98,27 @@ The panes are real iframes of the real Ingress hosts. The app serves HTTPS with
 a self-signed certificate, so a pane stays blank until the browser trusts it:
 use **Open**, accept the warning once per host, then reload. Chrome gives no
 event for this, which is why the page says so rather than detecting it.
+
+## The allowlist
+
+Every button maps to exactly one `make` target. The full mapping:
+
+| Button name | Make target | Notes |
+|---|---|---|
+| `demo-up` | `make demo-up` | Cold start for one namespace |
+| `demo-undeploy` | `make demo-undeploy` | Delete vote Deployment |
+| `demo-redeploy` | `make demo-redeploy` | Re-apply the overlay |
+| `ns-delete-a` | `make ns-delete NS=voting-a` | Hard delete voting-a |
+| `test-up` | `make test-up` | Cold start for both namespaces |
+| `jit-up` | `make jit-up` | Start the JIT control plane |
+| `verify` | `make verify NS=voting-a` | Run R1-R17 |
+| `jit-verify` | `make jit-verify` | Run J1-J11 |
+| `ns-delete-b` | `make ns-delete NS=voting-b` | Hard delete voting-b |
+| `jit-down` | `make jit-down` | Stop the JIT control plane |
+| `destroy` | `make destroy` | Everything: JIT plane + cluster |
+
+A name missing from `ALLOWED` in `serve.py` gets a 404. Run `make targets` to see
+the current allowlist as the console sees it.
 
 ## Adding an action
 

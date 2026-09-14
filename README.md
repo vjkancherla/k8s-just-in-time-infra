@@ -176,9 +176,27 @@ Not simulated: IAM, network policy, approval gates, provisioning latency.
 ## Prerequisites
 
 - **k3d**, **kubectl**, **Docker**
-- **OpenTofu** (arm64 build on Apple silicon)
+- **OpenTofu** v1.8.1 (arm64 build on Apple silicon — pinned in `jit-runner/Dockerfile`)
 - **python3** — for the console; standard library only, no `pip install`
+- **make**, **bash**
 - Cluster created with `--subnet 172.19.0.0/16` — the static IP allocation depends on it
+
+### Dependency versions
+
+Python dependencies are pinned in each component's `requirements.txt`:
+
+| Component | File | Pinning style |
+|---|---|---|
+| jit-runner | `jit-runner/requirements.txt` | Exact (`fastapi==0.115.0`, `uvicorn==0.30.0`, `pydantic==2.8.0`) |
+| jit-controller | `jit-controller/requirements.txt` | Range (`kopf>=1.44,<2`, `kubernetes>=29,<30`, `requests>=2.31,<3`) |
+
+The runner uses exact pins because its Dockerfile bakes dependencies into the image.
+The controller uses range pins because its code is mounted as a ConfigMap (not baked in),
+and `jit-up.sh` rebuilds the image on every run — so a fresh `pip install` always gets
+the latest compatible versions.
+
+OpenTofu is pinned to v1.8.1 in the runner's Dockerfile. Upgrading requires changing the
+download URL and rebuilding the runner image.
 
 The app the demo deploys is already in this repo at `app/` — nothing to clone alongside it.
 
@@ -293,7 +311,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |   +-- ipam.py              <- per-namespace IP block allocator
 |   +-- test_ipam.py         <- unit tests for pure allocation logic
 |
-+-- jit-runner/              <- out-of-cluster provisioning service (Python, Flask)
++-- jit-runner/              <- out-of-cluster provisioning service (Python, FastAPI)
 |   +-- main.py              <- /v1/runs API, tofu init/apply/destroy
 |   +-- deployment.yaml      <- Kubernetes Deployment for the runner
 |
@@ -319,13 +337,17 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 +-- docs/
     +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
     +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
+    +-- runner-api.md        <- runner HTTP API reference
+    +-- testing-strategy.md  <- R1-R17 and J1-J11 check coverage
+    +-- voting-app.md        <- the tenant workload: what it is and how JIT modified it
+    +-- annotation-to-state.md <- the full annotation → InfraClaim → MinIO state chain
     +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
     +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
     +-- build-plan.md        <- the implementation plan, one step at a time
     +-- todo.md              <- step tracker (check + review boxes)
     +-- lessons.md           <- corrections that became rules
     +-- 01-jit-poc.md        <- working rules for AI agent sessions
-    +-- decisions/           <- Architecture Decision Records (template)
+    +-- decisions/           <- Architecture Decision Records
     +-- evidence/            <- verbatim run logs and probe scripts
     +-- reviews/             <- review prompts and findings, one per reviewed step
 ```
@@ -340,7 +362,11 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |---|---|---|
 | [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
 | [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
-| [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, how to add an action, known rough edges | Running or changing the console |
+| [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, the full allowlist, Demo vs Testing modes, how to add an action, known rough edges | Running or changing the console |
+| [`docs/runner-api.md`](docs/runner-api.md) | **Runner API reference** — endpoints, request/response schemas, auth, config, state management | Calling the runner or debugging provisioning |
+| [`docs/testing-strategy.md`](docs/testing-strategy.md) | **Testing** — R1-R17 and J1-J11 check coverage, frozen checkpoints, how to add new checks | Understanding what the tests cover or adding a new one |
+| [`docs/voting-app.md`](docs/voting-app.md) | **The voting app** — what it is, how the JIT project modified it, Kustomize layout, how it consumes JIT infrastructure | Understanding the tenant workload the PoC deploys |
+| [`docs/annotation-to-state.md`](docs/annotation-to-state.md) | **Annotation → State mapping** — the full chain from Deployment annotation to InfraClaim to MinIO state, with lookup commands | Tracing an app's infrastructure or debugging a provisioning issue |
 
 ### Design & architecture
 
@@ -348,8 +374,11 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |---|---|---|
 | [`docs/jit-infra-poc.md`](docs/jit-infra-poc.md) | **Design note (v4)** — core decisions: annotation on Deployment, ownership on Namespace, two-speed cleanup, claim lifecycle | Something feels wrong, or you need to understand *why* |
 | [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md) | **Mermaid diagrams** — create, soft delete, hard delete, claim state machine, resync loop, component layout | You need a visual overview of a specific flow |
+| [`docs/decisions/0001-*.md`](docs/decisions/) | **ADR 0001** — why the annotation is on the Deployment, not the Namespace | Understanding the v1→v4 evolution |
+| [`docs/decisions/0002-*.md`](docs/decisions/) | **ADR 0002** — why the runner is a separate HTTP service | Understanding the split-plane design |
+| [`docs/decisions/0003-*.md`](docs/decisions/) | **ADR 0003** — IPAM block allocation (172.19.0.100-199, blocks of 10) | Understanding IP addressing or extending the range |
+| [`docs/decisions/0004-*.md`](docs/decisions/) | **ADR 0004** — console as a stateless page behind a make-target allowlist | Understanding why the console works this way |
 | [`docs/01-jit-poc.md`](docs/01-jit-poc.md) | **Working rules** — scope, method, code conventions for agent-driven implementation | Starting a new AI coding session |
-| [`docs/decisions/`](docs/decisions/) | **ADRs** — architecture decision records (template at `0000-template.md`) | A decision needs formal documentation |
 
 ### Implementation & tracking
 
@@ -406,6 +435,54 @@ Symptom→fix tables for the common failures are in
 [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md#troubleshooting) and
 [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md#15-when-something-is-wrong). The three
 below need more room than a table row.
+
+### Where to look first
+
+1. **Evidence logs** — every `make` target writes to `docs/evidence/<target>.log`. Start
+   there, not in the browser.
+2. **Controller logs** — `kubectl -n default logs deploy/jit-controller --tail=100`
+3. **Runner logs** — `docker logs jit-runner --tail=100`
+4. **State model** — `make -s state | python3 -m json.tool` — if this is wrong, the
+   console will be too
+5. **Claim status** — `kubectl get infraclaims -A -o yaml` — the controller's view of
+   the world
+
+### Monitoring the system
+
+The PoC has no monitoring or alerting — logs go to stdout. To watch what's happening:
+
+```bash
+# Controller activity (claims being created, orphaned, swept)
+kubectl -n default logs -f deploy/jit-controller
+
+# Runner activity (tofu apply/destroy calls)
+docker logs -f jit-runner
+
+# Claim state (phase, expiry, addresses)
+watch -n5 'kubectl get infraclaims -A -o wide'
+
+# Container state (what Docker is running)
+watch -n5 'docker ps --filter name=redis --filter name=postgres --filter name=pgadmin'
+
+# IPAM ledger (which namespace owns which block)
+kubectl get configmap jit-ipam -n default -o jsonpath='{.data.allocations}' | python3 -m json.tool
+
+# MinIO state objects (Terraform state files)
+make -s state | python3 -c "import json,sys; d=json.load(sys.stdin); print('\n'.join(d.get('stateObjects',[])))"
+```
+
+### Stale state objects in MinIO
+
+After many test runs, MinIO accumulates state objects for namespaces that no longer exist.
+This is normal — `make state` shows them under `stateObjects`. To clean up:
+
+```bash
+# List all state objects
+make -s state | python3 -c "import json,sys; d=json.load(sys.stdin); [print(s) for s in d.get('stateObjects',[])]"
+
+# Remove a specific namespace's state (requires mc or direct S3 calls)
+# Or just wipe everything: make jit-down clears the bucket
+```
 
 ### pgAdmin shows no server
 
