@@ -341,6 +341,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
     +-- testing-strategy.md  <- R1-R17 and J1-J11 check coverage
     +-- voting-app.md        <- the tenant workload: what it is and how JIT modified it
     +-- annotation-to-state.md <- the full annotation → InfraClaim → MinIO state chain
+    +-- deletion-lifecycle.md    <- the retention window: clock, resurrection, two speeds
     +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
     +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
     +-- build-plan.md        <- the implementation plan, one step at a time
@@ -367,6 +368,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 | [`docs/testing-strategy.md`](docs/testing-strategy.md) | **Testing** — R1-R17 and J1-J11 check coverage, frozen checkpoints, how to add new checks | Understanding what the tests cover or adding a new one |
 | [`docs/voting-app.md`](docs/voting-app.md) | **The voting app** — what it is, how the JIT project modified it, Kustomize layout, how it consumes JIT infrastructure | Understanding the tenant workload the PoC deploys |
 | [`docs/annotation-to-state.md`](docs/annotation-to-state.md) | **Annotation → State mapping** — the full chain from Deployment annotation to InfraClaim to MinIO state, with lookup commands | Tracing an app's infrastructure or debugging a provisioning issue |
+| [`docs/deletion-lifecycle.md`](docs/deletion-lifecycle.md) | **Deletion lifecycle** — what happens when you delete the app: the clock, the window, resurrection, the two speeds of cleanup, and how the controller's timer works | Understanding the retention window and why rollouts don't destroy data |
 
 ### Design & architecture
 
