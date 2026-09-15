@@ -5,11 +5,12 @@ set -euo pipefail
 #
 #   make state   ->   one JSON object on stdout, and nothing else
 #
-# Every field is *read*, never computed: kubectl for the claims, the `jit-ipam` ledger for
-# the block a namespace owns, `docker ps`/`docker inspect` for the module containers, and
-# the `jit-state` bucket for the state objects. A claim's phase is passed through as the
-# controller wrote it, and so is `expiresAt` - the countdown is the caller's problem. The
-# sources are the ones the frozen checks read, so the page cannot drift from `make verify`.
+# Every field is *read*, never computed: kubectl for the claims and the Ingress routes, the
+# `jit-ipam` ledger for the block a namespace owns, `docker ps`/`docker inspect` for the
+# module containers, `docker port` for what the cluster published, and the `jit-state`
+# bucket for the state objects. A claim's phase is passed through as the controller wrote
+# it, and so is `expiresAt` - the countdown is the caller's problem. The sources are the
+# ones the frozen checks read, so the page cannot drift from `make verify`.
 #
 # The one normalisation: the controller spells "no expiry" two ways - the field absent, or
 # an empty string from `clear_status_field` (jit-controller/main.py) - and the design's read
@@ -207,6 +208,74 @@ def read_state_objects():
                   for c in ET.fromstring(body).findall("s3:Contents", s3))
 
 
+def read_ingress_ports():
+    """The host ports k3d published for the cluster's :80 and :443.
+
+    Read, not assumed: app/scripts/deploy.sh maps 8081 and 8082 today, but the page builds
+    every URL it shows from this, so a changed mapping has to move the page with it rather
+    than break it. An absent load balancer is not an error - `make jit-up` on its own has no
+    cluster ingress - and the page omits the port when it is null.
+    """
+    proc = run(["docker", "ps", "--filter", "name=serverlb", "--format", "{{.Names}}"])
+    names = proc.stdout.split() if proc.returncode == 0 else []
+    ports = {"http": None, "https": None}
+    if not names:
+        return ports
+    for scheme, published in (("http", "80/tcp"), ("https", "443/tcp")):
+        mapped = run(["docker", "port", names[0], published])
+        if mapped.returncode != 0:
+            continue
+        for line in mapped.stdout.splitlines():
+            # "0.0.0.0:8081" and "[::]:8081" both end in the port.
+            _, _, port = line.rpartition(":")
+            if port.strip().isdigit():
+                ports[scheme] = int(port.strip())
+                break
+    return ports
+
+
+def read_ingresses():
+    """Every route the cluster serves, by namespace.
+
+    The console shows the app itself in an iframe, and the host, scheme and port of that URL
+    are the cluster's to state rather than the page's to assume: `tls` is whether the rule's
+    host is covered by the Ingress's own TLS block, which is what decides https over http.
+    An app that has not been deployed yet has no Ingress, and that is a namespace with no
+    routes rather than a failure.
+    """
+    proc = run(["kubectl", "get", "ingress", "-A", "-o", "json"])
+    if proc.returncode != 0:
+        note("note: no Ingresses could be listed; the app panes will have nothing to open")
+        return {}
+    try:
+        doc = json.loads(proc.stdout or "{}")
+    except json.JSONDecodeError:
+        note("note: the Ingress listing is not JSON; ignoring it")
+        return {}
+
+    by_namespace = {}
+    for item in doc.get("items", []):
+        namespace = item["metadata"]["namespace"]
+        spec = item.get("spec") or {}
+        secured = {host
+                   for entry in (spec.get("tls") or [])
+                   for host in (entry.get("hosts") or [])}
+        for rule in spec.get("rules") or []:
+            host = rule.get("host") or "localhost"
+            for path in ((rule.get("http") or {}).get("paths") or []):
+                service = (((path.get("backend") or {}).get("service") or {}).get("name") or "")
+                route = {"host": host,
+                         "path": path.get("path") or "/",
+                         "service": service,
+                         "tls": host in secured}
+                routes = by_namespace.setdefault(namespace, [])
+                # app/scripts/deploy.sh installs nginx alongside k3d's bundled Traefik, so
+                # the same rule can arrive twice. One route is one route.
+                if route not in routes:
+                    routes.append(route)
+    return by_namespace
+
+
 def block_of(ledger, namespace):
     """The block a namespace owns, as the design spells it: "<base>-<last>", ten wide."""
     base = (ledger.get(namespace) or {}).get("base_ip")
@@ -218,7 +287,7 @@ def block_of(ledger, namespace):
     return "%s.%d-%d" % (head, int(last), int(last) + BLOCK_SIZE - 1)
 
 
-def build_namespaces(claims, ledger):
+def build_namespaces(claims, ledger, ingresses):
     by_namespace = {}
     for item in claims.get("items", []):
         namespace = item["metadata"]["namespace"]
@@ -235,13 +304,15 @@ def build_namespaces(claims, ledger):
     proc = run(["kubectl", "get", "ns", "-o", "jsonpath={.items[*].metadata.name}"])
     existing = proc.stdout.split() if proc.returncode == 0 else []
     # The demo's two namespaces are shown whenever they exist - the console is theirs - plus
-    # any other namespace that owns a claim or a block, so the read model can never report
-    # fewer claims than the cluster holds.
-    names = set(by_namespace) | set(ledger) | {n for n in existing if n in ALLOWED_NS}
+    # any other namespace that owns a claim, a block or a route, so the read model can never
+    # report fewer claims than the cluster holds.
+    names = set(by_namespace) | set(ledger) | set(ingresses) \
+        | {n for n in existing if n in ALLOWED_NS}
 
     return [{"name": namespace,
              "block": block_of(ledger, namespace),
-             "claims": sorted(by_namespace.get(namespace, []), key=lambda c: c["module"])}
+             "claims": sorted(by_namespace.get(namespace, []), key=lambda c: c["module"]),
+             "ingresses": ingresses.get(namespace, [])}
             for namespace in sorted(names)]
 
 
@@ -253,7 +324,10 @@ def main():
     generated_at = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     if not stack_is_up():
+        # One shape in both branches: an absent stack has no ports either, and the page
+        # should read a null rather than find the key missing.
         emit({"up": False, "generatedAt": generated_at,
+              "ingressPorts": {"http": None, "https": None},
               "namespaces": [], "containers": [], "stateObjects": []})
         return 0
 
@@ -261,7 +335,8 @@ def main():
                                     "the InfraClaims"))
     emit({"up": True,
           "generatedAt": generated_at,
-          "namespaces": build_namespaces(claims, read_ledger()),
+          "ingressPorts": read_ingress_ports(),
+          "namespaces": build_namespaces(claims, read_ledger(), read_ingresses()),
           "containers": read_containers(),
           "stateObjects": read_state_objects()})
     return 0

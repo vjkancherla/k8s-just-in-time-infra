@@ -5,19 +5,25 @@
 1. [The short version](#the-short-version)
 2. [The two speeds](#the-two-speeds)
 3. [How the controller knows](#how-the-controller-knows)
-4. [Soft delete — deleting the Deployment](#soft-delete--deleting-the-deployment)
+4. [The finalizer](#the-finalizer)
+   - [Where it is added](#where-it-is-added)
+   - [What it does](#what-it-does)
+   - [The two paths that remove it](#the-two-paths-that-remove-it)
+   - [The double-release guard](#the-double-release-guard)
+   - [What happens when the runner is down](#what-happens-when-the-runner-is-down)
+5. [Soft delete — deleting the Deployment](#soft-delete--deleting-the-deployment)
    - [What triggers it](#what-triggers-it)
    - [What happens, step by step](#what-happens-step-by-step)
    - [What stays alive during the window](#what-stays-alive-during-the-window)
    - [What redeploy does (resurrection)](#what-redeploy-does-resurrection)
    - [What the TTL sweep does (expiry)](#what-the-ttl-sweep-does-expiry)
-5. [Hard delete — deleting the Namespace](#hard-delete--deleting-the-namespace)
+6. [Hard delete — deleting the Namespace](#hard-delete--deleting-the-namespace)
    - [What triggers it](#what-triggers-it-1)
    - [What happens, step by step](#what-happens-step-by-step-1)
    - [What's left after](#whats-left-after)
    - [What happens to the other namespace](#what-happens-to-the-other-namespace)
    - [If the runner is down](#if-the-runner-is-down)
-6. [See it in action](#see-it-in-action)
+7. [See it in action](#see-it-in-action)
 
 ---
 
@@ -94,6 +100,119 @@ is 30 days.
 > the Deployment is deleted, the clock starts when the controller restarts and runs its
 > first resync. This is the safe direction to be wrong in — the infra lives longer, not
 > shorter, than expected.
+
+---
+
+## The finalizer
+
+Every InfraClaim has a finalizer: `jit.infra/teardown`. This is the mechanism that
+makes the controller's cleanup reliable — Kubernetes will not delete the claim until
+the finalizer is removed, and the controller only removes it after a successful
+destroy.
+
+### Where it is added
+
+When the controller creates an InfraClaim (`ensure_claim`), the finalizer is set in
+the metadata:
+
+```yaml
+metadata:
+  name: voting-a-redis
+  finalizers:
+    - jit.infra/teardown
+```
+
+### What it does
+
+A finalizer blocks Kubernetes from deleting an object. When something requests a
+delete (a user, a namespace GC, a TTL sweep), Kubernetes marks the object for
+deletion but does not remove it. It calls the controller's delete handler instead.
+The handler does its work, then removes the finalizer. Only then does Kubernetes
+actually delete the object.
+
+This means the controller always gets a chance to clean up — even if it was down
+when the delete was requested. The object sits in `Terminating` until the controller
+comes back and handles it.
+
+### The two paths that remove it
+
+```
+                        ┌─────────────────────────────┐
+                        │       InfraClaim exists      │
+                        │   finalizer: jit.infra/...   │
+                        └──────────────┬──────────────┘
+                                       │
+                      ┌────────────────┴────────────────┐
+                      │                                  │
+              TTL expires                          Namespace deleted
+              (timer handler)                      (delete handler)
+                      │                                  │
+                      ▼                                  ▼
+              destroy_infra()                     destroy_infra()
+              cleanup_k8s_resources()            cleanup_k8s_resources()
+              remove_finalizer_and_delete()      patch: remove finalizer
+              release_block()                    release_block()
+                      │                                  │
+                      ▼                                  ▼
+              Kubernetes deletes                 Kubernetes deletes
+              the InfraClaim                     the InfraClaim
+```
+
+**Path 1: TTL sweep** (the timer). The `resync_referenced_by` timer detects expiry,
+calls `destroy_infra` → `cleanup_k8s_resources` → `remove_finalizer_and_delete` →
+`release_block`. The `remove_finalizer_and_delete` function patches the finalizer off
+and then deletes the claim in one operation.
+
+**Path 2: Hard delete** (namespace deletion). Kubernetes GC marks the claim for
+deletion. kopf's `@kopf.on.delete` handler (`handle_claim_delete`) fires, calls
+`destroy_infra` → `cleanup_k8s_resources`, patches the finalizer off, then calls
+`release_block`.
+
+### The double-release guard
+
+Both paths release the IP block. If the TTL sweep runs first (destroy succeeds,
+finalizer removed, claim deleted), and then the namespace is deleted, the delete
+handler fires again on the already-deleted claim. The handler checks the claim's
+`phase` — if it is `Deleting`, the TTL sweep already handled it, so it skips
+`release_block`:
+
+```python
+phase = (body.get("status", {}) or {}).get("phase", "")
+if phase == "Deleting":
+    logger.info(f"Claim {name} was already swept; not releasing its IP block twice")
+else:
+    release_block(namespace)
+```
+
+Without this guard, two namespaces would end up with the same IP block and containers
+would fail with "Address already in use". This was a real bug found by J1.
+
+### What happens when the runner is down
+
+The finalizer stays. The claim stays in `Terminating`. The namespace stays in
+`Terminating`. Kubernetes will not delete either until the finalizer is removed.
+
+The controller retries on every resync tick (every 30 seconds). If the runner comes
+back, the next retry succeeds and the finalizer is removed.
+
+If the runner never comes back, the only escape is manual:
+
+```bash
+# 1. Destroy the infra by hand
+tofu destroy -auto-approve ...
+
+# 2. Patch the finalizer off
+kubectl patch infraclaim voting-a-redis -n voting-a --type=json \
+  -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]'
+
+# 3. Clean up the IPAM ledger
+kubectl get configmap jit-ipam -n default -o json \
+  | jq --arg ns 'voting-a' '.data.allocations |= (fromjson | del(.[$ns]) | tojson)' \
+  | kubectl replace -f -
+```
+
+See [the README's escape hatch](../README.md#namespace-stuck-in-terminating) for the
+full procedure.
 
 ---
 

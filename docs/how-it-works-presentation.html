@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>JIT Infra · just-in-time infrastructure</title>
+<title>JIT Infra: just-in-time infrastructure</title>
 <style>
   :root{
     --bg:#fbfbfd; --ink:#1d1d1f; --ink-2:#6e6e73; --ink-3:#a1a1a6;
@@ -11,8 +11,6 @@
     --green-bg:#e8f6ee; --amber-bg:#fdf1e2;
     --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,Arial,sans-serif;
     --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
-    --ease:cubic-bezier(.32,.72,0,1);
-    --bar-h:62px;
   }
   *{box-sizing:border-box}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
@@ -21,98 +19,219 @@
   .deck{height:100%;position:relative}
   .slide{
     position:absolute;inset:0;display:none;
-    padding:clamp(40px,7vh,96px) clamp(32px,7vw,130px) calc(clamp(40px,7vh,96px) + var(--bar-h));
+    padding:clamp(40px,8vh,110px) clamp(36px,9vw,170px) clamp(90px,14vh,150px);
     flex-direction:column;justify-content:center;
-    opacity:0;transform:translateY(8px);
-    transition:opacity .45s var(--ease),transform .45s var(--ease)
+    opacity:0;transform:translateY(8px);transition:opacity .42s ease,transform .42s ease
   }
   .slide.on{display:flex;opacity:1;transform:none}
   .inner{width:100%;max-width:1080px;margin:0 auto}
 
-  .eyebrow{font-size:clamp(12px,1.3vw,13.5px);font-weight:600;letter-spacing:-.005em;
-    color:var(--ink-3);margin-bottom:clamp(14px,2vh,20px)}
-  h1{font-size:clamp(38px,6.2vw,76px);font-weight:600;letter-spacing:-.035em;line-height:1.05;
-    margin:0;text-wrap:balance}
-  h2{font-size:clamp(27px,4.2vw,50px);font-weight:600;letter-spacing:-.03em;line-height:1.08;
-    margin:0;text-wrap:balance}
-  .lede{font-size:clamp(17px,1.9vw,24px);color:var(--ink-2);line-height:1.5;
-    margin-top:clamp(18px,2.6vh,30px);max-width:32ch;text-wrap:pretty}
+  .eyebrow{font-size:clamp(12px,1.3vw,15px);font-weight:500;color:var(--ink-3);
+    margin-bottom:clamp(16px,2.4vh,26px)}
+  h1{font-size:clamp(38px,6.4vw,82px);font-weight:600;letter-spacing:-.03em;line-height:1.04;margin:0}
+  h2{font-size:clamp(28px,4.4vw,54px);font-weight:600;letter-spacing:-.025em;line-height:1.08;margin:0}
+  .lede{font-size:clamp(17px,1.95vw,24px);color:var(--ink-2);line-height:1.45;
+    margin-top:clamp(18px,2.8vh,32px);max-width:34ch}
   .lede.wide{max-width:46ch}
+  .kicker{font-size:clamp(15px,1.65vw,20px);color:var(--ink-3);font-weight:500;
+    margin-top:clamp(16px,2.4vh,28px)}
   .lede b{color:var(--ink);font-weight:500}
-  /* the opening card is the one card that gets to be loud */
-  .slide:first-of-type h1{font-size:clamp(42px,6.8vw,84px)}
-  .meta{margin-top:clamp(30px,5vh,58px);font-size:clamp(13px,1.3vw,15px);color:var(--ink-3)}
   .mono{font-family:var(--mono)}
-
-  /* navigation: counter, the slide's own name, and two chevrons */
-  .bar{position:absolute;left:0;right:0;bottom:0;height:var(--bar-h);
-    display:flex;align-items:center;gap:16px;padding:0 clamp(32px,7vw,130px);
-    font-size:13px;color:var(--ink-3);pointer-events:none}
-  .bar>*{pointer-events:auto}
-  .count{font-variant-numeric:tabular-nums;white-space:nowrap}
-  .count b{color:var(--ink);font-weight:500}
-  .name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .ctrls{margin-left:auto;display:flex;gap:10px}
-  .nav{width:38px;height:38px;padding:0;border-radius:50%;border:1px solid var(--hair);
-    background:rgba(255,255,255,.72);color:var(--ink);cursor:pointer;
-    display:grid;place-items:center;
-    -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
-    box-shadow:0 1px 2px rgba(0,0,0,.04);
-    transition:background .2s var(--ease),box-shadow .2s var(--ease),transform .2s var(--ease),opacity .2s var(--ease)}
-  .nav svg{width:16px;height:16px;display:block}
-  .nav:hover{background:#fff;box-shadow:0 4px 16px rgba(0,0,0,.09)}
-  .nav:active{transform:scale(.94)}
-  .nav:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
-  .nav[disabled]{opacity:.28;cursor:default;box-shadow:none}
-  .nav[disabled]:hover{background:rgba(255,255,255,.72)}
-
-  .prog{position:absolute;left:0;right:0;bottom:0;height:2px;pointer-events:none}
-  .prog i{display:block;height:100%;width:0;background:var(--ink);opacity:.14;
-    transition:width .45s var(--ease)}
+  .foot{position:absolute;left:0;right:0;bottom:clamp(20px,3.4vh,38px);
+    display:flex;align-items:center;padding:0 clamp(36px,9vw,170px);
+    font-size:13px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+  .nav{margin-left:auto;display:flex;gap:10px}
+  .nav button{
+    width:42px;height:42px;border-radius:50%;border:1px solid var(--hair);background:#fff;
+    color:var(--ink);cursor:pointer;display:flex;align-items:center;justify-content:center;
+    transition:border-color .2s,opacity .2s,transform .12s;padding:0
+  }
+  .nav button:hover{border-color:rgba(0,0,0,.3)}
+  .nav button:active{transform:scale(.94)}
+  .nav button:focus-visible{outline:2px solid var(--blue);outline-offset:3px}
+  .nav button[disabled]{opacity:.28;cursor:default;border-color:var(--hair)}
+  .nav svg{width:15px;height:15px;stroke:currentColor;stroke-width:1.8;fill:none;
+    stroke-linecap:round;stroke-linejoin:round}
+  .bar{position:absolute;top:0;left:0;height:2px;background:var(--ink);opacity:.85;
+    transition:width .38s ease}
 
   /* pieces */
-  .rows{margin-top:clamp(24px,4vh,48px);display:flex;flex-direction:column;gap:clamp(14px,2vh,24px)}
-  .row{display:flex;gap:18px;align-items:baseline;font-size:clamp(16px,1.85vw,22px);
-    color:var(--ink-2);line-height:1.45}
+  .rows{margin-top:clamp(22px,4vh,46px);display:flex;flex-direction:column;gap:clamp(12px,2vh,22px)}
+  .row{display:flex;gap:18px;align-items:baseline;font-size:clamp(16px,1.9vw,23px);color:var(--ink-2)}
   .row b{color:var(--ink);font-weight:500;min-width:clamp(90px,11vw,170px);display:inline-block}
 
-  pre.code{font-family:var(--mono);font-size:clamp(12px,1.4vw,17px);line-height:1.7;
-    background:#fff;border-radius:18px;padding:clamp(20px,3vh,30px) clamp(22px,3vw,34px);
-    box-shadow:0 1px 2px rgba(0,0,0,.04),0 16px 40px rgba(0,0,0,.06);
-    margin:clamp(22px,3.6vh,40px) 0 0;overflow:auto;width:max-content;max-width:100%}
+  pre.code{font-family:var(--mono);font-size:clamp(12px,1.45vw,18px);line-height:1.65;
+    background:#fff;border-radius:16px;padding:clamp(18px,3vh,30px) clamp(20px,3vw,34px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 12px 34px rgba(0,0,0,.07);
+    margin:clamp(20px,3.5vh,40px) 0 0;overflow:auto;max-width:min(100%,44em);
+    white-space:pre}
   pre.code .k{color:var(--ink-3)}
   pre.code .v{color:var(--blue)}
 
-  .cards{display:grid;grid-template-columns:1fr 1fr;gap:clamp(16px,2vw,24px);
-    margin-top:clamp(24px,4vh,44px)}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:clamp(14px,2vw,26px);
+    margin-top:clamp(22px,4vh,44px)}
   @media(max-width:760px){.cards{grid-template-columns:1fr}}
-  .card{background:#fff;border-radius:20px;padding:clamp(20px,2.8vh,30px) clamp(22px,2.4vw,30px);
-    box-shadow:0 1px 2px rgba(0,0,0,.04),0 12px 32px rgba(0,0,0,.05)}
-  .card h3{margin:0;font-size:clamp(16px,1.75vw,21px);font-weight:600;letter-spacing:-.015em}
-  .card p{margin:8px 0 0;font-size:clamp(14px,1.45vw,17px);color:var(--ink-2);line-height:1.5}
-  .card .tag{display:inline-block;font-size:12px;font-weight:600;padding:3px 10px;
-    border-radius:980px;margin-bottom:12px}
+  .card{background:#fff;border-radius:18px;padding:clamp(18px,2.6vh,28px) clamp(20px,2.4vw,30px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 28px rgba(0,0,0,.06)}
+  .card h3{margin:0;font-size:clamp(16px,1.8vw,21px);font-weight:600;letter-spacing:-.01em}
+  .card p{margin:8px 0 0;font-size:clamp(14px,1.5vw,17px);color:var(--ink-2);line-height:1.45}
+  .card .tag{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:500;
+    padding:3px 10px;border-radius:980px;margin-bottom:10px}
   .tag.soft{background:var(--amber-bg);color:var(--amber)}
   .tag.hard{background:#fdeceb;color:var(--red)}
   .tag.ok{background:var(--green-bg);color:var(--green)}
 
-  table{width:100%;border-collapse:collapse;margin-top:clamp(22px,3.6vh,42px);
-    font-size:clamp(14px,1.6vw,19px)}
-  th,td{text-align:left;padding:clamp(10px,1.6vh,16px) 12px;border-bottom:1px solid var(--hair)}
-  thead th{font-size:clamp(12px,1.15vw,13.5px);font-weight:600;color:var(--ink-3)}
+  .half ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;
+    gap:clamp(7px,1.1vh,12px)}
+  .half li{font-size:clamp(13px,1.45vw,17px);color:var(--ink-2);line-height:1.4;
+    padding-left:16px;position:relative}
+  .half li::before{content:'';position:absolute;left:0;top:.62em;width:5px;height:1px;
+    background:var(--ink-3)}
+  .half li .m{font-family:var(--mono);font-size:.92em;color:var(--ink)}
+
+  .ledger{margin-top:clamp(22px,3.8vh,46px);display:flex;flex-direction:column;
+    gap:clamp(8px,1.3vh,14px)}
+  .ledger .line{background:#fff;border-radius:14px;
+    padding:clamp(14px,2vh,20px) clamp(18px,2.2vw,28px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 22px rgba(0,0,0,.05);
+    display:flex;align-items:baseline;gap:clamp(14px,2.4vw,34px);flex-wrap:wrap}
+  .ledger .field{font-family:var(--mono);font-size:clamp(13px,1.55vw,19px);color:var(--ink)}
+  .ledger .field .v{color:var(--blue)}
+  .ledger .verdict{margin-left:auto;font-size:clamp(12px,1.3vw,15px);font-weight:500;
+    color:var(--green);white-space:nowrap}
+  .ledger .verdict.amber{color:var(--amber)}
+  .ledger .event{padding-left:clamp(18px,2.2vw,28px);font-size:clamp(12.5px,1.35vw,16px);
+    color:var(--ink-3)}
+  .slide.on .ledger .line,.slide.on .ledger .event{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .slide.on .ledger > :nth-child(1){animation-delay:.18s}
+  .slide.on .ledger > :nth-child(2){animation-delay:.40s}
+  .slide.on .ledger > :nth-child(3){animation-delay:.58s}
+  .slide.on .ledger > :nth-child(4){animation-delay:.80s}
+  .slide.on .ledger > :nth-child(5){animation-delay:.98s}
+
+  .withside{display:flex;gap:clamp(22px,3.4vw,54px);align-items:flex-start;
+    margin-top:clamp(20px,3.2vh,38px);flex-wrap:wrap}
+  .withside pre.code{margin-top:0;flex:0 1 auto}
+  .aside{flex:1 1 300px;min-width:260px;display:flex;flex-direction:column;
+    gap:clamp(12px,1.9vh,20px);padding-top:4px}
+  .aside .note{font-size:clamp(13px,1.4vw,17px);color:var(--ink-2);line-height:1.45}
+  .aside .note b{color:var(--ink);font-weight:500}
+  .aside .note .f{font-family:var(--mono);font-size:.93em;color:var(--blue)}
+  @media(max-width:860px){.withside{gap:20px}.aside{padding-top:0}}
+
+  .states{display:flex;align-items:stretch;gap:clamp(10px,1.4vw,18px);
+    margin-top:clamp(24px,4.2vh,50px)}
+  .state{flex:1;background:#fff;border-radius:16px;padding:clamp(18px,2.6vh,26px) clamp(16px,1.9vw,24px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.055);
+    display:flex;flex-direction:column;gap:8px}
+  .state .w{font-family:var(--mono);font-size:clamp(11px,1.1vw,13px);color:var(--ink-3)}
+  .state .t{font-family:var(--mono);font-size:clamp(13px,1.45vw,17px);font-weight:500;
+    letter-spacing:-.01em;line-height:1.3}
+  .state .s{font-size:clamp(12.5px,1.3vw,15px);color:var(--ink-2);line-height:1.45}
+  .state.go{background:#1d1d1f}
+  .state.go .t{color:#fff}
+  .state.go .s{color:rgba(255,255,255,.62)}
+  .state.go .w{color:rgba(255,255,255,.45)}
+  @media(max-width:760px){.states{flex-direction:column}}
+  .slide.on .state{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .slide.on .state:nth-of-type(1){animation-delay:.18s}
+  .slide.on .state:nth-of-type(2){animation-delay:.40s}
+  .slide.on .state:nth-of-type(3){animation-delay:.62s}
+
+  .split{display:flex;align-items:stretch;gap:0;margin-top:clamp(24px,4.2vh,50px)}
+  .half{flex:1;background:#fff;border-radius:18px;padding:clamp(20px,3vh,30px) clamp(20px,2.4vw,32px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 28px rgba(0,0,0,.06);
+    display:flex;flex-direction:column;gap:9px}
+  .half .glyph{color:var(--ink-2);height:22px;line-height:0}
+  .half .glyph svg{width:22px;height:22px;stroke:currentColor;stroke-width:1.4;fill:none}
+  .half h3{margin:0;font-size:clamp(16px,1.85vw,22px);font-weight:600;letter-spacing:-.015em}
+  .half p{margin:0;font-size:clamp(13px,1.45vw,17px);color:var(--ink-2);line-height:1.45}
+  .half .cant{margin-top:auto;padding-top:clamp(10px,1.6vh,16px);font-size:clamp(12px,1.25vw,14px);
+    color:var(--ink-3);border-top:1px solid var(--hair)}
+  .seam{flex:0 0 clamp(78px,9vw,140px);display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:8px;position:relative}
+  .seam .wire{width:100%;height:1px;background:rgba(0,0,0,.16)}
+  .seam .tagline{font-size:clamp(11px,1.1vw,13px);color:var(--ink-3);white-space:nowrap;text-align:center;
+    line-height:1.35}
+  @media(max-width:760px){
+    .split{flex-direction:column;gap:14px}
+    .seam{flex:0 0 auto;padding:4px 0}
+    .seam .wire{width:1px;height:22px}
+  }
+
+  table{width:100%;border-collapse:collapse;margin-top:clamp(20px,3.5vh,40px);
+    font-size:clamp(14px,1.65vw,20px)}
+  th,td{text-align:left;padding:clamp(9px,1.5vh,15px) 12px;border-bottom:1px solid var(--hair)}
+  thead th{font-size:clamp(12px,1.2vw,14px);font-weight:600;color:var(--ink-3)}
   td.mono{font-family:var(--mono);font-size:.92em}
 
-  svg.fig{width:100%;height:auto;margin-top:clamp(20px,3vh,36px);max-height:46vh}
+  .chainwrap{position:relative;margin-top:clamp(24px,4.5vh,52px)}
+  .chainwrap .rule{position:absolute;left:3%;right:3%;top:clamp(26px,3.4vh,36px);height:1px;
+    background:rgba(0,0,0,.13)}
+  .chain{display:flex;align-items:stretch;gap:clamp(8px,1.2vw,16px);flex-wrap:wrap;
+    position:relative}
+  .step .glyph{color:var(--ink-2);height:20px;line-height:0}
+  .step .glyph svg{width:20px;height:20px;stroke:currentColor;stroke-width:1.4;fill:none}
+  .step.last .glyph{color:rgba(255,255,255,.5)}
+  @media(max-width:760px){.chainwrap .rule{display:none}}
 
-  .big{display:flex;gap:clamp(32px,6vw,88px);margin-top:clamp(26px,4vh,48px);flex-wrap:wrap}
-  .big div{min-width:120px}
-  .big .n{font-size:clamp(38px,5.4vw,66px);font-weight:600;letter-spacing:-.035em;line-height:1}
-  .big .l{font-size:clamp(13px,1.35vw,16px);color:var(--ink-2);margin-top:10px;line-height:1.45}
+  .chainwrap .spark{position:absolute;top:clamp(24px,3.4vh,34px);left:3%;width:5px;height:5px;
+    border-radius:50%;background:var(--ink);opacity:0}
+
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  @keyframes draw{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  @keyframes run{
+    0%{left:3%;opacity:0}
+    12%{opacity:.85}
+    88%{opacity:.85}
+    100%{left:97%;opacity:0}
+  }
+
+  .slide.on .chainwrap .rule{transform-origin:left;animation:draw .7s ease-out .1s both}
+  .slide.on .step{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .slide.on .step:nth-of-type(1){animation-delay:.20s}
+  .slide.on .step:nth-of-type(2){animation-delay:.38s}
+  .slide.on .step:nth-of-type(3){animation-delay:.56s}
+  .slide.on .step:nth-of-type(4){animation-delay:.74s}
+  .slide.on .step:nth-of-type(5){animation-delay:.92s}
+  .slide.on .chainwrap .spark{animation:run 1.9s cubic-bezier(.4,0,.5,1) 1.5s 1 both}
+
+  .slide.on .half{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .slide.on .half:nth-of-type(1){animation-delay:.18s}
+  .slide.on .split .half:last-child{animation-delay:.42s}
+  .slide.on .seam{animation:rise .5s ease-out .62s both}
 
   @media (prefers-reduced-motion:reduce){
-    .slide{transition:none;transform:none}
-    .nav,.prog i{transition:none}
+    .slide.on .half,
+    .slide.on .seam,
+    .slide.on .state,
+    .slide.on .ledger .line,
+    .slide.on .ledger .event,
+    .slide.on .chainwrap .rule,
+    .slide.on .step,
+    .slide.on .chainwrap .spark{animation:none}
+    .chainwrap .spark{display:none}
   }
+  .step{background:#fff;border-radius:16px;padding:clamp(16px,2.4vh,24px) clamp(14px,1.6vw,22px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 26px rgba(0,0,0,.055);
+    flex:1 1 150px;min-width:140px;display:flex;flex-direction:column;gap:7px}
+  .step .n{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
+  .step .t{font-size:clamp(14px,1.5vw,18px);font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  .step .s{font-size:clamp(12px,1.2vw,14px);color:var(--ink-2);line-height:1.4}
+  .step.last{background:#1d1d1f}
+  .step.last .t{color:#fff}
+  .step.last .s{color:rgba(255,255,255,.66)}
+  .step.last .n{color:rgba(255,255,255,.45)}
+  @media(max-width:760px){.chain{flex-direction:column}}
+
+  svg.fig{width:100%;height:auto;margin-top:clamp(18px,3vh,36px);max-height:44vh}
+
+  .big{display:flex;gap:clamp(30px,6vw,90px);margin-top:clamp(24px,4vh,48px);flex-wrap:wrap}
+  .big div{min-width:120px}
+  .big .n{font-size:clamp(38px,5.5vw,68px);font-weight:600;letter-spacing:-.03em;line-height:1}
+  .big .l{font-size:clamp(13px,1.4vw,16px);color:var(--ink-2);margin-top:8px}
+
+  @media (prefers-reduced-motion:reduce){.slide{transition:none}}
 </style>
 </head>
 <body>
@@ -121,33 +240,30 @@
 <!-- 1 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">Just-in-time infrastructure</div>
-    <h1>Infrastructure that appears when an app deploys, and goes when it does.</h1>
-    <p class="lede wide">A proof of concept. One annotation on a Deployment, and the database it
-    needs provisions itself. Nothing is cleaned up on its own: deleting the app starts a grace
-    period, and deleting the namespace skips it.</p>
-    <p class="meta">Kubernetes · kopf · OpenTofu · k3d · Docker</p>
+    <div class="eyebrow">k8s-just-in-time-infra</div>
+    <h1>Infrastructure does not outlive the applications that use it.</h1>
+    <p class="kicker">A proof of concept.</p>
+    <p class="lede wide" style="margin-top:clamp(10px,1.6vh,18px)">Databases, caches, anything
+    an app declares it needs, created when it deploys and removed when it stops needing it,
+    with enough delay to change your mind.</p>
   </div>
 </section>
 
 <!-- 2 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">The problem</div>
-    <h2>Apps and their infrastructure have different lifecycles.</h2>
-    <div class="rows">
-      <div class="row"><b>Ask</b> A ticket, a Terraform PR, a week.</div>
-      <div class="row"><b>Forget</b> The environment is torn down. The database is not.</div>
-      <div class="row"><b>Pay</b> Nobody deletes anything, in case somebody needs it.</div>
-    </div>
-    <p class="lede wide">The app knows what it needs. Nothing lets it say so.</p>
+    <div class="eyebrow">The premise</div>
+    <h2>Infrastructure should be requested by the app, not by a person.</h2>
+    <p class="lede wide">Self-service made provisioning infrastructure fast. Nothing connects
+    a provisioning request to the application workload that needed it, so deleting the workload
+    leaves the infrastructure running.</p>
   </div>
 </section>
 
 <!-- 3 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">The ask</div>
+    <div class="eyebrow">What a tenant writes</div>
     <h2>Three lines of annotation.</h2>
 <pre class="code"><span class="k">kind:</span> Deployment
 <span class="k">metadata:</span>
@@ -156,78 +272,113 @@
     <span class="v">jit.infra/redis:</span>    '{"maxmemory":"128mb"}'
     <span class="v">jit.infra/postgres:</span> '{"db":"voting"}'
     <span class="v">jit.infra/pgadmin:</span>  '{}'</pre>
-    <p class="lede wide">No Terraform, no CRD to learn, no service catalogue. The tenant writes what the
-    app needs, in the file that already says what the app is.</p>
+    <p class="lede wide">No Terraform, no CRD to learn, no catalogue to browse. The tenant writes
+    what the app needs as part of the Deployment, so it is versioned, reviewed and deleted with it.</p>
   </div>
 </section>
 
 <!-- 4 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">What happens</div>
-    <h2>Real infrastructure, outside the cluster, reachable from inside it.</h2>
-    <svg class="fig" viewBox="0 0 940 300" role="img" aria-label="A controller in the cluster calls a runner outside it, which creates containers">
-      <defs><marker id="a" markerWidth="9" markerHeight="9" refX="8" refY="3" orient="auto">
-        <path d="M0,0 L8,3 L0,6 z" fill="#1d1d1f"/></marker></defs>
-
-      <rect x="8" y="14" width="920" height="108" rx="16" fill="#fff" stroke="rgba(0,0,0,.09)"/>
-      <text x="30" y="42" font-family="ui-monospace,monospace" font-size="13" fill="#a1a1a6">kubernetes</text>
-      <rect x="30" y="56" width="150" height="44" rx="10" fill="#e8f6ee"/>
-      <text x="105" y="83" text-anchor="middle" font-size="15" fill="#30a46c">vote</text>
-      <rect x="192" y="56" width="150" height="44" rx="10" fill="#e8f6ee"/>
-      <text x="267" y="83" text-anchor="middle" font-size="15" fill="#30a46c">worker</text>
-      <rect x="700" y="56" width="200" height="44" rx="10" fill="#f4f7f8" stroke="rgba(0,0,0,.12)"/>
-      <text x="800" y="83" text-anchor="middle" font-size="15" fill="#1d1d1f">controller</text>
-
-      <rect x="8" y="178" width="920" height="108" rx="16" fill="#fff" stroke="rgba(0,0,0,.09)"/>
-      <text x="30" y="206" font-family="ui-monospace,monospace" font-size="13" fill="#a1a1a6">docker, outside the cluster</text>
-      <rect x="30" y="220" width="130" height="44" rx="10" fill="#eef2f6"/>
-      <text x="95" y="247" text-anchor="middle" font-size="15" fill="#1d1d1f">redis</text>
-      <rect x="172" y="220" width="150" height="44" rx="10" fill="#eef2f6"/>
-      <text x="247" y="247" text-anchor="middle" font-size="15" fill="#1d1d1f">postgres</text>
-      <rect x="700" y="220" width="200" height="44" rx="10" fill="#f4f7f8" stroke="rgba(0,0,0,.12)"/>
-      <text x="800" y="247" text-anchor="middle" font-size="15" fill="#1d1d1f">runner</text>
-
-      <path d="M800 106 L800 214" stroke="#1d1d1f" fill="none" marker-end="url(#a)"/>
-      <text x="812" y="164" font-size="13" fill="#6e6e73">provision</text>
-      <path d="M95 214 L100 106" stroke="#a1a1a6" stroke-dasharray="5 5" fill="none" marker-end="url(#a)"/>
-      <path d="M247 214 L262 106" stroke="#a1a1a6" stroke-dasharray="5 5" fill="none" marker-end="url(#a)"/>
-      <text x="330" y="164" font-size="13" fill="#a1a1a6">reached by Service name</text>
-    </svg>
+    <div class="eyebrow">After you apply</div>
+    <h2>Five things happen. You do none of them.</h2>
+    <div class="chainwrap">
+      <div class="rule"></div>
+      <div class="spark"></div>
+      <div class="chain">
+        <div class="step">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg></span>
+          <span class="n">01</span>
+          <span class="t">The annotation is read</span>
+          <span class="s">A controller in the cluster is watching for it.</span>
+        </div>
+        <div class="step">
+          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
+          <span class="n">02</span>
+          <span class="t">Terraform runs</span>
+          <span class="s">Outside the cluster, by a service the controller calls over HTTP.</span>
+        </div>
+        <div class="step">
+          <span class="glyph"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg></span>
+          <span class="n">03</span>
+          <span class="t">The database exists</span>
+          <span class="s">A real one, with its own address and a generated password.</span>
+        </div>
+        <div class="step">
+          <span class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></span>
+          <span class="n">04</span>
+          <span class="t">The app is wired to it</span>
+          <span class="s">A Secret with the credentials, and a Service so the name resolves.</span>
+        </div>
+        <div class="step last">
+          <span class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 8.5l6 3.5-6 3.5z"/></svg></span>
+          <span class="n">05</span>
+          <span class="t">The pod starts</span>
+          <span class="s">Not before. Nothing polls, nothing waits, nothing times out.</span>
+        </div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- 5 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">The shape</div>
-    <h2>Two planes, split on purpose.</h2>
-    <div class="cards">
-      <div class="card">
-        <h3>The controller owns the lifecycle</h3>
-        <p>Watches annotations, decides what should exist and for how long. It holds no cloud
-        credentials and never talks to Docker.</p>
+    <div class="eyebrow">The split</div>
+    <h2>Two services. Only one of them can create the infrastructure.</h2>
+    <div class="split">
+      <div class="half">
+        <span class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span>
+        <h3>The controller decides</h3>
+        <p>Watches annotations, works out what should exist and for how long, and wires the
+        result back into the cluster.</p>
+        <div class="cant">Has no credentials. Cannot create anything itself.</div>
       </div>
-      <div class="card">
-        <h3>The runner owns the provisioning</h3>
-        <p>Takes an authenticated call, runs versioned Terraform modules, reports back. It knows
-        nothing about claims or namespaces.</p>
+
+      <div class="seam">
+        <div class="wire"></div>
+        <div class="tagline">one authenticated<br>HTTP call</div>
+        <div class="wire"></div>
+      </div>
+
+      <div class="half">
+        <span class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
+        <h3>The runner builds</h3>
+        <p>Takes the call, runs a versioned Terraform module against the Docker daemon here or
+        a cloud API in production, and reports back what it made.</p>
+        <div class="cant">Knows nothing about namespaces, apps or expiry.</div>
       </div>
     </div>
-    <p class="lede wide">The thing with the credentials makes no decisions. The thing making decisions
-    holds no credentials.</p>
   </div>
 </section>
 
 <!-- 6 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">A detail worth stealing</div>
-    <h2>There is no “wait for infrastructure” step.</h2>
-    <p class="lede wide">The pod needs a Secret that does not exist yet, so Kubernetes refuses to start
-    it. When the database is ready and the Secret is written, the pod starts on its own.</p>
-    <p class="lede wide"><b>The absence is the gate.</b> Nothing polls, nothing sleeps, nothing has a
-    timeout to tune.</p>
+    <div class="eyebrow">One thing we did not build</div>
+    <h2>The pod waits, without anything waiting.</h2>
+    <div class="states">
+      <div class="state">
+        <span class="w">t0</span>
+        <span class="t">CreateContainerConfigError</span>
+        <span class="s">The pod is scheduled. Its container needs a Secret to build an
+        environment from, and that Secret does not exist, so the kubelet will not start it.</span>
+      </div>
+      <div class="state">
+        <span class="w">t1</span>
+        <span class="t">Secret created</span>
+        <span class="s">The database is up. The controller writes its address and password into
+        the namespace.</span>
+      </div>
+      <div class="state go">
+        <span class="w">t2</span>
+        <span class="t">Running</span>
+        <span class="s">The kubelet was already retrying. This attempt resolves the Secret and
+        the container starts.</span>
+      </div>
+    </div>
+    <p class="lede wide">No init container, no probe against the database, no timeout to guess.
+    The failure and the retry were already there.</p>
   </div>
 </section>
 
@@ -238,14 +389,14 @@
     <h2>Cleanup has two speeds.</h2>
     <div class="cards">
       <div class="card">
-        <span class="tag soft">Delete the app</span>
-        <h3>A clock starts</h3>
-        <p>The container keeps running. Redeploy inside the window and the same database comes back,
-        with its data. A rollout costs nothing.</p>
+        <span class="tag soft">soft delete</span>
+        <h3>Delete the app, and a clock starts</h3>
+        <p>The container keeps running. Redeploy inside the window and the clock is cleared:
+        the database never went anywhere. Let it run out and it is destroyed, data and all.</p>
       </div>
       <div class="card">
-        <span class="tag hard">Delete the namespace</span>
-        <h3>Gone immediately</h3>
+        <span class="tag hard">hard delete</span>
+        <h3>Delete the namespace, and it is gone</h3>
         <p>The clock is ignored. Deleting a whole environment is a deliberate act in a way that
         deleting a Deployment is not.</p>
       </div>
@@ -257,31 +408,81 @@
 <!-- 8 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">Why it is safe</div>
-    <h2>It counts references by recounting them.</h2>
-    <p class="lede wide">Two apps asking for the same database get one database, and it only starts its
-    clock when the last one goes.</p>
-    <p class="lede wide">There is no counter to get out of step. Every pass asks the cluster who is
-    using what, and believes the answer.</p>
+    <div class="eyebrow">What the controller keeps</div>
+    <h2>The claim. Everything so far is a field on it.</h2>
+
+    <div class="withside">
+<pre class="code"><span class="k">kind:</span> InfraClaim
+<span class="k">metadata:</span>
+  <span class="k">name:</span> voting-a-postgres
+  <span class="v">ownerReferences:</span> [ Namespace/voting-a ]
+  <span class="v">finalizers:</span>      [ jit.infra/destroy ]
+<span class="k">status:</span>
+  <span class="k">phase:</span>        Orphaned
+  <span class="v">referencedBy:</span> []
+  <span class="v">expiresAt:</span>    2026-09-13T21:04:10Z</pre>
+
+      <div class="aside">
+        <div class="note">This is what ties the infrastructure to the app that asked for it.
+        Nothing else in the system holds that link. <span class="f">ownerReferences</span> names the
+        namespace as its owner, so deleting the Deployment does not touch it, and deleting the
+        namespace marks it for deletion too.</div>
+
+        <div class="note"><span class="f">referencedBy</span> is who is using it and
+        <span class="f">expiresAt</span> is the clock. The <span class="f">finalizer</span> is what
+        stops it being forgotten if a destroy fails.</div>
+
+        <div class="note">The controller writes it. The runner never sees it. Nothing else in the
+        cluster knows it exists.</div>
+      </div>
+    </div>
   </div>
 </section>
 
 <!-- 9 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
+    <div class="eyebrow">How do we know the infrastructure is still needed</div>
+    <h2>A counter can drift. A list cannot.</h2>
+    <p class="lede wide">Every thirty seconds the controller walks every claim, lists the
+    Deployments in its namespace, and writes down which ones still ask for it. That list is
+    <b>referencedBy</b>.</p>
+
+    <div class="ledger">
+      <div class="line">
+        <span class="field">referencedBy: <span class="v">[ vote, worker ]</span></span>
+        <span class="verdict">Ready</span>
+      </div>
+      <div class="event">vote is deleted</div>
+      <div class="line">
+        <span class="field">referencedBy: <span class="v">[ worker ]</span></span>
+        <span class="verdict">still Ready</span>
+      </div>
+      <div class="event">worker is deleted</div>
+      <div class="line">
+        <span class="field">referencedBy: <span class="v">[ ]</span></span>
+        <span class="verdict amber">the clock starts</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 10 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="inner">
     <div class="eyebrow">Why it stays safe</div>
     <h2>Restart the controller mid-delete and nothing leaks.</h2>
     <p class="lede wide">It misses the event, then works out the truth on the next pass and starts the
-    clock late, the safe direction to be wrong in.</p>
+    clock late. Late is the safe direction to be wrong in.</p>
     <p class="lede wide">A destroy that fails holds its finalizer rather than forgetting the container
     existed. The system would rather stall visibly than lose track.</p>
   </div>
 </section>
 
-<!-- 10 --------------------------------------------------------------- -->
+<!-- 11 --------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">On a laptop, standing in for</div>
+    <div class="eyebrow">Running this for real</div>
     <h2>Everything maps to something real.</h2>
     <table>
       <thead><tr><th style="width:45%">Production</th><th>This proof of concept</th></tr></thead>
@@ -297,7 +498,7 @@
   </div>
 </section>
 
-<!-- 11 --------------------------------------------------------------- -->
+<!-- 12 --------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">How it is known to work</div>
@@ -312,7 +513,7 @@
   </div>
 </section>
 
-<!-- 12 --------------------------------------------------------------- -->
+<!-- 13 --------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">Honestly</div>
@@ -328,66 +529,51 @@
   </div>
 </section>
 
-<!-- 13 --------------------------------------------------------------- -->
+<!-- 14 --------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">See it</div>
     <h1>Three minutes,<br>one command.</h1>
-    <p class="lede wide">A local console starts the whole thing and shows you what it made:
-    claims, containers, and the retention clock running down while you watch.</p>
-    <pre class="code">python3 console/serve.py</pre>
+    <p class="lede wide">A local console starts the whole thing and shows you what it made: claims,
+    containers, and the retention clock running down while you watch.</p>
+<pre class="code"><span class="k">$</span> python3 console/serve.py
+<span class="k">$</span> open <span class="v">http://127.0.0.1:8090</span></pre>
   </div>
 </section>
 
 </div>
 
-<div class="bar">
-  <span class="count"><b id="now">1</b> / <span id="total">13</span></span>
-  <span class="name" id="name" aria-live="polite"></span>
-  <span class="ctrls">
-    <button class="nav" id="prev" type="button" aria-label="Previous slide">
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+<div class="bar" id="bar"></div>
+
+<div class="foot">
+  <span id="where">1 / 14</span>
+  <div class="nav">
+    <button id="prev" aria-label="Previous slide">
+      <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg>
     </button>
-    <button class="nav" id="next" type="button" aria-label="Next slide">
-      <svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    <button id="next" aria-label="Next slide">
+      <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
     </button>
-  </span>
+  </div>
 </div>
-<div class="prog" aria-hidden="true"><i id="fill"></i></div>
 
 <script>
 (function(){
   "use strict";
   var slides = Array.prototype.slice.call(document.querySelectorAll('.slide'));
-  var now = document.getElementById('now');
-  var total = document.getElementById('total');
-  var name = document.getElementById('name');
-  var fill = document.getElementById('fill');
+  var where = document.getElementById('where');
+  var bar = document.getElementById('bar');
   var prev = document.getElementById('prev');
   var next = document.getElementById('next');
   var i = 0;
 
-  /* The slide names itself: the footer reads the heading it is standing on,
-     so nothing here has to be kept in sync by hand. */
-  function label(s){
-    var h = s.querySelector('h1, h2');
-    return h ? h.textContent.replace(/\s+/g, ' ').trim() : '';
-  }
-
-  total.textContent = slides.length;
-
   function go(n){
     i = Math.max(0, Math.min(slides.length - 1, n));
     slides.forEach(function(s, k){ s.classList.toggle('on', k === i); });
-
-    var t = label(slides[i]);
-    now.textContent = i + 1;
-    name.textContent = t;
-    fill.style.width = ((i + 1) / slides.length * 100) + '%';
+    where.textContent = (i + 1) + ' / ' + slides.length;
+    bar.style.width = ((i + 1) / slides.length * 100) + '%';
     prev.disabled = i === 0;
     next.disabled = i === slides.length - 1;
-    document.title = (t ? t + ' · ' : '') + 'JIT Infra';
-
     if(history.replaceState) history.replaceState(null, '', '#' + (i + 1));
   }
 
@@ -400,9 +586,8 @@
     else if(e.key === 'Home'){ go(0); }
     else if(e.key === 'End'){ go(slides.length - 1); }
     else if(e.key === 'f'){
-      var p = document.fullscreenElement ? document.exitFullscreen()
-                                         : document.documentElement.requestFullscreen();
-      if(p && p.catch) p.catch(function(){});
+      if(document.fullscreenElement) document.exitFullscreen();
+      else document.documentElement.requestFullscreen();
     }
   });
 

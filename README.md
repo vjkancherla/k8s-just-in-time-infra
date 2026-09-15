@@ -13,7 +13,8 @@ Proof of concept on k3d. **Not production grade** — see [Limits](#limits).
 ## Table of Contents
 
 1. [Start here: the console](#start-here-the-console)
-2. [What it does](#what-it-does)
+2. [See it first: the walkthrough](#see-it-first-the-walkthrough)
+3. [What it does](#what-it-does)
 3. [How it works](#how-it-works)
    - [Architecture at a glance](#architecture-at-a-glance)
    - [The two things worth knowing](#the-two-things-worth-knowing)
@@ -80,6 +81,21 @@ would be the thing you debug instead of the system.
 > [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md); to run the same steps by
 > hand, one command at a time, see
 > [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md).
+
+---
+
+## See it first: the walkthrough
+
+Before reading anything else, open the slide deck. It walks through the whole system
+in nine slides — what the annotations do, how the controller provisions infra, the
+two-speed cleanup, and why the design is split the way it is.
+
+```bash
+open docs/how-it-works-presentation.html
+```
+
+No server, no dependencies, no build step. One HTML file, opens in any browser, arrow
+keys to navigate. Everything it shows is in this repo.
 
 ---
 
@@ -335,6 +351,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |   +-- checks/              <- frozen checkpoint scripts, one per step
 |
 +-- docs/
+    +-- how-it-works-presentation.html <- visual walkthrough: open in browser, arrow keys
     +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
     +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
     +-- runner-api.md        <- runner HTTP API reference
@@ -361,6 +378,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 
 | Document | What it covers | Read when |
 |---|---|---|
+| [`docs/how-it-works-presentation.html`](docs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Nine slides, arrow keys, no dependencies |
 | [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
 | [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
 | [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, the full allowlist, Demo vs Testing modes, how to add an action, known rough edges | Running or changing the console |
