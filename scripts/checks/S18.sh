@@ -25,6 +25,13 @@
 # docs/evidence/s18-checkpoint-destroy.log records the 11-name failure against a 12-name Makefile,
 # and the same file's PASS once the name was added.
 #
+# Extended 2026-09-15, on the human's instruction to proceed with S21 - the one approval that
+# step's tracker line asked for ("proceed with s20 and s21"): `claim`, the page's on-demand read,
+# and `timeline`, S21's read model, joined the console's allowlist, twelve names to fourteen. Two
+# names added to the array below; the assertion code and every `ok:` line are unchanged.
+# docs/evidence/s18-amendment-timeline.log records the twelve-name FAIL against a fourteen-name
+# Makefile, and this file's PASS once the two names were added.
+#
 # Precondition: the demo stack is up (make demo-up). This checkpoint asserts against a
 # live cluster; it fails rather than skips if there is nothing there.
 set -euo pipefail
@@ -34,7 +41,7 @@ cd "$(dirname "$0")/../.."
 fail() { echo "FAIL: $1"; exit 1; }
 ok()   { echo "  ok: $1"; }
 
-TARGETS=(demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state targets)
+TARGETS=(demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim timeline targets)
 
 # ---------------------------------------------------------------- 1. allowlist exists
 target_defined() { { make -pRrq : 2>/dev/null || true; } | grep -Eq "^$1:( |$)"; }
