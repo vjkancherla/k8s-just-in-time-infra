@@ -1,7 +1,8 @@
 Updated: 2026-09-15
 
 ## Working
-Stage G's gates are written and run. S21 (the timeline) is not implemented; S19 has one open finding.
+S19 is fixed and its gate prints PASS, check-ticked at `7210a8d`; the review box is open. S21 is not
+implemented - its gate fails with "no make target 'timeline'", as written.
 
 ## Done (verified)
 - `docs/todo.md` and `docs/build-plan.md` carry Stage G - S19, S20, S21, two boxes each - with the timeline's
@@ -14,11 +15,11 @@ Stage G's gates are written and run. S21 (the timeline) is not implemented; S19 
   four lanes, sub-second controller events, and `docker inspect` showing postgres Created 18:50:46 →
   Started 18:52:27, which is R9's `docker restart` showing up on the same axis as the app.
 - `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` restored (it was in neither the tree nor history).
+- S19 fixed behind its gate: the snapshot mode and its three `make console` references are gone, the page
+  always polls `/state`; 7 assertions pass (`205aedc..7210a8d`), review box still open.
 
 ## Broken (confirmed by execution)
-- S19 stops on one assertion: the page names `make console` and the Makefile defines no such target. The same
-  file as a one-line copy passes all six other assertions, so that reference is the only gap.
-- S21 fails with "no make target 'timeline'" - expected, and the point of writing the gate first.
+- Nothing reproducible. S19's finding is fixed and its gate passes; S21's missing target is the gate working.
 
 ## Suspected (read, not reproduced)
 - Nothing new. The three carried from 2026-09-13 stand: postgres's password can disagree across its data
@@ -29,7 +30,7 @@ Stage G's gates are written and run. S21 (the timeline) is not implemented; S19 
 S21: not started. Its gate fails until `scripts/timeline.sh` and `make timeline` exist.
 
 ## Blocked
-- S19's finding and the S18 amendment both wait on the human. Nothing else blocks.
+- S19's review and the S18 amendment both wait on the human. Nothing else blocks.
 
 ## Learnings
 - Write the gate first and it tells the truth: S21's FAIL named the missing target, and S19's FAIL found a

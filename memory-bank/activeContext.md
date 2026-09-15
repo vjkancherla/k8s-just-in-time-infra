@@ -2,12 +2,12 @@ Updated: 2026-09-15
 
 ## Current focus
 Stage G exists and its gates were written before the code: S19 (the page), S20 (the proxy), S21
-(`make timeline`, build A). Run today - S20 PASS (`docs/evidence/s20-retro-check.log`); S21 FAIL "no make
-target 'timeline'", which is the right state for a gate written first; S19 FAIL on one finding.
+(`make timeline`, build A). **S19 is done and check-ticked** (`205aedc..7210a8d`) - the page named
+`make console`, a target that never existed, so the snapshot mode and its three references are gone
+and the gate prints PASS. Its review is the next gate, not mine to pass.
 
 ## Blocked
-- S19's finding: `console/index.html` tells the reader to run `make console` in three places and no such
-  target exists. Build the inliner or cut the references - needs a ruling.
+- Nothing blocks work. S19's review box is open until `docs/reviews/S19-findings.md` says CLEAR.
 - `scripts/checks/S18.sh` awaits an amendment: `claim` and now `timeline`, 12 → 14 names, unexecuted until
   approved - then `make targets` and the frozen array agree again.
 
@@ -27,8 +27,8 @@ target 'timeline'", which is the right state for a gate written first; S19 FAIL 
   S21: FAIL first, as written. S17 untouched: `make verify` = 17 PASS.
 
 ## Next step
-Human: rule on `make console` (build the inliner or cut the three references) and approve the S18 amendment
-to 14 names. Then S21 is implemented behind its gate, and one `make timeline` run is diffed against the probe.
+Switch model, fresh task, paste `docs/reviews/S19-review-prompt.md`. Do not start S20 until
+`S19-findings.md` says CLEAR. Then S20 (its gate already passes), then S21 behind its gate.
 
 ## Watch out
 - No phase transition is timestamped and the claims carry no conditions, so `claim.ready` lives only in the

@@ -1,0 +1,43 @@
+# S19 retro-checkpoint, run against the page as it stands (2026-09-15).
+# Frozen file: scripts/checks/S19.sh - the FAIL below is the finding.
+
+  ok: one file, no external script and no external stylesheet
+  ok: all 10 buttons are targets make targets lists
+  ok: every button is one plain make command
+FAIL: the page tells the user to run 'make console', which the Makefile does not define
+rc=1
+
+# The same file as a one-line copy in /tmp (cd pointed at the repo), with only the
+# "make console" assertion skipped, by | : instead of || fail. Everything else passes,
+# so that one reference is S19 s only finding.
+
+  ok: one file, no external script and no external stylesheet
+  ok: all 10 buttons are targets make targets lists
+  ok: every button is one plain make command
+  ok: every target the page names is defined (console )
+  ok: the page calls only the console's endpoints (/claim /log /run /state )
+  ok: poll() keeps the last good state when /state fails
+  ok: every field the page reads exists in make state
+PASS
+rc=0
+
+# After the fix - the snapshot mode cut, the three `make console` references gone.
+# scripts/checks/S19.sh, unchanged apart from the mechanics note in its header:
+
+  ok: one file, no external script and no external stylesheet
+  ok: all 10 buttons are targets make targets lists
+  ok: every button is one plain make command
+  ok: every target the page names is defined ()
+  ok: the page calls only the console's endpoints (/claim /log /run /state )
+  ok: poll() keeps the last good state when /state fails
+  ok: every field the page reads exists in make state
+PASS
+
+# Assertion 3 still has teeth: the same file with PAGE re-pointed at a copy of the
+# page that names `make console` again, which must FAIL.
+
+  ok: one file, no external script and no external stylesheet
+  ok: all 10 buttons are targets make targets lists
+  ok: every button is one plain make command
+FAIL: the page tells the user to run 'make console', which the Makefile does not define
+rc=1
