@@ -1,13 +1,12 @@
 Updated: 2026-09-15
 
 ## Current focus
-Stage G exists and its gates were written before the code: S19 (the page), S20 (the proxy), S21
-(`make timeline`, build A). **S19 is done and check-ticked** (`205aedc..7210a8d`) - the page named
-`make console`, a target that never existed, so the snapshot mode and its three references are gone
-and the gate prints PASS. Its review is the next gate, not mine to pass.
+Stage G's gates were written before the code: S19 (the page), S20 (the proxy), S21 (`make timeline`, build A).
+**S19 is closed** - checkpoint PASS, review CLEAR (Opus 4.6, no blockers, two concerns in
+`docs/reviews/S19-findings.md`), both boxes ticked. S20 is next and its gate already passes.
 
 ## Blocked
-- Nothing blocks work. S19's review box is open until `docs/reviews/S19-findings.md` says CLEAR.
+- Nothing blocks work.
 - `scripts/checks/S18.sh` awaits an amendment: `claim` and now `timeline`, 12 → 14 names, unexecuted until
   approved - then `make targets` and the frozen array agree again.
 
@@ -23,12 +22,12 @@ and the gate prints PASS. Its review is the next gate, not mine to pass.
   questions.
 
 ## Checkpoints
-- S18: red by design until amended (12 vs 14 names). S19: PASS, check-ticked, review open. S20: PASS.
+- S18: red by design until amended (12 vs 14 names). S19: PASS + CLEAR, both boxes ticked. S20: PASS.
   S21: FAIL first, as written. S17 untouched: `make verify` = 17 PASS.
 
 ## Next step
-Switch model, fresh task, paste `docs/reviews/S19-review-prompt.md`. Do not start S20 until
-`S19-findings.md` says CLEAR. Then S20 (its gate already passes), then S21 behind its gate.
+Run S20's step: re-run `scripts/checks/S20.sh` (it passes), tick its check box, commit, emit
+`docs/reviews/S20-review-prompt.md` from the template, stop. S21 needs the S18 amendment first.
 
 ## Watch out
 - No phase transition is timestamped and the claims carry no conditions, so `claim.ready` lives only in the

@@ -86,7 +86,7 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
 The page and the proxy were built outside the plan, so S19 and S20 are retro-checkpoints:
 written from `build-plan.md`'s Goal, then run against the code as it stands.
 
-- [x] check  - [ ] review  **S19** The page reads `make state` and the proxy, and offers no button the allowlist cannot run
+- [x] check  - [x] review  **S19** The page reads `make state` and the proxy, and offers no button the allowlist cannot run
 - [ ] check  - [ ] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
 - [ ] check  - [ ] review  **S21** `make timeline`: every event with a time and a source  ← needs S18's array amended to 14 names (`claim`, `timeline`), one approval
 
