@@ -1,12 +1,12 @@
 == 1/6  cd app && make destroy   (the cold path: the app must be created after jit-up)
 Deleting Kubernetes resources from 'voting-app' using ./kustomize/overlays/voting-a ...
-E0915 17:47:22.467622   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.467905   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.469067   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.469387   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.470469   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.470818   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:22.471797   18028 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.146993   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.147292   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.148398   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.148714   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.149809   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.150161   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:46.151131   29084 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
 unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
 unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
 unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
@@ -16,12 +16,12 @@ unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443
 unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
 
 Remaining voting-app workloads (if any):
-E0915 17:47:25.560594   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:25.560863   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:25.561939   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:25.562074   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:25.563228   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
-E0915 17:47:25.563363   18063 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.186693   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.186923   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.188080   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.188197   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.189405   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0915 19:48:49.189517   29141 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
 The connection to the server 127.0.0.1:6443 was refused - did you specify the right host or port?
   (none visible / cluster not reachable)
 
@@ -31,10 +31,6 @@ Cleanup complete.
 == 2/6  make jit-down   (the containers and the volumes they own outlive the cluster)
 no InfraClaims to remove
 InfraClaims gone; the infra they owned is destroyed
-removed leftover container voting-a-pgadmin-pgadmin
-removed leftover container voting-a-postgres-postgres
-removed leftover volume voting-a-postgres-postgres-data
-removed leftover container voting-a-redis-redis
 removed the controller
 Stopping runner...
 Runner stopped.
@@ -78,7 +74,7 @@ kubectl cluster-info
 #3 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/python:3.12-slim
-#2 DONE 0.9s
+#2 DONE 0.8s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 2B done
@@ -91,16 +87,16 @@ kubectl cluster-info
 #6 transferring context: 132B done
 #6 DONE 0.0s
 
-#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 [2/6] WORKDIR /app
 #7 CACHED
 
-#8 [2/6] WORKDIR /app
+#8 [3/6] COPY requirements.txt ./
 #8 CACHED
 
-#9 [5/6] COPY app.py ./
+#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
 #9 CACHED
 
-#10 [3/6] COPY requirements.txt ./
+#10 [5/6] COPY app.py ./
 #10 CACHED
 
 #11 [6/6] COPY templates/ ./templates/
@@ -115,13 +111,13 @@ kubectl cluster-info
 [36mINFO[0m[0000] Starting new tools node...                   
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
-[36mINFO[0m[0002] Importing images into nodes...               
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174753.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174753.tar' into node 'k3d-voting-app-agent-0'... 
-[36mINFO[0m[0006] Removing the tarball(s) from image volume... 
-[36mINFO[0m[0007] Removing k3d-tools node...                   
-[36mINFO[0m[0007] Successfully imported image(s)               
-[36mINFO[0m[0007] Successfully imported 1 image(s) into 1 cluster(s) 
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194916.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194916.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
 #0 building with "rancher-desktop" instance using docker driver
 
 #1 [internal] load build definition from Dockerfile
@@ -129,7 +125,7 @@ kubectl cluster-info
 #1 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/python:3.12-slim
-#2 DONE 0.4s
+#2 DONE 0.2s
 
 #3 [internal] load .dockerignore
 #3 transferring context: 2B done
@@ -163,13 +159,13 @@ kubectl cluster-info
 [36mINFO[0m[0000] Starting new tools node...                   
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
-[36mINFO[0m[0002] Importing images into nodes...               
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174801.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174801.tar' into node 'k3d-voting-app-agent-0'... 
-[36mINFO[0m[0004] Removing the tarball(s) from image volume... 
-[36mINFO[0m[0005] Removing k3d-tools node...                   
-[36mINFO[0m[0005] Successfully imported image(s)               
-[36mINFO[0m[0005] Successfully imported 1 image(s) into 1 cluster(s) 
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194921.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194921.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
 #0 building with "rancher-desktop" instance using docker driver
 
 #1 [internal] load build definition from Dockerfile
@@ -177,7 +173,7 @@ kubectl cluster-info
 #1 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/python:3.12-slim
-#2 DONE 0.3s
+#2 DONE 0.2s
 
 #3 [internal] load .dockerignore
 #3 transferring context: 2B done
@@ -190,13 +186,13 @@ kubectl cluster-info
 #5 transferring context: 133B done
 #5 DONE 0.0s
 
-#6 [3/6] COPY requirements.txt ./
+#6 [4/6] RUN pip install --no-cache-dir -r requirements.txt
 #6 CACHED
 
-#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 [2/6] WORKDIR /app
 #7 CACHED
 
-#8 [2/6] WORKDIR /app
+#8 [3/6] COPY requirements.txt ./
 #8 CACHED
 
 #9 [5/6] COPY app.py ./
@@ -215,12 +211,12 @@ kubectl cluster-info
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
 [36mINFO[0m[0001] Importing images into nodes...               
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174807.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174807.tar' into node 'k3d-voting-app-agent-0'... 
-[36mINFO[0m[0004] Removing the tarball(s) from image volume... 
-[36mINFO[0m[0005] Removing k3d-tools node...                   
-[36mINFO[0m[0005] Successfully imported image(s)               
-[36mINFO[0m[0005] Successfully imported 1 image(s) into 1 cluster(s) 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194926.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194926.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
 Imported vote worker result into k3d cluster 'voting-app'.
 error: the InfraClaim CRD is not installed - the JIT stack must be up first.
        From the repo root, run 'make jit-up' (MinIO, runner, CRD, controller), then
@@ -235,8 +231,8 @@ importing jit-controller:latest into cluster 'voting-app'...
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
 [36mINFO[0m[0002] Importing images into nodes...               
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174813.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174813.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194930.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915194930.tar' into node 'k3d-voting-app-server-0'... 
 [36mINFO[0m[0005] Removing the tarball(s) from image volume... 
 [36mINFO[0m[0006] Removing k3d-tools node...                   
 [36mINFO[0m[0006] Successfully imported image(s)               
@@ -257,7 +253,7 @@ Building runner image...
 #3 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/debian:bookworm-slim
-#2 DONE 0.7s
+#2 DONE 1.4s
 
 #4 [internal] load .dockerignore
 #4 transferring context: 2B done
@@ -279,10 +275,10 @@ Building runner image...
 #9 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
 #9 CACHED
 
-#10 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#10 [5/7] COPY requirements.txt .
 #10 CACHED
 
-#11 [5/7] COPY requirements.txt .
+#11 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
 #11 CACHED
 
 #12 [7/7] COPY main.py .
@@ -297,7 +293,7 @@ Image built.
 Stopping runner...
 Runner stopped.
 Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
-9138507644d833181902383cc2bc459d70faa4f26b96fcf0049900f9c71c637a
+189ca7c440dccf36a59bca13e4d9a9ed68281f541157441494ef42b3b1f29565
 Runner started at 172.19.0.10.
 CRD infraclaims.jit.io established
 deployment "jit-controller" successfully rolled out
@@ -313,7 +309,7 @@ namespace/voting-a created
 #1 DONE 0.0s
 
 #2 [internal] load metadata for docker.io/library/python:3.12-slim
-#2 DONE 0.2s
+#2 DONE 0.5s
 
 #3 [internal] load .dockerignore
 #3 transferring context: 2B done
@@ -329,13 +325,13 @@ namespace/voting-a created
 #6 [5/6] COPY app.py ./
 #6 CACHED
 
-#7 [3/6] COPY requirements.txt ./
+#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
 #7 CACHED
 
 #8 [2/6] WORKDIR /app
 #8 CACHED
 
-#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#9 [3/6] COPY requirements.txt ./
 #9 CACHED
 
 #10 [6/6] COPY templates/ ./templates/
@@ -351,8 +347,8 @@ namespace/voting-a created
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
 [36mINFO[0m[0001] Importing images into nodes...               
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174825.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174825.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195019.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195019.tar' into node 'k3d-voting-app-agent-0'... 
 [36mINFO[0m[0003] Removing the tarball(s) from image volume... 
 [36mINFO[0m[0004] Removing k3d-tools node...                   
 [36mINFO[0m[0004] Successfully imported image(s)               
@@ -377,13 +373,13 @@ namespace/voting-a created
 #5 transferring context: 63B done
 #5 DONE 0.0s
 
-#6 [2/5] WORKDIR /app
+#6 [4/5] RUN pip install --no-cache-dir -r requirements.txt
 #6 CACHED
 
-#7 [3/5] COPY requirements.txt ./
+#7 [2/5] WORKDIR /app
 #7 CACHED
 
-#8 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#8 [3/5] COPY requirements.txt ./
 #8 CACHED
 
 #9 [5/5] COPY app.py ./
@@ -399,8 +395,8 @@ namespace/voting-a created
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
 [36mINFO[0m[0001] Importing images into nodes...               
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174830.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174830.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195023.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195023.tar' into node 'k3d-voting-app-agent-0'... 
 [36mINFO[0m[0003] Removing the tarball(s) from image volume... 
 [36mINFO[0m[0004] Removing k3d-tools node...                   
 [36mINFO[0m[0004] Successfully imported image(s)               
@@ -425,16 +421,16 @@ namespace/voting-a created
 #5 transferring context: 133B done
 #5 DONE 0.0s
 
-#6 [3/6] COPY requirements.txt ./
+#6 [5/6] COPY app.py ./
 #6 CACHED
 
-#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 [2/6] WORKDIR /app
 #7 CACHED
 
-#8 [5/6] COPY app.py ./
+#8 [3/6] COPY requirements.txt ./
 #8 CACHED
 
-#9 [2/6] WORKDIR /app
+#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
 #9 CACHED
 
 #10 [6/6] COPY templates/ ./templates/
@@ -450,8 +446,8 @@ namespace/voting-a created
 [36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
 [36mINFO[0m[0000] Saving 1 image(s) from runtime...            
 [36mINFO[0m[0001] Importing images into nodes...               
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174835.tar' into node 'k3d-voting-app-server-0'... 
-[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915174835.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195028.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260915195028.tar' into node 'k3d-voting-app-agent-0'... 
 [36mINFO[0m[0003] Removing the tarball(s) from image volume... 
 [36mINFO[0m[0004] Removing k3d-tools node...                   
 [36mINFO[0m[0004] Successfully imported image(s)               
