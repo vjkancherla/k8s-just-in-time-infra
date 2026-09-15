@@ -33,9 +33,7 @@ S21: not started. Its gate fails until `scripts/timeline.sh` and `make timeline`
 - S19's review and the S18 amendment both wait on the human. Nothing else blocks.
 
 ## Learnings
-- Write the gate first and it tells the truth: S21's FAIL named the missing target, and S19's FAIL found a
-  target the page had been telling readers to run, with nothing behind it.
-- A retro-checkpoint earns its place: point the design's own assertions at ad-hoc code and it surfaces exactly
-  the drift the ad-hoc work introduced - here, one reference out of three files' worth of additions.
+- Write the gate first and it tells the truth: S21's FAIL named the missing target, and S19's retro-checkpoint
+  found a target the page had been promising for a week - one reference out of three files' worth of additions.
 - A `/tmp` copy of a checkpoint cannot run as-is: it does `cd "$(dirname "$0")/../.."`, so point the copy's
   `cd` at the repo. With that one change the S19 probe runs and proves the rest of the file passes.
