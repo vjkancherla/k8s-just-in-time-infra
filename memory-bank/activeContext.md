@@ -15,7 +15,7 @@ and the gate prints PASS. Its review is the next gate, not mine to pass.
 - Retrospective timeline proven on live data by a 65-line read-only probe, not asserted: Deployment
   18:50:32Z → claims 18:50:33Z → postgres container 18:50:46 → runner 200 at 18:50:47.131 → Secret
   18:50:47 → all three modules up 18:51:05 → worker pod 18:52:13. Gaps real, every source named.
-- Three gates written from their Goal text and run: `scripts/checks/S19.sh` (6 assertions), `S20.sh` (6),
+- Three gates written from their Goal text and run: `scripts/checks/S19.sh` (7 assertions), `S20.sh` (6),
   `S21.sh` (7, three of which re-derive events from `kubectl`, `docker inspect` and the runner's log).
 - `docs/todo.md` + `docs/build-plan.md` carry Stage G: two boxes per step, the timeline's JSON shape, its
   five lanes, its thirteen kinds, and the S18 amendment - all fixed before implementation.
@@ -23,7 +23,7 @@ and the gate prints PASS. Its review is the next gate, not mine to pass.
   questions.
 
 ## Checkpoints
-- S18: red by design until amended (12 vs 13 names today, 14 after). S19: FAIL (one finding). S20: PASS.
+- S18: red by design until amended (12 vs 14 names). S19: PASS, check-ticked, review open. S20: PASS.
   S21: FAIL first, as written. S17 untouched: `make verify` = 17 PASS.
 
 ## Next step
@@ -36,5 +36,5 @@ Switch model, fresh task, paste `docs/reviews/S19-review-prompt.md`. Do not star
   posts events only from explicit calls (`loggers=False`) and they expire in about an hour.
 - `app/opencode.jsonc` is ignored but on disk, holding a live-looking DeepSeek key. Rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
-- `/tmp/timeline_probe.py` and `/tmp/S19-probe.sh` are throwaway; the durable record is the three
-  `docs/evidence/*-retro-check.log` and `*-pre-implementation.log` runs.
+- `/tmp` probes are throwaway; the durable record is `docs/evidence/s19-retro-check.log`, `s20-retro-check.log`,
+  `s21-pre-implementation.log`. HEAD is 4 commits ahead of `origin/main` (unpushed) and `state.log` stays dirty.
