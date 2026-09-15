@@ -331,31 +331,7 @@
 
 <div class="foot"><div class="wrap"><span id="footNote"></span></div></div>
 
-<!-- Replaced by `make console`. Delete the contents and the page fetches /state instead. -->
-<script type="application/json" id="state">
-{
-  "up": true,
-  "generatedAt": "2026-09-12T09:41:06Z",
-  "namespaces": [
-    { "name": "voting-a", "block": "172.19.0.100-109", "claims": [
-      { "module": "redis",    "phase": "Ready",    "address": "172.19.0.100", "referencedBy": ["vote","worker"], "expiresAt": null },
-      { "module": "postgres", "phase": "Orphaned", "address": "172.19.0.101", "referencedBy": [], "expiresAt": "2099-01-01T00:01:40Z" },
-      { "module": "pgadmin",  "phase": "Ready",    "address": "172.19.0.102", "referencedBy": ["vote"], "expiresAt": null } ] }
-  ],
-  "containers": [
-    { "name": "voting-a-redis-redis",       "address": "172.19.0.100", "running": true },
-    { "name": "voting-a-postgres-postgres", "address": "172.19.0.101", "running": true },
-    { "name": "voting-a-pgadmin-pgadmin",   "address": "172.19.0.102", "running": true },
-    { "name": "jit-runner",                 "address": "172.19.0.10",  "running": true },
-    { "name": "jit-minio",                  "address": "172.19.0.11",  "running": true }
-  ],
-  "stateObjects": [
-    "ns/voting-a/redis/terraform.tfstate",
-    "ns/voting-a/postgres/terraform.tfstate",
-    "ns/voting-a/pgadmin/terraform.tfstate"
-  ]
-}
-</script>
+<!-- The page is served by console/serve.py (`python3 console/serve.py`) and polls /state. -->
 
 <script>
 (function(){
@@ -377,22 +353,15 @@ var ACTIONS = [
   {mode:'test', name:'destroy',      cmd:'make destroy',            t:'Delete everything',         d:'The plane first, then the k3d cluster and the generated secret. Nothing is left; about three minutes to get back.', hint:'destroy', danger:true}
 ];
 
-var S = {data:null, mode:'demo', ns:0, live:false, busy:null, feed:[], seen:null, picked:null};
+var S = {data:null, mode:'demo', ns:0, busy:null, feed:[], seen:null, picked:null};
 var $ = function(id){ return document.getElementById(id); };
 
-/* ─── state source: inlined by `make console`, or fetched when served ──── */
-function readInlined(){
-  var el = $('state');
-  if(!el) return null;
-  var raw = el.textContent.trim();
-  if(!raw) return null;
-  try { return JSON.parse(raw); } catch(e){ return null; }
-}
+/* ─── state: the read model, fetched from the console process ──────────── */
 async function poll(){
   try{
     var r = await fetch('/state', {cache:'no-store'});
     if(!r.ok) throw 0;
-    S.data = await r.json(); S.live = true; render();
+    S.data = await r.json(); render();
   }catch(e){ /* keep the last good state */ }
 }
 
@@ -478,13 +447,6 @@ function lineClass(l){
   if(/still running|ignored|swept|Orphaned/.test(l)) return 'warn';
   return '';
 }
-function copy(a, btn){
-  navigator.clipboard.writeText(a.cmd).then(function(){
-    var t = btn.querySelector('.tgt'), old = t.textContent;
-    t.textContent = 'copied'; setTimeout(function(){ t.textContent = old; }, 1400);
-  });
-}
-
 /* ─── render ───────────────────────────────────────────────────────────── */
 function phaseClass(p){
   return p === 'Ready' ? 'ready' : p === 'Orphaned' ? 'orphaned' : p === 'Failed' ? 'failed' : 'other';
@@ -508,9 +470,9 @@ function renderActions(){
                   '<span class="tgt"></span>';
     b.querySelector('.t').textContent = a.t;
     b.querySelector('.d').textContent = a.d;
-    b.querySelector('.tgt').textContent = S.live ? (a.hint || '') : 'copy';
+    b.querySelector('.tgt').textContent = a.hint || '';
     b.title = a.cmd;
-    b.addEventListener('click', function(){ S.live ? run(a) : copy(a, b); });
+    b.addEventListener('click', function(){ run(a); });
     host.appendChild(b);
   });
 
@@ -614,16 +576,14 @@ function renderNamespaces(){
       who.textContent = r.ns.name + (r.c.address ? '  \u00b7  ' + r.c.address : '');
       if(multi) who.style.color = 'var(--ink-2)';
 
-      if(S.live){
-        var key = r.ns.name + '/' + r.c.module;
-        el.classList.add('pick');
-        if(S.picked === key) el.classList.add('on');
-        el.title = 'Show the InfraClaim object';
-        el.addEventListener('click', function(){
-          S.picked = (S.picked === key) ? null : key;
-          showClaim(r.ns.name, r.c.module);
-        });
-      }
+      var key = r.ns.name + '/' + r.c.module;
+      el.classList.add('pick');
+      if(S.picked === key) el.classList.add('on');
+      el.title = 'Show the InfraClaim object';
+      el.addEventListener('click', function(){
+        S.picked = (S.picked === key) ? null : key;
+        showClaim(r.ns.name, r.c.module);
+      });
       el.querySelector('.sentence').innerHTML = claimSentence(r.c, r.ns);
       grid.appendChild(el);
     });
@@ -860,7 +820,7 @@ function frame(host, url, message){
 function render(){
   if(!S.data){
     $('setupH1').textContent = 'No state.';
-    $('setupSub').textContent = 'Run `make console` to generate this page, or serve it from the console process.';
+    $('setupSub').textContent = 'Serve this page from the console process: python3 console/serve.py';
     return;
   }
   var d = S.data;
@@ -891,9 +851,7 @@ function render(){
     claims.length + (claims.length === 1 ? ' claim, ' : ' claims, ') +
     running + (running === 1 ? ' container' : ' containers') +
     (orphaned ? ', one on the clock. ' : '. ');
-  $('setupSub').textContent = counts + (S.live
-    ? 'Each row runs one make target and streams it back here.'
-    : 'This is a snapshot — each row copies its command instead.');
+  $('setupSub').textContent = counts + 'Each row runs one make target and streams it back here.';
 
   document.querySelectorAll('.seg.mid button').forEach(function(b){
     if(b.dataset.view !== 'setup') b.classList.toggle('sleeping', !d.up);
@@ -917,9 +875,7 @@ function render(){
       'docs/evidence/, the page just does not read it back.</span>';
   }
 
-  $('footNote').textContent = S.live
-    ? 'Live. Polling make state every 2s.'
-    : 'Snapshot generated ' + (d.generatedAt || 'unknown') + '. Re-run make console to refresh.';
+  $('footNote').textContent = 'Live. Polling make state every 2s.';
 }
 
 function esc(t){
@@ -975,7 +931,6 @@ function renderGuide(){
 }
 
 /* ─── boot ─────────────────────────────────────────────────────────────── */
-S.data = readInlined();
 render();
 
 setInterval(ticks, 1000);
@@ -983,9 +938,9 @@ fetch('/state', {cache:'no-store'}).then(function(r){
   if(!r.ok) throw 0;
   return r.json();
 }).then(function(j){
-  S.data = j; S.live = true; render();
+  S.data = j; render();
   setInterval(poll, 2000);
-}).catch(function(){ /* static mode; the inlined state stands */ });
+}).catch(function(){ /* /state did not answer; the page stays on "No state." */ });
 })();
 </script>
 </body>

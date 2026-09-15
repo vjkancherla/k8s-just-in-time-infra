@@ -17,7 +17,7 @@ Ctrl-C stops it. Nothing is left running.
 | `index.html` | the page. One file, no build step, no dependencies |
 | `serve.py` | serves the page, calls `make state`, runs an allowlist of make targets |
 
-Three endpoints, and that is the whole surface:
+Four endpoints, and that is the whole surface:
 
 - `GET /` — the page
 - `GET /state` — `make state`
