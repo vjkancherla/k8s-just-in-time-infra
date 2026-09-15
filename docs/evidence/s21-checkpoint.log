@@ -1,0 +1,33 @@
+  ok: make timeline is defined and make targets lists it
+  ok: scripts/timeline.sh exists
+  ok: make timeline degrades to up=false instead of erroring
+  ok: make timeline emits one JSON object with up/generatedAt/t0/events
+  ok: every event carries t/lane/kind/subject/source, sorted, with no computed intervals
+  ok: 36 events across 5 lanes, spanning 114s
+  ok: three events re-derive from kubectl, docker inspect and the runner's own log
+  ok: make state's document carries no timeline
+PASS
+
+# The same checkpoint against a copy of timeline.sh that reports one event one second early -
+# assertion 6 is the only one that can catch it, and it does:
+
+  ok: make timeline is defined and make targets lists it
+  ok: scripts/timeline.sh exists
+  ok: make timeline degrades to up=false instead of erroring
+  ok: make timeline emits one JSON object with up/generatedAt/t0/events
+  ok: every event carries t/lane/kind/subject/source, sorted, with no computed intervals
+  ok: 36 events across 5 lanes, spanning 114s
+FAIL: container.started says 2026-09-15T18:50:52.417868364Z, docker says 2026-09-15T18:50:53.417868364Z
+FAIL: the timeline disagrees with kubectl, docker or the runner's log (see the FAIL line above)
+
+# Restored, unchanged: the same file, PASS again.
+
+  ok: make timeline is defined and make targets lists it
+  ok: scripts/timeline.sh exists
+  ok: make timeline degrades to up=false instead of erroring
+  ok: make timeline emits one JSON object with up/generatedAt/t0/events
+  ok: every event carries t/lane/kind/subject/source, sorted, with no computed intervals
+  ok: 36 events across 5 lanes, spanning 114s
+  ok: three events re-derive from kubectl, docker inspect and the runner's own log
+  ok: make state's document carries no timeline
+PASS

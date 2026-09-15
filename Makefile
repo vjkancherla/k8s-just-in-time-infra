@@ -17,9 +17,9 @@
 #
 # A target that runs appends its output to docs/evidence/<target>.log and keeps its exit code:
 # `| tee` would hand make tee's status, so each recipe re-exits on ${PIPESTATUS[0]}. `state`,
-# `claim` and `targets` are read rather than run - their stdout *is* the payload the console
-# parses - so nothing else may touch it; `claim` keeps stderr on stderr, because that is the
-# error the page shows rather than a log line.
+# `claim`, `timeline` and `targets` are read rather than run - their stdout *is* the payload the
+# console parses - so nothing else may touch it; `claim` keeps stderr on stderr, because that is
+# the error the page shows rather than a log line.
 
 SHELL := /bin/bash
 
@@ -31,10 +31,11 @@ EVIDENCE := docs/evidence
 DEMO_NS ?= voting-a
 TENANTS := voting-a voting-b
 
-# The allowlist, in the order the design's action table gives it, plus `claim` - the one claim the
-# page fetches on demand rather than as a button. `make targets` prints exactly this list, and the
-# console builds its buttons from that output.
-CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim targets
+# The allowlist, in the order the design's action table gives it, plus the two the page reads on
+# demand rather than as buttons: `claim` (one InfraClaim as YAML) and `timeline` (S21's record of
+# what happened). `make targets` prints exactly this list, and the console builds its buttons from
+# that output.
+CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim timeline targets
 
 .DEFAULT_GOAL := help
 
@@ -123,6 +124,11 @@ state: ## Print the read model: one JSON object, from kubectl, the ledger, docke
 claim: ## Print one InfraClaim as YAML: make claim NS=voting-a MODULE=redis
 	@if [ -z "$(NS)" ] || [ -z "$(MODULE)" ]; then echo "FAIL: claim needs NS= and MODULE=" >&2; exit 1; fi
 	@kubectl get infraclaim $(NS)-$(MODULE) -n $(NS) -o yaml
+
+.PHONY: timeline
+timeline: ## Print the timeline: one JSON object, every event with a time and a source
+	@mkdir -p $(EVIDENCE)
+	@./$(SCRIPTS)/timeline.sh | tee -a $(EVIDENCE)/timeline.log; exit $${PIPESTATUS[0]}
 
 .PHONY: targets
 targets: ## Print the console's allowlist, one target per line (its buttons come from this)
