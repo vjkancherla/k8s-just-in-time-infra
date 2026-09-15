@@ -31,3 +31,12 @@ FAIL: the timeline disagrees with kubectl, docker or the runner's log (see the F
   ok: three events re-derive from kubectl, docker inspect and the runner's own log
   ok: make state's document carries no timeline
 PASS
+  ok: make timeline is defined and make targets lists it
+  ok: scripts/timeline.sh exists
+  ok: make timeline degrades to up=false instead of erroring
+  ok: make timeline emits one JSON object with up/generatedAt/t0/events
+  ok: every event carries t/lane/kind/subject/source, sorted, with no computed intervals
+  ok: 36 events across 5 lanes, spanning 4408s
+  ok: three events re-derive from kubectl, docker inspect and the runner's own log
+  ok: make state's document carries no timeline
+PASS

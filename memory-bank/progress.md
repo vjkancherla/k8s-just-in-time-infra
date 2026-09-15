@@ -1,40 +1,39 @@
 Updated: 2026-09-15
 
 ## Working
-S19 is closed - checkpoint PASS, review CLEAR, both boxes ticked. S20 is next and its gate already passes.
-S21 is not implemented; its gate fails with "no make target 'timeline'", as written.
+Stage G is complete except for review: S20 ticked and green, S21 built, ticked and green, S18's array
+amended and green, both review prompts emitted and waiting on a different model.
 
 ## Done (verified)
-- S19 closed: review CLEAR, no blockers; the two concerns live in `docs/reviews/S19-findings.md`.
-- `docs/todo.md` and `docs/build-plan.md` carry Stage G - S19, S20, S21, two boxes each - with the timeline's
-  JSON shape, five lanes, thirteen kinds and the S18 amendment fixed before any implementation.
-- `scripts/checks/S19.sh`, `S20.sh`, `S21.sh` written from their Goal text and run; evidence in
-  `docs/evidence/s19-retro-check.log`, `s20-retro-check.log`, `s21-pre-implementation.log`.
-- S20 PASS: 19 tests, 11 ALLOWED entries all allowlisted make targets, `POST /run/state` and `/run/targets`
-  404, `/deploy/.env` and `/Makefile` 404, `/state` answers, no shell, lock and log-offset tests present.
-- The retrospective timeline is proven feasible on live data, by a read-only probe rather than by argument:
-  four lanes, sub-second controller events, and `docker inspect` showing postgres Created 18:50:46 →
-  Started 18:52:27, which is R9's `docker restart` showing up on the same axis as the app.
-- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` restored (it was in neither the tree nor history).
-- S19's fix: the snapshot mode and its three `make console` references are gone, the page always polls
-  `/state`; 7 assertions pass (`205aedc..7210a8d`).
+- S20: gate PASS on a clean run - 19 tests, 11 ALLOWED entries all allowlisted make targets, POST
+  /run/state and /run/targets 404, the repo not served, /state answering, run-lock and log-offset tests
+  present. Two runs in docs/evidence/s20-retro-check.log.
+- S21: `scripts/timeline.sh` is a read model in state.sh's idiom - five sources, one JSON object, one
+  event per step per subject, first-seen wins, no computed intervals. Live run: 36 events, five lanes,
+  thirteen kinds, 18:50:32 -> 18:52:27, and 4408s once S18's redeploy was on the axis. `timeline` joined
+  CONSOLE_TARGETS, so `make targets` prints fourteen names.
+- S21's gate PASS three times, and FAILs as it must against a copy that reports one timestamp a second
+  early - docs/evidence/s21-checkpoint.log.
+- S18: array amended 12 -> 14 on the instruction to proceed with S21; docs/todo.md's pending-amendment
+  note is gone; 12-name FAIL then 14-name PASS in docs/evidence/s18-amendment-timeline.log.
+- Both prompts verified verbatim against REVIEW-PROMPT-TEMPLATE.md, twelve numbered questions each.
 
 ## Broken (confirmed by execution)
-- Nothing reproducible. S19's finding is fixed and its gate passes; S21's missing target is the gate working.
+- Nothing reproducible. Both FAILs this session were deliberate: the S21 teeth probe, and the 12-name
+  S18 array before its amendment.
 
 ## Suspected (read, not reproduced)
-- Nothing new. The three carried from 2026-09-13 stand: postgres's password can disagree across its data
-  directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks fail; `ipam.py`
-  has no lock of its own.
+- The three carried from 2026-09-13 stand: postgres's password can disagree across its data directory,
+  container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks fail; `ipam.py` has no
+  lock of its own.
 
 ## In progress
-S21: not started. Its gate fails until `scripts/timeline.sh` and `make timeline` exist.
+Nothing. Both steps stopped where the protocol says to: prompts emitted, next step not started.
 
 ## Blocked
-- S19's review and the S18 amendment both wait on the human. Nothing else blocks.
+- S20's and S21's reviews wait on a different model. Nothing else blocks.
 
 ## Learnings
-- Write the gate first and it tells the truth: S21's FAIL named the missing target, and S19's retro-checkpoint
-  found a target the page had been promising for a week - one reference out of three files' worth of additions.
-- A `/tmp` copy of a checkpoint cannot run as-is: it does `cd "$(dirname "$0")/../.."`, so point the copy's
-  `cd` at the repo. With that one change the S19 probe runs and proves the rest of the file passes.
+- A retro-checkpoint has no implementation commit to review, so the reviewed diff is the record commit; the
+  prompt's file list must name what the step touched, or question 4 blocks on the tracker and evidence files.
+- Write the gate first, then prove its teeth: S21's FAIL came from one timestamp moved one second.

@@ -1,39 +1,39 @@
 Updated: 2026-09-15
 
 ## Current focus
-Stage G's gates were written before the code: S19 (the page), S20 (the proxy), S21 (`make timeline`, build A).
-**S19 is closed** - checkpoint PASS, review CLEAR (Opus 4.6, no blockers, two concerns in
-`docs/reviews/S19-findings.md`), both boxes ticked. S20 is next and its gate already passes.
+Stage G is implemented end to end and waits only on review. S20 is ticked, S21 is built and ticked, S18's
+frozen array is amended and green, and both review prompts are emitted for one combined review.
 
 ## Blocked
-- Nothing blocks work.
-- `scripts/checks/S18.sh` awaits an amendment: `claim` and now `timeline`, 12 → 14 names, unexecuted until
-  approved - then `make targets` and the frozen array agree again.
+- Nothing blocks work. Two reviews are outstanding, and the Stage G gate needs both to say CLEAR.
 
 ## Done (verified)
-- Retrospective timeline proven on live data by a 65-line read-only probe, not asserted: Deployment
-  18:50:32Z → claims 18:50:33Z → postgres container 18:50:46 → runner 200 at 18:50:47.131 → Secret
-  18:50:47 → all three modules up 18:51:05 → worker pod 18:52:13. Gaps real, every source named.
-- Three gates written from their Goal text and run: `scripts/checks/S19.sh` (7 assertions), `S20.sh` (6),
-  `S21.sh` (7, three of which re-derive events from `kubectl`, `docker inspect` and the runner's log).
-- `docs/todo.md` + `docs/build-plan.md` carry Stage G: two boxes per step, the timeline's JSON shape, its
-  five lanes, its thirteen kinds, and the S18 amendment - all fixed before implementation.
-- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` restored from `S17-review-prompt.md`, six slots and all twelve
-  questions.
+- S20: `scripts/checks/S20.sh` PASS on a clean run - 19 tests, 11 ALLOWED entries all allowlisted make
+  targets, POST refused for reads and unknown names, the repo not served, run lock and log offset covered.
+  docs/evidence/s20-retro-check.log holds both runs.
+- S21: `scripts/timeline.sh` + `make timeline` read five sources into one JSON object - 36 events, five
+  lanes, all thirteen kinds for the live voting-a run. Gate PASS three times, including after S18's run
+  bounced the demo. Teeth shown: a copy reporting one timestamp a second early FAILs assertion 6.
+- S18 amendment: the frozen array went 12 -> 14 (`claim`, `timeline`) on the instruction to proceed with
+  S21. docs/evidence/s18-amendment-timeline.log holds the 12-name FAIL and the 14-name PASS.
+- `make targets` prints fourteen names; `make check STEP=18` = 12 ok lines and PASS.
+- docs/reviews/S20-review-prompt.md and S21-review-prompt.md emitted, both verified verbatim against the
+  template with all twelve questions.
 
 ## Checkpoints
-- S18: red by design until amended (12 vs 14 names). S19: PASS + CLEAR, both boxes ticked. S20: PASS.
-  S21: FAIL first, as written. S17 untouched: `make verify` = 17 PASS.
+- S18 PASS (amended). S20 PASS + ticked. S21 PASS + ticked. S19 unchanged: PASS + CLEAR, both boxes.
+  S17 untouched.
 
 ## Next step
-Run S20's step: re-run `scripts/checks/S20.sh` (it passes), tick its check box, commit, emit
-`docs/reviews/S20-review-prompt.md` from the template, stop. S21 needs the S18 amendment first.
+Hand both prompts to a different model together, as the human asked, and read only the findings files.
 
 ## Watch out
-- No phase transition is timestamped and the claims carry no conditions, so `claim.ready` lives only in the
-  controller's `--timestamps` log. A live view (S22) needs `kopf.info()` in the controller - kopf 1.44
-  posts events only from explicit calls (`loggers=False`) and they expire in about an hour.
-- `app/opencode.jsonc` is ignored but on disk, holding a live-looking DeepSeek key. Rotate it if it moves.
+- The S18 amendment's header records it as approved by "proceed with s20 and s21" - the one interpretive
+  call this session made. Correct that header if it was not the intended approval.
+- No page or proxy change for the timeline: S19's frozen checkpoint permits the page to call only /state,
+  /claim, /log and /run, so a /timeline endpoint would fail it. Drawing it is a later step.
+- Events sort by `t` as text, which is the frozen checkpoint's own order: within one second a fractional
+  stamp precedes a whole one.
+- `console/test_serve.py` leaves untracked `docs/evidence/console-<fake>.log` litter when it runs.
+- `app/opencode.jsonc` is ignored but on disk with a live-looking DeepSeek key; rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
-- `/tmp` probes are throwaway; the durable record is `docs/evidence/s19-retro-check.log`, `s20-retro-check.log`,
-  `s21-pre-implementation.log`. HEAD is 4 commits ahead of `origin/main` (unpushed) and `state.log` stays dirty.
