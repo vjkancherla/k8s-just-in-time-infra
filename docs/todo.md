@@ -32,6 +32,13 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
       `make targets`, and everything it displays comes from `make state`, which reads the same
       sources the frozen checks do. A page that computes its own phase or expiry would disagree
       with `make jit-verify` eventually, and the disagreement would be the thing you debug.
+- [x] **The timeline is a read model, not a controller change** - every timestamp it needs already
+      exists: object `creationTimestamp`s, `docker inspect`, the runner's access log, and the
+      controller's own `--timestamps` log, which is the only record of when a claim became Ready
+      (no phase transition is timestamped and the claims carry no conditions).
+- [x] **The timeline is a target of its own, not a key in `make state`** - it reads a log and
+      inspects containers, and `make state` is polled every two seconds. Putting it in that
+      document would make the console's own poll the expensive part of the demo.
 
 ## Stage Z - Before anything
 
@@ -73,6 +80,15 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
 ## Stage F - The console
 
 - [x] check  - [x] review  **S18** Every console action is one make target; `make state` is the read model
+
+## Stage G - The console, checkpointed
+
+The page and the proxy were built outside the plan, so S19 and S20 are retro-checkpoints:
+written from `build-plan.md`'s Goal, then run against the code as it stands.
+
+- [ ] check  - [ ] review  **S19** The page reads `make state` and the proxy, and offers no button the allowlist cannot run
+- [ ] check  - [ ] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
+- [ ] check  - [ ] review  **S21** `make timeline`: every event with a time and a source  ← needs S18's array amended to 14 names (`claim`, `timeline`), one approval
 
 ## Notes carried from the app's own docs
 

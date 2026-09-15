@@ -1,40 +1,40 @@
-Updated: 2026-09-13
+Updated: 2026-09-15
 
 ## Working
-`claim` is in and verified; S18's gate is red by design until the frozen-file amendment is approved.
+Stage G's gates are written and run. S21 (the timeline) is not implemented; S19 has one open finding.
 
 ## Done (verified)
-- `make claim NS=.. MODULE=..` sits beside `state` in the Makefile and in `CONSOLE_TARGETS`: one InfraClaim as
-  YAML with stderr left alone, so `serve.py`'s GET /claim shows kubectl's error verbatim. Verified live.
-- `docs/evidence/claim-allowlist.log`: the frozen file's 12-vs-13 FAIL (rc=1), then a one-line copy's twelve ok
-  lines and `PASS` (rc=0), plus that run's own `state.log` reads, which prove they were not vacuous.
-- Independent review (`docs/reviews/S18-findings.md`, `16fa4ad`): no blockers; four concerns, listed there.
-- Every target that runs appends `docs/evidence/<target>.log` and keeps its exit code; `make verify` exits on the
-  summary it wrote (0 at 17 PASS, 2 at 11 FAIL).
+- `docs/todo.md` and `docs/build-plan.md` carry Stage G - S19, S20, S21, two boxes each - with the timeline's
+  JSON shape, five lanes, thirteen kinds and the S18 amendment fixed before any implementation.
+- `scripts/checks/S19.sh`, `S20.sh`, `S21.sh` written from their Goal text and run; evidence in
+  `docs/evidence/s19-retro-check.log`, `s20-retro-check.log`, `s21-pre-implementation.log`.
+- S20 PASS: 19 tests, 11 ALLOWED entries all allowlisted make targets, `POST /run/state` and `/run/targets`
+  404, `/deploy/.env` and `/Makefile` 404, `/state` answers, no shell, lock and log-offset tests present.
+- The retrospective timeline is proven feasible on live data, by a read-only probe rather than by argument:
+  four lanes, sub-second controller events, and `docker inspect` showing postgres Created 18:50:46 →
+  Started 18:52:27, which is R9's `docker restart` showing up on the same axis as the app.
+- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` restored (it was in neither the tree nor history).
 
 ## Broken (confirmed by execution)
-- `make demo-up` (02:19 cold) exited 2: R-checks `12 PASS, 5 FAIL`, all five the Ingress-facing ones reporting curl
-  `code=000`, while R13/R16 — same curl, same URL — passed seconds later in the same run. Cause not established.
-- `make state` emits no `ingresses`/`ingressPorts` while `console/index.html:670` reads both, so the Voting-app
-  panes have no URLs to build (`console/README.md` names them as what the app panes point at).
+- S19 stops on one assertion: the page names `make console` and the Makefile defines no such target. The same
+  file as a one-line copy passes all six other assertions, so that reference is the only gap.
+- S21 fails with "no make target 'timeline'" - expected, and the point of writing the gate first.
 
 ## Suspected (read, not reproduced)
-- Postgres's password can disagree across its data directory, the container's `POSTGRES_PASSWORD` and the
-  `jit-postgres` Secret after a re-provisioning, leaving pods rejected — seen once, on a warm bring-up.
-- `app/scripts/verify.sh` still returns 0 however many R-checks fail, by design.
-- `ipam.py` has no lock of its own; `_allocated_ip` cannot tell a failed read from "no address".
+- Nothing new. The three carried from 2026-09-13 stand: postgres's password can disagree across its data
+  directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks fail; `ipam.py`
+  has no lock of its own.
 
 ## In progress
-Nothing.
+S21: not started. Its gate fails until `scripts/timeline.sh` and `make timeline` exist.
 
 ## Blocked
-- Nothing blocked. Only the S18 amendment waits, and it needs your approval rather than more work.
+- S19's finding and the S18 amendment both wait on the human. Nothing else blocks.
 
 ## Learnings
-- A checkpoint whose last assertions read the cluster can pass vacuously: a `make destroy` landing mid-run made two
-  of S18's ok lines true against zero claims. Read the run's own `state.log` reads before believing a PASS.
-- Link and anchor checks belong in a script: a README's `](#anchor)` targets and relative paths all validate in
-  one pass, and a checker that forgets to skip code fences reports phantom failures.
-- A frozen gate that cannot pass is a design question, not a checkpoint edit: prove it on a patched copy, leave
-  the frozen file byte-identical until the human rules, and the copy's PASS is the question's evidence.
-- `python3 - <<'PY' <<<"$data"`: the herestring wins on fd 0 — pass data as argv; `make -pRrq :` needs `|| true` first.
+- Write the gate first and it tells the truth: S21's FAIL named the missing target, and S19's FAIL found a
+  target the page had been telling readers to run, with nothing behind it.
+- A retro-checkpoint earns its place: point the design's own assertions at ad-hoc code and it surfaces exactly
+  the drift the ad-hoc work introduced - here, one reference out of three files' worth of additions.
+- A `/tmp` copy of a checkpoint cannot run as-is: it does `cd "$(dirname "$0")/../.."`, so point the copy's
+  `cd` at the repo. With that one change the S19 probe runs and proves the rest of the file passes.

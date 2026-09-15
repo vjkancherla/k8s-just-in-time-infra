@@ -608,6 +608,154 @@ fails rather than skipping if it is not.
 **Not in this step:** serving the page, the HTTP proxy, SSE. S19 is the page over
 `make state`; S20 is the proxy that POSTs to these targets.
 
+## Stage G - The console, checkpointed
+
+Stage F built the console's read model and its allowlist. The page and the proxy were
+then written outside the plan - they exist, they are in use, and neither had a
+checkpoint. S19 and S20 are the retro-checkpoints S18's "Not in this step" promised;
+S21 is new work behind a gate written first.
+
+A retro-checkpoint is written from this document's Goal, then run against the code as it
+already stands. If it fails, that is a finding about the ad-hoc work and is reported -
+not a reason to soften the assertion. S19 and S20 were written and run on 2026-09-15;
+what they found is in the step's findings file under `docs/reviews/`.
+
+S21 amends the frozen `scripts/checks/S18.sh` by one name (`timeline`), in the same
+amendment that adds `claim` - 12 names to 14, header note only, assertion code unchanged.
+
+### S19. The page over `make state`
+
+**Goal:** the page is one file with no build step, every button it offers is a make
+target `make targets` lists, it calls only the console's own endpoints, and every field
+it reads out of the read model exists in `make state`'s document - so the page cannot
+drift from the CLI.
+
+**Read:** `console/index.html`, `console/README.md`, `Makefile`, `docs/build-plan.md` S18.
+
+**Do:**
+
+- No `<script src>` and no external stylesheet: one file, served by the console process,
+  no build step.
+- Every `cmd:` in the page's `ACTIONS` is `make <target>`, and `<target>` is in
+  `make targets`. The page may not offer a button the allowlist cannot run.
+- Any `make <target>` the page tells the user to run must be a target the Makefile
+  defines. Instructions to run a target that does not exist are the same drift, one line
+  further out.
+- The page calls `/state`, `/claim`, `/log` and `/run/<name>` and nothing else. It runs
+  no `kubectl` and no `docker` of its own.
+- Every key the page reads out of `S.data` and out of a namespace exists in `make
+  state`'s live document. This is the assertion that would have caught the page reading
+  `ingresses`/`ingressPorts` while `make state` emitted neither.
+- The page keeps the last good state when `/state` fails, and says so on screen.
+
+**Checkpoint** `scripts/checks/S19.sh`.
+
+Precondition: the demo stack is up (`make demo-up`) - the last assertions compare the page
+against a live read model.
+
+**Not in this step:** `serve.py`'s routing, the allowlist fence, the run lock and their
+tests (S20); the timeline (S21).
+
+### S20. The proxy that runs the allowlist
+
+**Goal:** the console process serves the page, serves the read models, and can execute
+exactly the commands in `ALLOWED` - nothing else, never through a shell, one run at a
+time.
+
+**Read:** `console/serve.py`, `console/test_serve.py`, `console/README.md`, `Makefile`.
+
+**Do:**
+
+- Every `ALLOWED` value is a list, starts with `make`, and names a target `make targets`
+  lists. A value containing `;`, `|`, `&`, `$(` or a redirect is a failure.
+- The fence is `ALLOWED`, not the target list: `POST /run/state` and `POST /run/targets`
+  are refused - they are reads, and they are in `make targets` - as is any name not in
+  `ALLOWED`.
+- Nothing goes through a shell: no `shell=True`, no string command anywhere in the module.
+- One run at a time: a second `POST /run/<name>` while a run is live answers 409, and the
+  lock is released before the response is sent, not after.
+- Output is written line by line to `docs/evidence/console-<name>.log` as it happens, and
+  `GET /log?name=&offset=` returns only what is new. A rerun truncates the previous log.
+- The process serves nothing else: `/deploy/.env`, a path that walks out of the tree, and
+  anything uncatalogued answer 404. The console must not become a file server for a
+  repository that holds `.env` files and a `tfstate`.
+- `console/test_serve.py` passes, and covers the run lock and the log offset.
+
+**Checkpoint** `scripts/checks/S20.sh`.
+
+**Not in this step:** anything the page renders (S19); the timeline (S21).
+
+### S21. `make timeline` - what actually happened, with sources
+
+**Goal:** `make timeline` prints one JSON object of what actually happened in the last run
+- Deployment applied, controller saw it, claim created, runner called, container up, pod
+started - with a timestamp and a source for every event, so the console can draw the
+sequence after the fact and every number on screen is one the cluster and Docker already
+recorded.
+
+**Read:** `scripts/state.sh` (the read model's idiom), `jit-controller/main.py` (the log
+lines it leaves), `console/serve.py`, `console/index.html`, `Makefile`,
+`docs/evidence/claim-allowlist.log`.
+
+**Do:**
+
+- `scripts/timeline.sh`: a read model, exactly like `state.sh` - bash for the preflight,
+  one python program for the document, because it is one JSON object. It reads only:
+  - `kubectl get` of the Deployments, InfraClaims, Secrets and Pods in the two tenant
+    namespaces: `.metadata.creationTimestamp`, and each pod container's
+    `.status.containerStatuses[].state.running.startedAt`
+  - `kubectl logs --timestamps` of the controller Deployment - the only record of when a
+    claim became Ready, since no phase transition is timestamped and the claims carry no
+    conditions
+  - `docker inspect` per module container: `.Created`, `.State.StartedAt`,
+    `.State.FinishedAt`, `.RestartCount`
+  - `docker logs --timestamps jit-runner` - its access lines are the only record of when a
+    provisioning call was served
+- One JSON object on stdout and nothing else:
+
+  ```json
+  { "up": true,
+    "generatedAt": "2026-09-15T20:40:00Z",
+    "t0": "2026-09-15T18:50:32Z",
+    "events": [
+      { "t": "2026-09-15T18:50:32Z", "lane": "deployment", "kind": "deployment.applied",
+        "subject": "voting-a/voting-app-vote", "source": "kubectl:deployment.creationTimestamp" }
+    ] }
+  ```
+
+- `lane` is one of `deployment`, `controller`, `runner`, `container`, `pod`. `subject` is
+  `<namespace>/<name>` for a namespaced object and the container name for a container.
+  `source` names the command the timestamp came from, and is never empty.
+- `kind` is drawn from this set: `deployment.applied`, `controller.saw`, `claim.created`,
+  `ipam.allocated`, `claim.ready`, `runner.call`, `secret.created`, `service.created`,
+  `container.created`, `container.started`, `container.stopped`, `pod.created`,
+  `pod.started`.
+- Events are sorted ascending by `t`, one per step per subject. The 30-second resync
+  repeats the controller's lines and re-runs `handle_deployment`; first-seen wins, or the
+  axis fills with controller noise.
+- Every `t` is read, never computed, and no event carries a duration or an interval - the
+  axis arithmetic belongs in the browser, the same way the countdown does.
+- `timeline` joins `CONSOLE_TARGETS`, so `make targets` prints it and the console may read
+  it. It is called on demand and **never** on the `/state` poll: `make state`'s document
+  gains no timeline key.
+- Degrades like `make state`: with no cluster, `{"up": false, "t0": null, "events": []}`
+  and exit 0, because the page may ask before a cluster exists. With the stack up, a
+  source that fails exits non-zero - a lie to the page is worse than an error.
+
+**Checkpoint** `scripts/checks/S21.sh`. It re-derives three events from their independent
+sources and compares: a `deployment.applied` timestamp against `kubectl`, a
+`container.started` timestamp against `docker inspect`, and a `runner.call` against the
+runner's own log.
+
+**Not in this step:** the live sequence - Kubernetes Events and `docker events` as a
+stream, lanes filling as things happen. That is S22 if the retrospective view is not
+enough; it needs explicit `kopf.info()` calls in the controller (kopf 1.44 posts events
+only from explicit calls or on handler outcome, and they expire in about an hour), so it
+is a controller change as well as a console one.
+
+**Stage gate:** `make targets` prints 14 names, `make check STEP=18` passes with the
+amended array, and S19, S20 and S21 each hold a ticked `check` box and a `CLEAR` finding.
+
 ## Done
 
 - [x] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:

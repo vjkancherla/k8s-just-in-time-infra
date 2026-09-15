@@ -1,40 +1,40 @@
-Updated: 2026-09-13
+Updated: 2026-09-15
 
 ## Current focus
-The console is mid-build — `serve.py` grew a GET /claim, so `claim` joined `CONSOLE_TARGETS` in the
-Makefile. That reopens S18 by design: the frozen checkpoint expects 12 names, `make targets` prints 13.
+Stage G exists and its gates were written before the code: S19 (the page), S20 (the proxy), S21
+(`make timeline`, build A). Run today - S20 PASS (`docs/evidence/s20-retro-check.log`); S21 FAIL "no make
+target 'timeline'", which is the right state for a gate written first; S19 FAIL on one finding.
 
 ## Blocked
-- Nothing blocks. `app/opencode.jsonc` stays local — a live-looking DeepSeek key sits in one of its comments.
+- S19's finding: `console/index.html` tells the reader to run `make console` in three places and no such
+  target exists. Build the inliner or cut the references - needs a ruling.
+- `scripts/checks/S18.sh` awaits an amendment: `claim` and now `timeline`, 12 → 14 names, unexecuted until
+  approved - then `make targets` and the frozen array agree again.
 
 ## Done (verified)
-- `.gitignore` (committed `629bb3b`): secrets (`.env`, `.env.*`, any depth), Python, Terraform state, agent
-  runtime (`.omo/`, `.workflow/` — also covers `app/.workflow/`) and `app/opencode.jsonc`, plus OS/editor noise.
-  No global `*.log`, so evidence logs stay committable; 0 tracked files newly ignored, untracked 45 → 24.
-- README (committed `b8879cf`): the reviewer's cuts applied — TOC and the Running-it table gone, `make check`
-  out of the allowlist table, WARNING reworded to three irreversible targets, state-machine diagram cut, the
-  stale "voting app repo, read-only" prerequisite gone. Script-checked: anchors, links, fences, tables.
-- Gate: `bash scripts/checks/S18.sh` → twelve `ok:` lines, `PASS` (`docs/evidence/s18-final-gate.log`), after
-  the human approved the two-mechanic fix to the frozen checkpoint (`13c2502`).
-- `make claim NS=... MODULE=...` added beside `state` (uncommitted): one InfraClaim as YAML, stderr left alone
-  so `serve.py`'s /claim shows kubectl's error. Verified live: 35-line YAML; a NotFound exits non-zero.
-- `console/state.py` was reported missing and recovered from a checkpoint snapshot (`16cd174`, blob `c1602802`).
-  Measured against `make state` it is stale — 7 vs 3 containers, 0 vs 21 state objects, `expiresAt: ""` vs null.
+- Retrospective timeline proven on live data by a 65-line read-only probe, not asserted: Deployment
+  18:50:32Z → claims 18:50:33Z → postgres container 18:50:46 → runner 200 at 18:50:47.131 → Secret
+  18:50:47 → all three modules up 18:51:05 → worker pod 18:52:13. Gaps real, every source named.
+- Three gates written from their Goal text and run: `scripts/checks/S19.sh` (6 assertions), `S20.sh` (6),
+  `S21.sh` (7, three of which re-derive events from `kubectl`, `docker inspect` and the runner's log).
+- `docs/todo.md` + `docs/build-plan.md` carry Stage G: two boxes per step, the timeline's JSON shape, its
+  five lanes, its thirteen kinds, and the S18 amendment - all fixed before implementation.
+- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` restored from `S17-review-prompt.md`, six slots and all twelve
+  questions.
 
-## Checkpoints (final code)
-- S18: PASS at `13c2502`, now red by design (12 vs 13 names). S17's gate untouched: `make verify` = 17 PASS.
+## Checkpoints
+- S18: red by design until amended (12 vs 13 names today, 14 after). S19: FAIL (one finding). S20: PASS.
+  S21: FAIL first, as written. S17 untouched: `make verify` = 17 PASS.
 
 ## Next step
-Human: approve the S18.sh fourth amendment — the header block plus `claim` in its `TARGETS` array, both
-drafted in chat. `docs/evidence/claim-allowlist.log` is its evidence. Then I apply it and the gate is green.
+Human: rule on `make console` (build the inliner or cut the three references) and approve the S18 amendment
+to 14 names. Then S21 is implemented behind its gate, and one `make timeline` run is diffed against the probe.
 
 ## Watch out
-- `app/opencode.jsonc` is ignored but still on disk, holding a live-looking DeepSeek key (`sk-…`) in a
-  comment. It was never published; rotate the key if you ever un-ignore, copy or mirror that file.
-- `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` is in neither the tree nor git history; restore it from `S17-review-prompt.md`.
-- `scripts/checks/S18.sh` is byte-identical (blob `e4d858c3`) and must stay so until the amendment is approved:
-  prove changes on a one-line copy, the way `docs/evidence/claim-allowlist.log` does.
-- The console's `/state` poll runs `make state`, which tees into the tracked `docs/evidence/state.log` — a page left
-  open appends a JSON line every 2s (197 by 02:16). It is also how a finished run's reads are audited after the fact.
-- `refs/cline/checkpoints/*` — 119 local refs — snapshot the whole tree, `.env` and `terraform.tfstate` with it.
-  Never `git push --all`/`--mirror`; `git push origin main` is safe (GitHub holds only `main`, verified).
+- No phase transition is timestamped and the claims carry no conditions, so `claim.ready` lives only in the
+  controller's `--timestamps` log. A live view (S22) needs `kopf.info()` in the controller - kopf 1.44
+  posts events only from explicit calls (`loggers=False`) and they expire in about an hour.
+- `app/opencode.jsonc` is ignored but on disk, holding a live-looking DeepSeek key. Rotate it if it moves.
+- `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
+- `/tmp/timeline_probe.py` and `/tmp/S19-probe.sh` are throwaway; the durable record is the three
+  `docs/evidence/*-retro-check.log` and `*-pre-implementation.log` runs.
