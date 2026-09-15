@@ -7,3 +7,10 @@
   ok: the suite covers the run lock and the log offset
   ok: no shell: every command is a list
 PASS
+  ok: console/test_serve.py passes (Ran 19 tests)
+  ok: 11 ALLOWED entries are allowlisted make targets
+  ok: /state is make state and /claim is make claim, both allowlisted
+  ok: POST refuses reads and unknown names, the repo is not served, /state answers
+  ok: the suite covers the run lock and the log offset
+  ok: no shell: every command is a list
+PASS
