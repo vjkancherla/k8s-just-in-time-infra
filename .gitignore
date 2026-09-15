@@ -3,6 +3,7 @@
 .env
 .env.*
 !.env.example
+jit-runner/.env
 
 # Python
 __pycache__/
