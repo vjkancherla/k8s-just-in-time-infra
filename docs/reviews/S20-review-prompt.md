@@ -29,7 +29,7 @@ docs/evidence/s20-retro-check.log
 
 - `docs/build-plan.md` - the design this must conform to
 - `docs/build-plan.md` - step S20, its checkpoint, its gate
-- `git diff 6d8a835..80b19ab` - what was actually done
+- `git diff 6d8a835..05ba84d` - what was actually done
 - `scripts/checks/S20.sh` - the assertion that passed
 
 ## First, mechanically

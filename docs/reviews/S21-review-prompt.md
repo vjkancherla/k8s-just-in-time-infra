@@ -36,7 +36,7 @@ docs/todo.md
 
 - `docs/build-plan.md` - the design this must conform to
 - `docs/build-plan.md` - step S21, its checkpoint, its gate
-- `git diff 80b19ab..d31fb2d` - what was actually done
+- `git diff 05ba84d..ae5e544` - what was actually done
 - `scripts/checks/S21.sh` - the assertion that passed
 
 ## First, mechanically
