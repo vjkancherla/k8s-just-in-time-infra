@@ -253,6 +253,36 @@ supposed to sweep stayed behind. The cold path is where unguarded reads go to di
 
 ---
 
+## From Stage G — two reviews blocked on a tracker tick
+
+**A reviewed range must end before its step's tracker tick.**
+S19 passed on `205aedc..7210a8d`, with its own tick commit `36baa2d` outside the range. S20's and S21's
+prompts named ranges whose diffs contained the `- [ ] check` -> `- [x] check` line, and both reviews came
+back BLOCKED on that and nothing else (`git show ebd3586:docs/reviews/S20-findings.md`). The fix is not to
+untick the tracker: it is to rewrite the range so the tick lands after it - `80b19ab -> 05ba84d` and
+`d31fb2d -> ae5e544`, both tick-free, with the prompts re-emitted on `6d8a835..05ba84d` and
+`05ba84d..ae5e544`. The ticks then landed as the first commit after the reviews, and no reviewed SHA moved.
+
+**A retro-checkpoint has no implementation commit, so its record commit IS the reviewed diff.**
+S20's reviewed range touches one file - `docs/evidence/s20-retro-check.log`, 7 insertions - and S21's touches
+the implementation plus its evidence logs, with neither touching the tracker. A record commit that also tidies
+the tracker hands the reviewer the one diff the prompt's check-box question is looking for.
+
+**A frozen checkpoint may be corrected for mechanics and extended by name, but never softened.**
+S18.sh was touched four times: two mechanics no implementation could satisfy (a `make -pRrq :` pipeline that
+`pipefail` failed on even when it matched, and a herestring applied after a heredoc, so `python3 -` read the
+read model as its script), a rename to the console's own `demo-undeploy`/`demo-redeploy` labels, `destroy` at
+11 names to 12, and `claim` + `timeline` at 12 names to 14. The assertion code and every `ok:` line's meaning
+are unchanged throughout, and each amendment has an evidence log holding the FAIL before and the PASS after.
+
+**A checkpoint that asserts live state cannot be re-run green on a stopped host.**
+`make check STEP=18` stops on its own guard - `FAIL: make state says up=false - run 'make demo-up' before this
+checkpoint` - once the console's own Delete everything has run, so Stage G's gate line was unverifiable rather
+than failed. Closing it meant `make demo-up` first (cold, `17 PASS, 0 FAIL`), then the checkpoint's 12 ok lines
+and PASS in `docs/evidence/s18-stage-g-gate.log`.
+
+---
+
 ## Carried forward — do not lose these
 
 **A module output that does not exist cannot be defaulted away.** RESOLVED in S17: the

@@ -116,7 +116,26 @@ failure-by-failure detail is in `docs/lessons.md`.
   patches the shared base rather than the base being parameterised, because two namespaces cannot share an
   Ingress host or a pgAdmin host port.
 
+- **S18 - the allowlist Stage G extended.** Four amendments to the frozen checkpoint, all header notes with
+  their own evidence logs: two mechanics no implementation could satisfy (a `make -pRrq` pipeline that
+  `pipefail` failed on even when it matched, and a herestring applied after a heredoc so `python3 -` read the
+  read model as its script), the rename to the console's own `demo-undeploy`/`demo-redeploy` labels, `destroy`
+  joining at 11 names to 12, and `claim` + `timeline` at 12 names to 14 when the console's two reads arrived.
+  The assertion code and every `ok:` line's meaning are unchanged.
+- **S19 - the page.** The checkpoint was written against a snapshot mode that was later cut, so the page is
+  always live and reads only `make state` through the proxy. That is why assertion 3 is vacuous by design - the
+  page names no make target in prose at all - and its teeth show only against a copy that names `make console`
+  again. The review carried two notes and no blocker: that vacuity, and a `console/README.md` correction
+  ("Three endpoints" to "Four") the design's "Do" list did not name.
+- **S20 - the proxy.** Design unchanged. The reviewed diff is one file - the checkpoint's own evidence log, 7
+  insertions - because a retro-checkpoint has no implementation commit to review; its record commit is the diff.
+  The fence is `ALLOWED` rather than `make targets`, so `POST /run/state` and `POST /run/targets` answer 404.
+- **S21 - the timeline.** The plan's own "Not in this step" was held: the live sequence (Kubernetes Events and
+  `docker events` as a stream, with `kopf.info()` in the controller) is deferred to S22, so nothing here claims
+  to be live. `timeline` joined `CONSOLE_TARGETS` in the same amendment that added `claim` - 12 names to 14 -
+  which is why the console reads it on demand and never on the 2s poll.
+
 ## Lessons
 
 Rules that prevent a repeat live in [lessons.md](./lessons.md) - from S15, S16, the S16
-review and S17. Anything reworked belongs there, not here.
+review, S17 and Stage G. Anything reworked belongs there, not here.
