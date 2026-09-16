@@ -1,39 +1,33 @@
-Updated: 2026-09-15
+Updated: 2026-09-16
 
 ## Current focus
-Stage G is implemented end to end and waits only on review. S20 is ticked, S21 is built and ticked, S18's
-frozen array is amended and green, and both review prompts are emitted for one combined review.
+Stage G is closed on paper: S19, S20 and S21 all hold ticked check and review boxes and CLEAR findings, and
+the tick commit left both reviewed ranges untouched. One gate line still needs a live cluster.
 
 ## Blocked
-- Nothing blocks work. Two reviews are outstanding, and the Stage G gate needs both to say CLEAR.
+- Nothing blocks work. `make check STEP=18` cannot be re-run green until the stack is up: it stops on
+  "FAIL: make state says up=false" because the console's own Destroy run took the cluster down.
 
 ## Done (verified)
-- S20: `scripts/checks/S20.sh` PASS on a clean run - 19 tests, 11 ALLOWED entries all allowlisted make
-  targets, POST refused for reads and unknown names, the repo not served, run lock and log offset covered.
-  docs/evidence/s20-retro-check.log holds both runs.
-- S21: `scripts/timeline.sh` + `make timeline` read five sources into one JSON object - 36 events, five
-  lanes, all thirteen kinds for the live voting-a run. Gate PASS three times, including after S18's run
-  bounced the demo. Teeth shown: a copy reporting one timestamp a second early FAILs assertion 6.
-- S18 amendment: the frozen array went 12 -> 14 (`claim`, `timeline`) on the instruction to proceed with
-  S21. docs/evidence/s18-amendment-timeline.log holds the 12-name FAIL and the 14-name PASS.
-- `make targets` prints fourteen names; `make check STEP=18` = 12 ok lines and PASS.
-- docs/reviews/S20-review-prompt.md and S21-review-prompt.md emitted, both verified verbatim against the
-  template with all twelve questions.
+- d7f2e41 ticks docs/todo.md only, so S20's range 6d8a835..05ba84d and S21's 05ba84d..ae5e544 are unchanged.
+- bfd996b's findings read CLEAR for both steps, with "(none)" under Blockers and Concerns.
+- `make targets` prints 14 names, `timeline` among them.
+- `make check STEP=18` on the current tree: "ok: all 14 targets defined", "ok: make targets prints the
+  allowlist and nothing else", "ok: make state emits the documented JSON", then the no-cluster FAIL.
 
 ## Checkpoints
-- S18 PASS (amended). S20 PASS + ticked. S21 PASS + ticked. S19 unchanged: PASS + CLEAR, both boxes.
-  S17 untouched.
+- S18 PASS (amended) at eecb02e. S19, S20, S21 each ticked + CLEAR. S17 untouched.
 
 ## Next step
-Hand both prompts to a different model together, as the human asked, and read only the findings files.
+Bring the stack up and re-run the gate - `make demo-up && make check STEP=18` - then record that run in
+docs/evidence/; it is the last open line of Stage G's gate.
 
 ## Watch out
-- The S18 amendment's header records it as approved by "proceed with s20 and s21" - the one interpretive
-  call this session made. Correct that header if it was not the intended approval.
-- No page or proxy change for the timeline: S19's frozen checkpoint permits the page to call only /state,
-  /claim, /log and /run, so a /timeline endpoint would fail it. Drawing it is a later step.
-- Events sort by `t` as text, which is the frozen checkpoint's own order: within one second a fractional
-  stamp precedes a whole one.
-- `console/test_serve.py` leaves untracked `docs/evidence/console-<fake>.log` litter when it runs.
+- S19's frozen checkpoint permits the page to call only /state, /claim, /log and /run, so a /timeline route
+  fails it. Drawing the lanes is a later step; live lanes (S22) also need kopf.info() in the controller.
+- `make timeline` stays on demand: S21's checkpoint asserts it is not a key in the 2s /state poll.
+- Uncommitted: .gitignore (graphify-out/), docs/evidence/{console-destroy,destroy,state,targets,timeline}.log,
+  and untracked console-{failing,hello}.log litter from console/test_serve.py.
+- Events sort by `t` as text, the frozen checkpoint's own order: a fractional stamp precedes a whole one.
 - `app/opencode.jsonc` is ignored but on disk with a live-looking DeepSeek key; rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
