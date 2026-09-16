@@ -23,8 +23,8 @@ the Review section now runs to S21 and docs/lessons.md carries a Stage G section
 - S18 PASS (amended) at eecb02e. S19, S20, S21 each ticked + CLEAR. S17 untouched.
 
 ## Next step
-Ask the human whether S22 (live lanes) is wanted: it needs explicit kopf.info() calls in the controller plus a
-console step whose checkpoint is written first, and the retrospective timeline is green without it.
+Nothing is in flight: the plan is closed and the human chose to stop here. If work resumes, S22 (live lanes -
+kopf.info() in the controller plus a console step) is the only unwritten item; write its checkpoint first.
 
 ## Watch out
 - S19's frozen checkpoint permits the page to call only /state, /claim, /log and /run, so a /timeline route
@@ -32,8 +32,8 @@ console step whose checkpoint is written first, and the retrospective timeline i
 - `make timeline` stays on demand: S21's checkpoint asserts it is not a key in the 2s /state poll.
 - Ignored: the two test-fixture logs and graphify-out/. docs/evidence/state.log re-dirties on every /state poll
   while the console page is open in a browser; commit the delta or leave it, but do not chase it.
-- The demo stack is up (voting-a, cluster voting-app) and console/serve.py is listening on 127.0.0.1:8090 (pid
-  50032): `make destroy` when the laptop is wanted back.
+- The host is clean after `make destroy`: no k3d cluster, no jit-* containers, console/serve.py stopped (8090
+  free). A live-cluster checkpoint needs `make demo-up` (~3 min) first - S18's own guard says so.
 - Events sort by `t` as text, the frozen checkpoint's own order: a fractional stamp precedes a whole one.
 - `app/opencode.jsonc` is ignored but on disk with a live-looking DeepSeek key; rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
