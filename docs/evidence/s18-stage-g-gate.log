@@ -1,0 +1,14 @@
+  ok: all 14 targets defined
+  ok: make targets prints the allowlist and nothing else
+  ok: make state emits the documented JSON
+  ok: claim count matches kubectl (3)
+  ok: every reported phase matches the cluster
+  ok: container count matches docker (3)
+  ok: make state degrades to up=false instead of erroring
+  ok: ns-delete refuses a missing or unlisted namespace
+  ok: a failing target exits non-zero
+  ok: demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing
+  ok: demo-redeploy returns every claim to Ready with the expiry cleared
+  ok: each run left its log in docs/evidence/
+PASS
+exit=0

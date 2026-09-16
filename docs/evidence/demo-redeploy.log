@@ -33,3 +33,10 @@ deployment.apps/voting-app-result unchanged
 deployment.apps/voting-app-vote created
 deployment.apps/voting-app-worker unchanged
 ingress.networking.k8s.io/voting-app-ingress unchanged
+secret/voting-app-secret-key unchanged
+service/voting-app-result unchanged
+service/voting-app-vote unchanged
+deployment.apps/voting-app-result unchanged
+deployment.apps/voting-app-vote created
+deployment.apps/voting-app-worker unchanged
+ingress.networking.k8s.io/voting-app-ingress unchanged
