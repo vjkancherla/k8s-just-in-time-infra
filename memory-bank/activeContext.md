@@ -18,6 +18,8 @@ the Review section now runs to S21 and docs/lessons.md carries a Stage G section
   for console/test_serve.py's two fixture logs. The production note already exists as README's Limits table.
 - Build-plan's Done list is closed, and docs/todo.md has a "The boxes" section stating that S-1's and S0-S7's
   reviews were never run - so nine boxes stay unticked rather than implying an audit trail.
+- docs/timeline.html draws a real run on five lanes (run picker, ?win=1 zoom, ?filter=); verified in headless
+  Chrome. Deliberately no make target and no console route, so S18's 14 names and S19's four calls stand.
 
 ## Checkpoints
 - S18 PASS (amended) at eecb02e. S19, S20, S21 each ticked + CLEAR. S17 untouched.
@@ -30,8 +32,7 @@ kopf.info() in the controller plus a console step) is the only unwritten item; w
 - S19's frozen checkpoint permits the page to call only /state, /claim, /log and /run, so a /timeline route
   fails it. Drawing the lanes is a later step; live lanes (S22) also need kopf.info() in the controller.
 - `make timeline` stays on demand: S21's checkpoint asserts it is not a key in the 2s /state poll.
-- Ignored: the two test-fixture logs and graphify-out/. docs/evidence/state.log re-dirties on every /state poll
-  while the console page is open in a browser; commit the delta or leave it, but do not chase it.
+- Ignored: the two fixture logs and graphify-out/; state.log re-dirties on every poll while a page is open.
 - The host is clean after `make destroy`: no k3d cluster, no jit-* containers, console/serve.py stopped (8090
   free). A live-cluster checkpoint needs `make demo-up` (~3 min) first - S18's own guard says so.
 - Events sort by `t` as text, the frozen checkpoint's own order: a fractional stamp precedes a whole one.

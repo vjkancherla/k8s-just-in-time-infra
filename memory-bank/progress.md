@@ -15,9 +15,9 @@ with nine boxes left unticked and explained in docs/todo.md.
   the record-commit rule, the amendment protocol, and S18's live-state precondition.
 - docs/todo.md gained "The boxes", saying why S-1's check and S0-S7's reviews stay unticked, and build-plan's
   four Done items are ticked with their evidence.
-- On the tick-free tree, before the ticks: S20 6 ok lines + PASS, S21 8 ok lines + PASS (24 events, five
-  lanes, spanning 4409s). Runs in docs/evidence/s20-retro-check.log and s21-checkpoint.log.
+- On the tick-free tree: S20 6 ok + PASS, S21 8 ok + PASS (24 events, 4409s) - s20-retro-check.log, s21-checkpoint.log.
 - `make timeline` against this session's stack: up, 36 events, five lanes, all thirteen kinds (2eb5073).
+- docs/timeline.html draws such a run: five lanes, run picker, ?win=1 sub-second zoom, ?filter= - headless-Chrome verified.
 
 ## Broken (confirmed by execution)
 - Nothing. The one FAIL seen this session was the checkpoint's own precondition, cleared by the cold demo-up.
