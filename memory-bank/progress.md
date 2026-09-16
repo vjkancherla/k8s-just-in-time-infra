@@ -1,8 +1,8 @@
 Updated: 2026-09-16
 
 ## Working
-Stage G's gate is met on a live cluster and the docs it owed are written: the Review section, the lessons
-section and the ignore rules. What is left is the plan's Done checklist.
+Stage G's gate is met on a live cluster, the docs it owed are written, and the build-plan Done list is closed
+with nine boxes left unticked and explained in docs/todo.md.
 
 ## Done (verified)
 - S20 and S21: findings CLEAR at bfd996b, both boxes ticked in d7f2e41.
@@ -13,6 +13,8 @@ section and the ignore rules. What is left is the plan's Done checklist.
   mode and the vacuous assertion it left), S20 (an evidence-only diff) and S21 (the deferred live sequence).
 - docs/lessons.md gained "From Stage G - two reviews blocked on a tracker tick": the tick-before-range rule,
   the record-commit rule, the amendment protocol, and S18's live-state precondition.
+- docs/todo.md gained "The boxes", saying why S-1's check and S0-S7's reviews stay unticked, and build-plan's
+  four Done items are ticked with their evidence.
 - On the tick-free tree, before the ticks: S20 6 ok lines + PASS, S21 8 ok lines + PASS (24 events, five
   lanes, spanning 4409s). Runs in docs/evidence/s20-retro-check.log and s21-checkpoint.log.
 
@@ -27,8 +29,7 @@ section and the ignore rules. What is left is the plan's Done checklist.
 Nothing.
 
 ## Blocked
-- Build-plan's Done list is open at its tracker item: docs/todo.md has 9 unticked boxes - S-1's check and
-  review, and S0-S7's review - with no findings file below S08. The other three Done items now hold.
+- Nothing blocks work. S22 (live lanes) is unwritten future work, not a blocker.
 
 ## Learnings
 - A reviewed range must end BEFORE its step's tracker tick, so the tick is deliberately the first commit
