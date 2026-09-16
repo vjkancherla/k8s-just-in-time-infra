@@ -1,14 +1,18 @@
 Updated: 2026-09-16
 
 ## Working
-Stage G's gate is met on a live cluster: three steps ticked and CLEAR, and the tick commit outside both
-reviewed ranges. What is left is the plan's Done checklist.
+Stage G's gate is met on a live cluster and the docs it owed are written: the Review section, the lessons
+section and the ignore rules. What is left is the plan's Done checklist.
 
 ## Done (verified)
 - S20 and S21: findings CLEAR at bfd996b, both boxes ticked in d7f2e41.
 - `make targets` prints 14 names including `timeline`.
 - Gate after a cold `make demo-up` ("17 PASS, 0 FAIL", "PASS: demo up - voting-a"): `make check STEP=18` gave
   12 ok lines, PASS, exit 0 - captured in docs/evidence/s18-stage-g-gate.log.
+- The Review section in docs/todo.md now carries S18 (four frozen-array amendments), S19 (the cut snapshot
+  mode and the vacuous assertion it left), S20 (an evidence-only diff) and S21 (the deferred live sequence).
+- docs/lessons.md gained "From Stage G - two reviews blocked on a tracker tick": the tick-before-range rule,
+  the record-commit rule, the amendment protocol, and S18's live-state precondition.
 - On the tick-free tree, before the ticks: S20 6 ok lines + PASS, S21 8 ok lines + PASS (24 events, five
   lanes, spanning 4409s). Runs in docs/evidence/s20-retro-check.log and s21-checkpoint.log.
 
@@ -23,8 +27,8 @@ reviewed ranges. What is left is the plan's Done checklist.
 Nothing.
 
 ## Blocked
-- Nothing blocks work. Build-plan's Done list is open at three items: the Review section in docs/todo.md
-  (still ends at S17), docs/lessons.md for the S20/S21 rework, and the production-needs note.
+- Build-plan's Done list is open at its tracker item: docs/todo.md has 9 unticked boxes - S-1's check and
+  review, and S0-S7's review - with no findings file below S08. The other three Done items now hold.
 
 ## Learnings
 - A reviewed range must end BEFORE its step's tracker tick, so the tick is deliberately the first commit
