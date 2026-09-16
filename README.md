@@ -379,6 +379,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 | Document | What it covers | Read when |
 |---|---|---|
 | [`docs/how-it-works-presentation.html`](docs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Nine slides, arrow keys, no dependencies |
+| [`docs/timeline.html`](docs/timeline.html) | **Timeline viewer** — one real run on five lanes (deployment, controller, runner, container, pod), every event with the source of its timestamp: run picker, sub-second zoom, subject filter. Reads `docs/evidence/timeline.log` | You want to see what actually happened, in order |
 | [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
 | [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
 | [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, the full allowlist, Demo vs Testing modes, how to add an action, known rough edges | Running or changing the console |
