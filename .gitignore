@@ -27,6 +27,10 @@ crash.log
 # .workflow/ also matches app/.workflow/ (verify.md and verify-jit.md are rewritten per run)
 .omo/
 .workflow/
+# graphify's generated knowledge graph (~1.2M, rebuilt by `graphify update .`).
+# graph.json is .json, which graphify itself classifies as code - ignoring the
+# directory also keeps the graph out of its own scan.
+graphify-out/
 # Local model config: holds a literal API key in a commented block. Never commit; rotate the key.
 app/opencode.jsonc
 
