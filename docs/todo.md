@@ -40,6 +40,17 @@ produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
       inspects containers, and `make state` is polled every two seconds. Putting it in that
       document would make the console's own poll the expensive part of the demo.
 
+## The boxes
+
+`check` is the checkpoint: the step's script ran and passed, and the run that justified it is named in the line
+or kept in `docs/evidence/`. `review` is the frozen-checkpoint review, and only the human ticks it.
+
+The nine steps S-1 and S0-S7 hold unticked `review` boxes, and S-1 an unticked `check` box, on purpose: those
+reviews were never run, and no findings file exists below `docs/reviews/S08-findings.md`. What they cover is
+evidenced at the stage level instead - the S08-S21 findings are on disk, the cold path is green in
+`docs/evidence/s17-cold-path-green.log`, and Stage G's gate re-ran on a live cluster. Ticking them here would
+invent an audit trail that does not exist.
+
 ## Stage Z - Before anything
 
 - [ ] check  - [ ] review  **S-1** All 18 checkpoint scripts written, all 18 failing, none erroring  ← **then frozen**

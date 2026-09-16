@@ -769,9 +769,18 @@ amended array, and S19, S20 and S21 each hold a ticked `check` box and a `CLEAR`
       volume (`tofu destroy` always did; `scripts/jit-down.sh`'s by-name sweep now does too), because the
       data directory is where the password lives. Gate re-run on the final code:
       `docs/evidence/s17-final-gate.log`.
-- [ ] `docs/todo.md` boxes all ticked, with the checkpoint output that justified each
-- [ ] Review section in `todo.md`: what changed from the design and why
-- [ ] `docs/lessons.md` for anything that had to be reworked
-- [ ] A short note on what production needs that this omits: snapshot before destroy,
+- [x] `docs/todo.md` boxes all ticked, with the checkpoint output that justified each — *with the exception
+      recorded in `docs/todo.md` under "The boxes"*: the nine lines for S-1 and S0-S7 stay unticked because
+      those reviews were never run, and the tracker says so rather than implying an audit trail that is not
+      there. Every other step holds both boxes.
+- [x] Review section in `todo.md`: what changed from the design and why — S15-S21. Stage G added S18's four
+      frozen-array amendments, S19's cut snapshot mode and the vacuous assertion it left behind, S20's
+      evidence-only diff, and S21's deferred live sequence.
+- [x] `docs/lessons.md` for anything that had to be reworked — S15, S16 and its review, S17, and "From Stage G
+      - two reviews blocked on a tracker tick".
+- [x] A short note on what production needs that this omits: snapshot before destroy,
       `retain: true`, stopping rather than running during retention, async
-      provisioning, real IAM
+      provisioning, real IAM — the README's **Limits** table carries the snapshot, `retain`,
+      async-provisioning and IAM items, `docs/lessons.md`'s "Carried forward" lists all five, and the Review
+      section's S15 entry records the retention-window trade (the infra runs through the window rather than
+      stopping).

@@ -303,6 +303,6 @@ Before any real deployment, generate it externally (Secrets Manager, Sealed Secr
 sensitive output, and secrets have to be written by the controller from values it
 happens to know.
 
-**Four things production needs that this PoC omits** (build-plan.md "Done"): snapshot
+**Five things production needs that this PoC omits** (build-plan.md "Done"): snapshot
 before destroy, `retain: true`, stopping rather than running during retention, async
 provisioning, and real IAM.
