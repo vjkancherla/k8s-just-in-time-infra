@@ -87,8 +87,8 @@ The page and the proxy were built outside the plan, so S19 and S20 are retro-che
 written from `build-plan.md`'s Goal, then run against the code as it stands.
 
 - [x] check  - [x] review  **S19** The page reads `make state` and the proxy, and offers no button the allowlist cannot run
-- [ ] check  - [ ] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
-- [ ] check  - [ ] review  **S21** `make timeline`: every event with a time and a source
+- [x] check  - [x] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
+- [x] check  - [x] review  **S21** `make timeline`: every event with a time and a source
 
 ## Notes carried from the app's own docs
 
