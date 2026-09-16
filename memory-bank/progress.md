@@ -17,6 +17,7 @@ with nine boxes left unticked and explained in docs/todo.md.
   four Done items are ticked with their evidence.
 - On the tick-free tree, before the ticks: S20 6 ok lines + PASS, S21 8 ok lines + PASS (24 events, five
   lanes, spanning 4409s). Runs in docs/evidence/s20-retro-check.log and s21-checkpoint.log.
+- `make timeline` against this session's stack: up, 36 events, five lanes, all thirteen kinds (2eb5073).
 
 ## Broken (confirmed by execution)
 - Nothing. The one FAIL seen this session was the checkpoint's own precondition, cleared by the cold demo-up.

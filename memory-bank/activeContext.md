@@ -30,11 +30,10 @@ console step whose checkpoint is written first, and the retrospective timeline i
 - S19's frozen checkpoint permits the page to call only /state, /claim, /log and /run, so a /timeline route
   fails it. Drawing the lanes is a later step; live lanes (S22) also need kopf.info() in the controller.
 - `make timeline` stays on demand: S21's checkpoint asserts it is not a key in the 2s /state poll.
-- The tree is clean: the two test-fixture logs and graphify-out/ are ignored.
-- The demo stack is up on this host after the gate run (voting-a, cluster voting-app), and a console server is
-  still listening on 127.0.0.1:8090 (python3 console/serve.py, pid 50032): it appends to docs/evidence/state.log
-  on every /state poll, so that file re-dirties whenever a page is open. `make destroy` when the laptop is
-  wanted back.
+- Ignored: the two test-fixture logs and graphify-out/. docs/evidence/state.log re-dirties on every /state poll
+  while the console page is open in a browser; commit the delta or leave it, but do not chase it.
+- The demo stack is up (voting-a, cluster voting-app) and console/serve.py is listening on 127.0.0.1:8090 (pid
+  50032): `make destroy` when the laptop is wanted back.
 - Events sort by `t` as text, the frozen checkpoint's own order: a fractional stamp precedes a whole one.
 - `app/opencode.jsonc` is ignored but on disk with a live-looking DeepSeek key; rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
