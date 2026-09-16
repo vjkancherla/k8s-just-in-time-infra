@@ -30,8 +30,10 @@ build-plan's four Done items, which the repo now otherwise satisfies.
 - `make timeline` stays on demand: S21's checkpoint asserts it is not a key in the 2s /state poll.
 - Only untracked files left: docs/evidence/console-{failing,hello}.log, the fixtures console/test_serve.py
   writes on every run. Every other change is committed.
-- The demo stack is up on this host after the gate run (voting-a, cluster voting-app): `make destroy` when the
-  laptop is wanted back.
+- The demo stack is up on this host after the gate run (voting-a, cluster voting-app), and a console server is
+  still listening on 127.0.0.1:8090 (python3 console/serve.py, pid 50032): it appends to docs/evidence/state.log
+  on every /state poll, so that file re-dirties whenever a page is open. `make destroy` when the laptop is
+  wanted back.
 - Events sort by `t` as text, the frozen checkpoint's own order: a fractional stamp precedes a whole one.
 - `app/opencode.jsonc` is ignored but on disk with a live-looking DeepSeek key; rotate it if it moves.
 - `refs/cline/checkpoints/*` snapshot `.env` and `terraform.tfstate`; never `git push --all`/`--mirror`.
