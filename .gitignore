@@ -45,3 +45,9 @@ Thumbs.db
 *-BAK.md
 
 # NOTE: docs/evidence/*.log is deliberate evidence. Never add a global *.log rule here.
+#
+# Exception: console/test_serve.py's fake ALLOWED entries ("hello", "failing") write these two paths on every
+# test run. They are harness output, not a console run - a real run can only ever write console-<target>.log
+# for a name in ALLOWED.
+docs/evidence/console-hello.log
+docs/evidence/console-failing.log
