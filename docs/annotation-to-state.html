@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Annotation to state - the full mapping, resolved</title>
+<style>
+  /* Same palette as the other pages in this project, because it is the same project. */
+  :root{
+    --bg:#fbfbfd; --card:#fff; --ink:#1d1d1f; --ink-2:#6e6e73; --ink-3:#a1a1a6;
+    --hair:rgba(0,0,0,.1); --blue:#0071e3; --green:#30a46c; --amber:#c76a15; --red:#c9342b;
+    --green-bg:#e8f6ee; --amber-bg:#fdf1e2; --red-bg:#fdeceb; --blue-bg:#eaf3fd; --grey-bg:#f2f2f7;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1000px;margin:0 auto;padding:40px 22px 90px}
+  h1{font-size:clamp(30px,4.4vw,46px);letter-spacing:-.025em;line-height:1.1;margin:0 0 10px}
+  h2{font-size:clamp(21px,2.6vw,28px);letter-spacing:-.02em;margin:0 0 6px}
+  h3{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2)}
+  code{font-family:var(--mono);font-size:.9em;color:var(--ink)}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .sub{font-size:clamp(16px,1.9vw,19px);color:var(--ink-2);max-width:74ch;margin:0 0 24px}
+  .lede{font-size:15px;color:var(--ink-2);max-width:78ch}
+  .muted{color:var(--ink-3);font-size:13px;margin:10px 0 0}
+  .muted b{color:var(--ink-2);font-weight:600}
+
+  nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
+  nav.toc a{font-size:12.5px;padding:5px 11px;border-radius:980px;border:1px solid var(--hair);
+    background:var(--card);color:var(--ink-2)}
+  nav.toc a:hover{border-color:var(--ink-3);color:var(--ink);text-decoration:none}
+
+  section{margin:0 0 34px}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:16px;
+    padding:clamp(18px,2.6vw,26px)}
+
+  .chip{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:500;
+    padding:3px 10px;border-radius:980px;background:var(--grey-bg);color:var(--ink-2)}
+  .chip.ready{background:var(--green-bg);color:var(--green)}
+  .chip.warn{background:var(--amber-bg);color:var(--amber)}
+  .chip.info{background:var(--blue-bg);color:var(--blue)}
+
+  pre{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:#1d1d1f;color:#f5f5f7;
+    border-radius:12px;padding:14px 16px;overflow:auto;margin:10px 0 0}
+  pre .c{color:#98989d}
+  pre .k{color:#8ecdf7}
+  pre .hl{color:#ffd60a}
+
+  /* ---------- the picker ------------------------------------------------- */
+  .picker{display:flex;flex-wrap:wrap;gap:22px;align-items:center;margin:18px 0 20px}
+  .picker .grp{display:flex;gap:9px;align-items:center}
+  .picker .lbl{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-3);
+    font-weight:600}
+  .seg{display:inline-flex;border:1px solid var(--hair);border-radius:980px;overflow:hidden;
+    background:var(--bg)}
+  .seg button{font:inherit;font-size:13.5px;padding:7px 15px;border:0;background:none;
+    color:var(--ink-2);cursor:pointer}
+  .seg button:hover{color:var(--ink)}
+  .seg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+  /* ---------- the resolved names ----------------------------------------- */
+  .resolve{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:1px;
+    background:var(--hair);border:1px solid var(--hair);border-radius:14px;overflow:hidden;
+    margin:0 0 26px}
+  .resolve .cell{background:var(--card);padding:11px 14px}
+  .resolve .k{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);
+    font-weight:600;margin-bottom:3px}
+  .resolve .v{font-family:var(--mono);font-size:13px;color:var(--ink);word-break:break-all}
+  .resolve .v .dim{color:var(--ink-3)}
+
+  /* ---------- the trace -------------------------------------------------- */
+  ol.trace{list-style:none;margin:0;padding:0;position:relative}
+  ol.trace::before{content:'';position:absolute;left:15px;top:12px;bottom:12px;width:1px;
+    background:var(--hair)}
+  ol.trace > li{position:relative;padding:0 0 22px 46px}
+  ol.trace > li:last-child{padding-bottom:0}
+  ol.trace .n{position:absolute;left:0;top:0;width:31px;height:31px;border-radius:50%;
+    background:var(--ink);color:#fff;font-family:var(--mono);font-size:12.5px;
+    display:flex;align-items:center;justify-content:center}
+  ol.trace h3{font-size:16px;letter-spacing:-.015em;margin:4px 0 4px}
+  ol.trace .desc{font-size:13.5px;color:var(--ink-2);margin:0 0 8px;max-width:76ch}
+  .val{font-family:var(--mono);font-size:12.5px;background:var(--grey-bg);border-radius:10px;
+    padding:9px 12px;display:inline-block;color:var(--ink);word-break:break-all;max-width:100%}
+  .val.blue{background:var(--blue-bg)}
+  .val.green{background:var(--green-bg)}
+  .val.amber{background:var(--amber-bg)}
+  .valrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+
+  /* ---------- the IP block map ------------------------------------------- */
+  .blockmap{display:flex;flex-wrap:wrap;gap:14px;margin:12px 0 0}
+  .block{border:1px solid var(--hair);border-radius:12px;padding:10px 12px;background:var(--bg)}
+  .block .bt{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);margin-bottom:7px}
+  .block .bt .own{color:var(--ink);font-weight:600}
+  .cells{display:flex;gap:3px}
+  .cells span{width:20px;height:22px;border-radius:5px;background:#e9e9ee;display:flex;
+    align-items:center;justify-content:center;font-family:var(--mono);font-size:9.5px;color:var(--ink-3)}
+  .cells span.used{background:#d4d4d9;color:var(--ink-2)}
+  .cells span.here{background:var(--ink);color:#fff;font-weight:600}
+  .cells span.free{background:#f4f4f6}
+
+  /* ---------- tables and lookups ----------------------------------------- */
+  table{width:100%;border-collapse:collapse;margin-top:12px;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);
+    background:#fafafc;font-weight:600}
+  tr:last-child td{border-bottom:0}
+  td.mono,.mono{font-family:var(--mono);font-size:12px}
+  tr.here td{background:var(--blue-bg)}
+  .note{background:var(--blue-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#0b4a8f;margin-top:14px}
+  .warn{background:var(--amber-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#7a4409;margin-top:14px}
+  .note b,.warn b{font-weight:600}
+
+  .q{border-top:1px solid var(--hair);padding:16px 0 4px;margin-top:16px}
+  .q:first-of-type{border-top:0;margin-top:8px;padding-top:0}
+  .q h3{font-size:14.5px;margin-bottom:8px}
+  .q .ans{font-family:var(--mono);font-size:12.5px;color:var(--green);margin-top:7px}
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--hair);
+    color:var(--ink-3);font-size:12.5px}
+  footer a{color:var(--ink-2)}
+</style>
+<!--C-->
+</head>
+<body>
+<div class="wrap">
+<h1>One annotation line, five artefacts later.</h1>
+<p class="sub">A tenant writes <code>jit.infra/redis</code> on a Deployment. What comes out the other end is an
+InfraClaim, an IP, a Docker container, three Kubernetes objects and a Terraform state file in MinIO. This page
+resolves that chain for a namespace and a module you pick &mdash; and it is the chain to walk when something
+has gone wrong.</p>
+
+<nav class="toc">
+  <a href="#trace">Walk the chain</a>
+  <a href="#diagram">The chain in one line</a>
+  <a href="#naming">The naming rule</a>
+  <a href="#lookup">Looking things up</a>
+</nav>
+
+<section id="trace">
+  <div class="card">
+    <h2>Walk the chain</h2>
+    <p class="lede">Eight steps, from the annotation to the state file. Every value below is derived from the
+    namespace and module you pick, using the same rules the controller uses.</p>
+
+    <div class="picker">
+      <div class="grp">
+        <span class="lbl">namespace</span>
+        <div class="seg" id="ns-pick">
+          <button data-ns="voting-a" aria-pressed="true">voting-a</button>
+          <button data-ns="voting-b" aria-pressed="false">voting-b</button>
+        </div>
+      </div>
+      <div class="grp">
+        <span class="lbl">module</span>
+        <div class="seg" id="mod-pick">
+          <button data-mod="redis" aria-pressed="true">redis</button>
+          <button data-mod="postgres" aria-pressed="false">postgres</button>
+          <button data-mod="pgadmin" aria-pressed="false">pgadmin</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="resolve" id="resolve">
+      <div class="cell"><div class="k">annotation key</div><div class="v" id="r-annot">&nbsp;</div></div>
+      <div class="cell"><div class="k">InfraClaim</div><div class="v" id="r-claim">&nbsp;</div></div>
+      <div class="cell"><div class="k">IP</div><div class="v" id="r-ip">&nbsp;</div></div>
+      <div class="cell"><div class="k">container</div><div class="v" id="r-container">&nbsp;</div></div>
+      <div class="cell"><div class="k">Secret / Service</div><div class="v" id="r-secret">&nbsp;</div></div>
+      <div class="cell"><div class="k">MinIO state key</div><div class="v" id="r-state">&nbsp;</div></div>
+    </div>
+
+    <ol class="trace">
+      <li>
+        <span class="n">1</span>
+        <h3>The tenant writes an annotation</h3>
+        <p class="desc">Any key beginning <code>jit.infra/</code> on a Deployment is a requirement. The
+        suffix after the slash is the <b>module name</b>, and the value is a small JSON blob.</p>
+        <div class="valrow">
+          <span class="val blue" id="v-annot">&nbsp;</span>
+        </div>
+        <pre id="v-annot-json"></pre>
+        <p class="muted">The controller's <code>parse_annotations()</code> walks the annotations, keeps the
+        ones with that prefix, parses the JSON and adds the module name to it.</p>
+      </li>
+
+      <li>
+        <span class="n">2</span>
+        <h3>An InfraClaim is created</h3>
+        <p class="desc">Named <code>{namespace}-{module}</code>, owned by the <b>Namespace</b> rather than the
+        Deployment &mdash; which is why deleting the Deployment does not delete the claim &mdash; and carrying
+        the finalizer that blocks deletion until a destroy succeeds.</p>
+        <pre id="v-claim-yaml"></pre>
+      </li>
+
+      <li>
+        <span class="n">3</span>
+        <h3>IPAM hands out an address</h3>
+        <p class="desc">A namespace gets one block of ten addresses out of
+        <code>172.19.0.100-199</code>, and each of its claims takes the first free address in that block. The
+        ledger is the <code>jit-ipam</code> ConfigMap in the controller's namespace.</p>
+        <div class="blockmap" id="v-blockmap"></div>
+        <p class="muted" id="v-ip-note"></p>
+      </li>
+
+      <li>
+        <span class="n">4</span>
+        <h3>The controller calls the runner</h3>
+        <p class="desc">One HTTP POST. The annotation's own <code>params</code> are merged with three
+        mandatory ones the controller adds, and for the database modules, credentials resolved from the
+        <code>jit-postgres</code> Secret.</p>
+        <pre id="v-post"></pre>
+      </li>
+      <li>
+        <span class="n">5</span>
+        <h3>The runner runs OpenTofu</h3>
+        <p class="desc">The runner is outside the cluster and holds the Docker socket. For each request it
+        works in a throw-away directory keyed by the workspace.</p>
+        <div class="valrow">
+          <span class="val">copy <span class="mono">jit-modules/modules/<span id="v-mod5"></span>/</span> to a temp dir</span>
+          <span class="val">tofu init <span class="mono">-backend-config=MinIO</span></span>
+          <span class="val green">tofu apply -auto-approve</span>
+        </div>
+        <p class="muted" id="v-tofu-note"></p>
+      </li>
+
+      <li>
+        <span class="n">6</span>
+        <h3>The state lands in MinIO</h3>
+        <p class="desc">The backend key is <code>ns/{workspace}/{module}/terraform.tfstate</code>. The
+        workspace is the <b>namespace</b>, not the claim and not the Deployment, so one namespace and one
+        module have exactly one state file no matter how many workloads reference it.</p>
+        <div class="valrow">
+          <span class="val amber" id="v-state">&nbsp;</span>
+        </div>
+        <p class="muted">Bucket <span class="mono">jit-state</span> &mdash; the same S3 backend an AWS
+        deployment would use, with MinIO standing in for S3.</p>
+      </li>
+
+      <li>
+        <span class="n">7</span>
+        <h3>The module's outputs come back</h3>
+        <p class="desc">Terraform reports what it built, and the controller turns those outputs into a
+        Secret. The row for the module you picked is highlighted.</p>
+        <table>
+          <thead><tr><th>Module</th><th>Outputs</th><th>Written to</th></tr></thead>
+          <tbody id="v-outputs">
+            <tr data-mod="redis"><td class="mono">redis</td><td class="mono">address, port, url</td><td class="mono">Secret jit-redis</td></tr>
+            <tr data-mod="postgres"><td class="mono">postgres</td><td class="mono">address, port, url, volume_name</td><td class="mono">Secret jit-postgres (+ generated POSTGRES_PASSWORD)</td></tr>
+            <tr data-mod="pgadmin"><td class="mono">pgadmin</td><td class="mono">address, port, http_port, url, postgres_url</td><td class="mono">Secret jit-pgadmin</td></tr>
+          </tbody>
+        </table>
+        <p class="muted" id="v-output-note"></p>
+      </li>
+
+      <li>
+        <span class="n">8</span>
+        <h3>Three Kubernetes objects appear</h3>
+        <p class="desc">And this is the step the application is actually waiting on. The pod reads the Secret
+        through <code>secretKeyRef</code> with <code>optional: false</code>, so until this step runs the pod
+        sits in <code>CreateContainerConfigError</code>. The Secret is the readiness gate.</p>
+        <div class="valrow">
+          <span class="val green" id="v-secret">&nbsp;</span>
+          <span class="val green" id="v-service">&nbsp;</span>
+          <span class="val green" id="v-endpoint">&nbsp;</span>
+        </div>
+        <pre id="v-container-pre"></pre>
+        <p class="muted">The app then talks to <span class="mono" id="v-secret-inline"></span> and never
+        touches Docker, MinIO or the runner. That is the whole point of the mapping: the only thing the
+        workload knows about is a Secret name.</p>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section id="diagram">
+  <div class="card">
+    <h2>The chain in one line</h2>
+    <p class="lede">Nine hops, and only the last one is visible to the application.</p>
+    <div class="flow">
+      <div class="node dim"><div class="t">annotation</div><div class="s">jit.infra/&lt;module&gt;</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">parse_annotations()</div><div class="s">the module name</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">InfraClaim</div><div class="s">{ns}-{module}</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">IPAM</div><div class="s">one address</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node mono"><div class="t">POST /v1/runs</div><div class="s">module + workspace + params</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">tofu apply</div><div class="s">the container is created</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">MinIO</div><div class="s">the state file</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">outputs</div><div class="s">address, port, url</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">Secret, Service, EndpointSlice</div><div class="s">the pod starts</div></div>
+    </div>
+    <div class="note">Everything from hop 2 to hop 8 is invisible to the tenant. The Deployment names a
+    Secret; the pod cannot start until that Secret exists; none of the machinery in between is its
+    business.</div>
+  </div>
+</section>
+
+<section id="naming">
+  <div class="card">
+    <h2>The naming rule, applied</h2>
+    <p class="lede">Every layer is the same two words in a different arrangement. The example column follows
+    the picker above.</p>
+    <table>
+      <thead><tr><th>Layer</th><th>Pattern</th><th>For this selection</th></tr></thead>
+      <tbody>
+        <tr><td>Annotation key</td><td class="mono">jit.infra/{module}</td><td class="mono" data-ex="annot"></td></tr>
+        <tr><td>InfraClaim</td><td class="mono">{namespace}-{module}</td><td class="mono" data-ex="claim"></td></tr>
+        <tr><td>Container</td><td class="mono">{namespace}-{module}-{module}</td><td class="mono" data-ex="container"></td></tr>
+        <tr><td>Secret</td><td class="mono">jit-{module}</td><td class="mono" data-ex="secret"></td></tr>
+        <tr><td>Service</td><td class="mono">jit-{module}</td><td class="mono" data-ex="service"></td></tr>
+        <tr><td>MinIO key</td><td class="mono">ns/{namespace}/{module}/terraform.tfstate</td><td class="mono" data-ex="state"></td></tr>
+        <tr><td>IPAM block</td><td class="mono">10 addresses per namespace</td><td class="mono" data-ex="block"></td></tr>
+      </tbody>
+    </table>
+    <p class="muted">The container name looks redundant &mdash; <span class="mono">redis-redis</span> &mdash;
+    because the module's Terraform appends the module name to whatever <code>name</code> variable it is given,
+    and the controller sets that variable to <code>{namespace}-{module}</code>.</p>
+  </div>
+</section>
+
+<section id="lookup">
+  <div class="card">
+    <h2>Looking things up</h2>
+    <p class="lede">The five questions this chain gets asked, with the commands and the answer for the
+    current selection. These are read-only.</p>
+
+    <div class="q">
+      <h3>Where is the Terraform state for <span class="mono dyn" data-d="ns"></span>'s <span class="mono dyn" data-d="mod"></span>?</h3>
+<pre>make -s state | python3 -c "
+import json, sys
+d = json.load(sys.stdin)
+for s in d.get('stateObjects', []):
+    if '<span class="hl" data-d="ns"></span>' in s and '<span class="hl" data-d="mod"></span>' in s:
+        print(s)
+"</pre>
+      <p class="ans" data-a="state"></p>
+    </div>
+
+    <div class="q">
+      <h3>What IP does <span class="mono dyn" data-d="claim"></span> have?</h3>
+<pre>kubectl get infraclaim <span class="hl" data-d="claim"></span> -n <span class="hl" data-d="ns"></span> \
+  -o jsonpath='{.status.allocatedIP}'</pre>
+      <p class="ans" data-a="ip"></p>
+    </div>
+
+    <div class="q">
+      <h3>Which Deployments reference the <span class="mono dyn" data-d="mod"></span> claim?</h3>
+<pre>kubectl get infraclaim <span class="hl" data-d="claim"></span> -n <span class="hl" data-d="ns"></span> \
+  -o jsonpath='{.status.referencedBy}'</pre>
+      <p class="ans" data-a="refs"></p>
+    </div>
+
+    <div class="q">
+      <h3>What container does the claim map to?</h3>
+<pre>docker ps --filter name=<span class="hl" data-d="container"></span></pre>
+      <p class="ans" data-a="container"></p>
+    </div>
+
+    <div class="q">
+      <h3>Show me the full picture for <span class="mono dyn" data-d="ns"></span></h3>
+<pre><span class="c"># everything the console sees</span>
+make -s state | python3 -m json.tool
+
+<span class="c"># or straight from the cluster</span>
+kubectl get infraclaims -n <span class="hl" data-d="ns"></span> -o wide
+kubectl get secrets  -n <span class="hl" data-d="ns"></span> | grep jit
+kubectl get services -n <span class="hl" data-d="ns"></span> | grep jit</pre>
+      <p class="ans" data-a="picture"></p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  Drawn from <a href="annotation-to-state.md">docs/annotation-to-state.md</a>, with the names taken from
+  <a href="jit-infra-flows.md">docs/jit-infra-flows.md</a>, <a href="runner-api.md">docs/runner-api.md</a>
+  and <code>jit-controller/main.py</code> / <code>jit-controller/ipam.py</code>.
+  Related: <a href="controller-explained.html">the controller deck</a> &middot;
+  <a href="deletion-lifecycle.html">the deletion lifecycle</a> &middot;
+  <a href="timeline.html">the timeline viewer</a>.
+  <br><br>No dependencies, no server: one file, opens in any browser.
+</footer>
+
+</div>
+<script>
+(function(){
+  "use strict";
+
+  // The numbers jit-controller/ipam.py allocates, and the values the manifests annotate.
+  var NS = {
+    "voting-a": {ips: {redis: 100, postgres: 101, pgadmin: 102}},
+    "voting-b": {ips: {redis: 110, postgres: 111, pgadmin: 112}}
+  };
+  var BLOCKS = [
+    {text: "172.19.0.100-109", owner: "voting-a"},
+    {text: "172.19.0.110-119", owner: "voting-b"},
+    {text: "172.19.0.120-129", owner: null}
+  ];
+  var MODS = {
+    redis: {
+      port: 6379, extraParams: [], refs: ["voting-app-vote", "voting-app-worker"],
+      notefive: "Redis needs nothing from the annotation in this repo, so its params travel empty."
+    },
+    postgres: {
+      port: 5432, extraParams: ["postgres_password"], refs: ["voting-app-vote"],
+      notefive: "The controller generates postgres_password when the annotation does not carry one, so a " +
+                "container that already holds data keeps the same password across re-provisioning."
+    },
+    pgadmin: {
+      port: 5050, extraParams: ["postgres_url", "postgres_password"], refs: ["voting-app-vote"],
+      notefive: "pgadmin cannot be provisioned before the postgres claim is Ready \u2014 it needs that " +
+                "Secret's address and password. A missing dependency leaves the claim pending, not failed."
+    }
+  };
+
+  var S = {ns: "voting-a", mod: "redis"};
+
+  function paramsFor(ns, mod){
+    // voting-b patches pgadmin's host port, because two pgAdmins cannot both hold 5050.
+    if (ns === "voting-b" && mod === "pgadmin") return {http_port: 5051};
+    return {};
+  }
+
+  function derive(ns, mod){
+    var ip = "172.19.0." + NS[ns].ips[mod];
+    return {
+      ns: ns, mod: mod,
+      annot: "jit.infra/" + mod,
+      claim: ns + "-" + mod,
+      container: ns + "-" + mod + "-" + mod,
+      secret: "jit-" + mod,
+      service: "jit-" + mod,
+      endpoint: "jit-" + mod,
+      ip: ip,
+      state: "ns/" + ns + "/" + mod + "/terraform.tfstate",
+      block: BLOCKS.filter(function(b){ return b.owner === ns; })[0].text,
+      params: paramsFor(ns, mod)
+    };
+  }
+
+  function esc(s){
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function setText(sel, txt){
+    Array.prototype.forEach.call(document.querySelectorAll(sel), function(el){ el.textContent = txt; });
+  }
+
+  function blockMap(d){
+    var html = "";
+    BLOCKS.forEach(function(b){
+      var base = parseInt(b.text.split("-")[0].split(".")[3], 10);
+      var cells = "";
+      for (var i = 0; i < 10; i++){
+        var octet = base + i;
+        var here = (b.owner === d.ns && octet === NS[d.ns].ips[d.mod]);
+        var used = false;
+        if (b.owner){
+          Object.keys(NS[b.owner].ips).forEach(function(m){
+            if (NS[b.owner].ips[m] === octet) used = true;
+          });
+        }
+        cells += '<span class="' + (here ? "here" : (used ? "used" : "free")) + '">' + octet + "</span>";
+      }
+      html += '<div class="block"><div class="bt"><span class="' + (b.owner ? "own" : "") + '">' +
+              b.text + "</span>" + (b.owner ? " &middot; " + b.owner : " &middot; unallocated") +
+              '</div><div class="cells">' + cells + "</div></div>";
+    });
+    return html;
+  }
+  function render(){
+    var d = derive(S.ns, S.mod);
+    var m = MODS[S.mod];
+    var paramsJson = JSON.stringify(d.params);
+
+    // the resolved strip at the top
+    document.getElementById("r-annot").textContent = d.annot;
+    document.getElementById("r-claim").textContent = d.claim;
+    document.getElementById("r-ip").textContent = d.ip;
+    document.getElementById("r-container").textContent = d.container;
+    document.getElementById("r-secret").textContent = d.secret;
+    document.getElementById("r-state").textContent = d.state;
+
+    // 1 - the annotation the tenant wrote
+    document.getElementById("v-annot").textContent = d.annot;
+    document.getElementById("v-annot-json").innerHTML =
+      '<span class="c"># app/kustomize/base/vote-deployment.yaml</span>\n' +
+      '<span class="k">annotations:</span>\n' +
+      "  " + d.annot + ": '" +
+      esc('{"module":"' + d.mod + '","moduleVersion":"v1","params":' + paramsJson +
+          ',"softDeleteTTL":"10m"}') + "'";
+
+    // 2 - the claim
+    document.getElementById("v-claim-yaml").innerHTML =
+      '<span class="k">apiVersion:</span> jit.io/v1alpha1\n' +
+      '<span class="k">kind:</span> InfraClaim\n' +
+      '<span class="k">metadata:</span>\n' +
+      '  <span class="k">name:</span> ' + d.claim + "\n" +
+      '  <span class="k">namespace:</span> ' + d.ns + "\n" +
+      '  <span class="k">ownerReferences:</span>\n' +
+      '    - <span class="k">kind:</span> Namespace          <span class="c"># not the Deployment</span>\n' +
+      '      <span class="k">name:</span> ' + d.ns + "\n" +
+      '  <span class="k">finalizers:</span>\n' +
+      '    - jit.infra/teardown         <span class="c"># blocks deletion until a destroy succeeds</span>\n' +
+      '<span class="k">spec:</span>\n' +
+      '  <span class="k">module:</span> ' + d.mod + "\n" +
+      '  <span class="k">moduleVersion:</span> v1\n' +
+      '  <span class="k">params:</span> ' + (paramsJson === "{}" ? "{}" : paramsJson) + "\n" +
+      '  <span class="k">softDeleteTTL:</span> 10m\n' +
+      '<span class="k">status:</span>\n' +
+      '  <span class="k">phase:</span> Ready\n' +
+      '  <span class="k">allocatedIP:</span> <span class="hl">' + d.ip + '</span>     <span class="c"># from IPAM</span>\n' +
+      '  <span class="k">referencedBy:</span> [' + m.refs.join(", ") + "]\n" +
+      '  <span class="k">expiresAt:</span> null                <span class="c"># set only when Orphaned</span>';
+
+    // 3 - the address
+    document.getElementById("v-blockmap").innerHTML = blockMap(d);
+    document.getElementById("v-ip-note").innerHTML =
+      d.ns + " owns the block <b>" + d.block + "</b>. " + d.mod + " takes <b>" + d.ip +
+      "</b> \u2014 the address its container is created on.";
+
+    // 4 - the runner call
+    var payload = {module: d.mod, version: "v1", workspace: d.ns,
+                   params: {"name": d.claim, "ip": d.ip, "network": "k3d-voting-app"}};
+    Object.keys(d.params).forEach(function(k){ payload.params[k] = d.params[k]; });
+    m.extraParams.forEach(function(p){
+      payload.params[p] = (p === "postgres_url") ? "jit-postgres:5432" : "<generated>";
+    });
+    document.getElementById("v-post").innerHTML =
+      '<span class="k">POST</span> /v1/runs\n' + esc(JSON.stringify(payload, null, 2));
+    // 5 - the runner
+    document.getElementById("v-mod5").textContent = d.mod;
+    document.getElementById("v-tofu-note").textContent = m.notefive;
+
+    // 6 - the state file
+    document.getElementById("v-state").textContent = d.state;
+
+    // 7 - the outputs
+    Array.prototype.forEach.call(document.querySelectorAll("#v-outputs tr"), function(tr){
+      tr.classList.toggle("here", tr.getAttribute("data-mod") === d.mod);
+    });
+    document.getElementById("v-output-note").innerHTML =
+      "For this selection the Secret is <b>" + d.secret + "</b>, holding the outputs listed above" +
+      (S.mod === "postgres"
+        ? ", plus the POSTGRES_PASSWORD the controller generated and wrote in itself"
+        : "") + ".";
+
+    // 8 - the three objects
+    document.getElementById("v-secret").textContent = "Secret " + d.secret;
+    document.getElementById("v-service").textContent = "Service " + d.service;
+    document.getElementById("v-endpoint").textContent = "EndpointSlice " + d.endpoint;
+    document.getElementById("v-container-pre").innerHTML =
+      '<span class="c"># the container this claim maps to</span>\n' +
+      esc(d.container + "   up   " + d.ip + "   on network k3d-voting-app");
+    document.getElementById("v-secret-inline").textContent = d.secret;
+
+    // the naming table, and the lookup commands, both follow the selection
+    setText('[data-ex="annot"]', d.annot);
+    setText('[data-ex="claim"]', d.claim);
+    setText('[data-ex="container"]', d.container);
+    setText('[data-ex="secret"]', d.secret);
+    setText('[data-ex="service"]', d.service);
+    setText('[data-ex="state"]', d.state);
+    setText('[data-ex="block"]', d.block);
+
+    setText('[data-d="ns"]', d.ns);
+    setText('[data-d="mod"]', d.mod);
+    setText('[data-d="claim"]', d.claim);
+    setText('[data-d="container"]', d.container);
+    setText('[data-a="state"]', "\u2192 " + d.state);
+    setText('[data-a="ip"]', "\u2192 " + d.ip);
+    setText('[data-a="refs"]', "\u2192 " + JSON.stringify(m.refs));
+    setText('[data-a="container"]', "\u2192 " + d.container + "  up  " + d.ip + ":" + m.port);
+    setText('[data-a="picture"]', "\u2192 3 claims, 3 jit-* Secrets and 3 jit-* Services in " + d.ns);
+  }
+  function press(container, attr, value){
+    Array.prototype.forEach.call(document.querySelectorAll(container + " button"), function(b){
+      b.setAttribute("aria-pressed", b.getAttribute(attr) === value ? "true" : "false");
+    });
+  }
+
+  function select(ns, mod){
+    if (!NS[ns] || !MODS[mod]) return;
+    S.ns = ns; S.mod = mod;
+    press("#ns-pick", "data-ns", ns);
+    press("#mod-pick", "data-mod", mod);
+    render();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("#ns-pick button"), function(b){
+    b.addEventListener("click", function(){ select(b.getAttribute("data-ns"), S.mod); });
+  });
+  Array.prototype.forEach.call(document.querySelectorAll("#mod-pick button"), function(b){
+    b.addEventListener("click", function(){ select(S.ns, b.getAttribute("data-mod")); });
+  });
+
+  // Exposed so the resolution can be driven and checked from a script rather than eyeballed.
+  // The page itself never reads it.
+  window.__trace = {
+    select: select,
+    snapshot: function(){
+      var d = derive(S.ns, S.mod);
+      return "ns=" + d.ns + " mod=" + d.mod +
+             " annot=" + d.annot +
+             " claim=" + d.claim +
+             " ip=" + d.ip +
+             " container=" + d.container +
+             " secret=" + d.secret +
+             " state=" + d.state +
+             " params=" + JSON.stringify(d.params);
+    }
+  };
+
+  select(S.ns, S.mod);
+})();
+</script>
+</body>
+</html>

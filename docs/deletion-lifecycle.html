@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What happens when you delete the app - the deletion lifecycle</title>
+<style>
+  /* Same palette as the other pages in this project, because it is the same project. */
+  :root{
+    --bg:#fbfbfd; --card:#fff; --ink:#1d1d1f; --ink-2:#6e6e73; --ink-3:#a1a1a6;
+    --hair:rgba(0,0,0,.1); --blue:#0071e3; --green:#30a46c; --amber:#c76a15; --red:#c9342b;
+    --green-bg:#e8f6ee; --amber-bg:#fdf1e2; --red-bg:#fdeceb; --blue-bg:#eaf3fd; --grey-bg:#f2f2f7;
+    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);
+    -webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:40px 22px 90px}
+  h1{font-size:clamp(30px,4.4vw,46px);letter-spacing:-.025em;line-height:1.1;margin:0 0 10px}
+  h2{font-size:clamp(21px,2.6vw,28px);letter-spacing:-.02em;margin:0 0 6px}
+  h3{font-size:15px;font-weight:600;letter-spacing:-.01em;margin:0 0 6px}
+  p{margin:0 0 12px;color:var(--ink-2)}
+  code{font-family:var(--mono);font-size:.9em;color:var(--ink)}
+  a{color:var(--blue);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .sub{font-size:clamp(16px,1.9vw,19px);color:var(--ink-2);max-width:74ch;margin:0 0 18px}
+  .rule{margin:0 0 26px;padding:16px 20px;background:var(--card);border-radius:14px;
+    border:1px solid var(--hair);font-size:clamp(16px,2vw,21px);color:var(--ink);
+    letter-spacing:-.015em;font-weight:500}
+
+  nav.toc{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 34px}
+  nav.toc a{font-size:12.5px;padding:5px 11px;border-radius:980px;border:1px solid var(--hair);
+    background:var(--card);color:var(--ink-2)}
+  nav.toc a:hover{border-color:var(--ink-3);color:var(--ink);text-decoration:none}
+
+  section{margin:0 0 40px}
+  .card{background:var(--card);border:1px solid var(--hair);border-radius:16px;
+    padding:clamp(18px,2.6vw,26px)}
+  .lede{font-size:15px;color:var(--ink-2);max-width:78ch}
+  .muted{color:var(--ink-3);font-size:13px;margin:10px 0 0}
+
+  .chip{display:inline-block;font-family:var(--mono);font-size:12px;font-weight:500;
+    padding:3px 10px;border-radius:980px;background:var(--grey-bg);color:var(--ink-2)}
+  .chip.ready{background:var(--green-bg);color:var(--green)}
+  .chip.orphan{background:var(--amber-bg);color:var(--amber)}
+  .chip.deleting{background:var(--red-bg);color:var(--red)}
+  .chip.info{background:var(--blue-bg);color:var(--blue)}
+  .chip.plain{background:var(--grey-bg);color:var(--ink-2)}
+  .chip.sm{font-size:11px;padding:2px 8px}
+
+  pre{font-family:var(--mono);font-size:12.5px;line-height:1.6;background:#1d1d1f;color:#f5f5f7;
+    border-radius:12px;padding:14px 16px;overflow:auto;margin:12px 0 0}
+  pre .c{color:#98989d}
+  pre .k{color:#8ecdf7}
+
+  /* ---------- the clock simulator ---------------------------------------- */
+  .sim{margin-top:18px}
+  .sim-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 16px}
+  button.act{font:inherit;font-size:13.5px;padding:8px 15px;border-radius:980px;
+    border:1px solid var(--hair);background:var(--card);color:var(--ink);cursor:pointer;
+    transition:border-color .15s,background .15s,transform .1s}
+  button.act:hover:not(:disabled){border-color:var(--ink-3)}
+  button.act:active:not(:disabled){transform:scale(.97)}
+  button.act:disabled{opacity:.35;cursor:not-allowed}
+  button.act.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+  button.act.danger{color:var(--red);border-color:rgba(201,52,43,.35)}
+  select{font:inherit;font-size:13px;padding:7px 10px;border-radius:10px;
+    border:1px solid var(--hair);background:var(--card);color:var(--ink)}
+  .sim-bar label{font-size:13px;color:var(--ink-2);display:flex;gap:7px;align-items:center}
+
+  .clock{position:relative;padding:26px 0 30px}
+  .track{position:relative;height:10px;border-radius:6px;background:#e9e9ee;overflow:hidden}
+  .track .fill{position:absolute;left:0;top:0;bottom:0;width:0;background:var(--amber);
+    border-radius:6px;transition:width .18s linear}
+  .track .fill.hot{background:var(--red)}
+  .track .mark{position:absolute;top:-6px;bottom:-6px;width:2px;background:var(--ink);
+    left:0;transition:left .18s linear;opacity:0}
+  .track .mark.on{opacity:1}
+  .ticks{position:relative;height:34px;margin-top:8px;font-size:12px;color:var(--ink-3)}
+  .ticks .t{position:absolute;top:0;transform:translateX(-50%);text-align:center;white-space:nowrap}
+  .ticks .t.start{transform:none;left:0!important;text-align:left}
+  .ticks .t.end{transform:none;right:0;left:auto!important;text-align:right}
+  .ticks .t .v{display:block;color:var(--ink-2);font-family:var(--mono);font-size:11.5px}
+
+  .simgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:6px}
+  @media(max-width:760px){.simgrid{grid-template-columns:1fr}}
+  .panel{background:var(--card);border:1px solid var(--hair);border-radius:14px;padding:16px 18px}
+  .panel h3{margin:0 0 10px;font-size:12px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-3);font-weight:600}
+  .obj{display:flex;align-items:center;gap:10px;padding:5px 0;font-size:13.5px;color:var(--ink-2);
+    border-bottom:1px solid var(--hair)}
+  .obj:last-child{border-bottom:0}
+  .obj .dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex:0 0 auto}
+  .obj.gone{color:var(--ink-3)}
+  .obj.gone .dot{background:var(--ink-3)}
+  .obj .what{font-family:var(--mono);font-size:12.5px;color:var(--ink)}
+  .obj.gone .what{color:var(--ink-3)}
+  .obj .tagl{margin-left:auto;font-size:11.5px;font-family:var(--mono);color:var(--ink-3)}
+  .verdict{font-size:13.5px;color:var(--ink-2);margin:14px 0 0;min-height:20px}
+  .verdict b{color:var(--ink);font-weight:600}
+
+  ol.steps{margin:0;padding:0;list-style:none;counter-reset:s}
+  ol.steps li{position:relative;padding:6px 0 6px 30px;font-size:13.5px;color:var(--ink-3);
+    transition:color .2s}
+  ol.steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:5px;
+    width:20px;height:20px;border-radius:50%;background:var(--grey-bg);color:var(--ink-3);
+    font-size:11px;display:flex;align-items:center;justify-content:center;font-family:var(--mono)}
+  ol.steps li.on{color:var(--ink)}
+  ol.steps li.on::before{background:var(--ink);color:#fff}
+
+  /* ---------- lanes, flows, tables --------------------------------------- */
+  .lanes{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px}
+  @media(max-width:860px){.lanes{grid-template-columns:1fr}}
+  .lane{border-radius:16px;border:1px solid var(--hair);background:var(--card);padding:18px 20px}
+  .lane.slow{border-top:3px solid var(--amber)}
+  .lane.fast{border-top:3px solid var(--red)}
+  .lane h3{font-size:16px;letter-spacing:-.015em}
+  .lane ul{margin:10px 0 0;padding:0;list-style:none}
+  .lane li{font-size:13.5px;color:var(--ink-2);padding:4px 0 4px 16px;position:relative}
+  .lane li::before{content:'';position:absolute;left:0;top:.75em;width:6px;height:1px;
+    background:var(--ink-3)}
+
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:16px 0 0}
+  .node{background:var(--card);border:1px solid var(--hair);border-radius:12px;padding:10px 13px}
+  .node .t{font-size:13px;font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  .node .s{font-size:11.5px;color:var(--ink-2);margin-top:3px}
+  .node.mono .t{font-family:var(--mono);font-size:12px}
+  .node.hi{background:var(--ink);border-color:var(--ink)}
+  .node.hi .t{color:#fff}
+  .node.hi .s{color:rgba(255,255,255,.62)}
+  .node.dim{background:var(--grey-bg);border-color:transparent}
+  .arw{color:var(--ink-3);font-family:var(--mono);font-size:13px}
+
+  table{width:100%;border-collapse:collapse;margin-top:14px;font-size:13.5px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+  th{font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-2);
+    background:#fafafc;font-weight:600}
+  tr:last-child td{border-bottom:0}
+  td.mono,th.mono{font-family:var(--mono);font-size:12px}
+  td.hi{background:var(--blue-bg)}
+  td.fail{background:var(--red-bg)}
+
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px}
+  @media(max-width:860px){.grid2{grid-template-columns:1fr}}
+  .note{background:var(--blue-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#0b4a8f;margin-top:14px}
+  .warn{background:var(--amber-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#7a4409;margin-top:14px}
+  .bad{background:var(--red-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#8f1d14;margin-top:14px}
+  .ok{background:var(--green-bg);border-radius:12px;padding:13px 16px;font-size:13.5px;
+    color:#1c7a4a;margin-top:14px}
+  .note b,.warn b,.bad b,.ok b{font-weight:600}
+
+  .guardbar{display:inline-flex;border:1px solid var(--hair);border-radius:980px;overflow:hidden;
+    background:var(--card);margin:0 0 14px}
+  .guardbar button{font:inherit;font-size:13px;padding:7px 15px;border:0;background:none;
+    color:var(--ink);cursor:pointer}
+  .guardbar button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
+  footer{margin-top:34px;padding-top:18px;border-top:1px solid var(--hair);
+    color:var(--ink-3);font-size:12.5px}
+  footer a{color:var(--ink-2)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<h1>Delete the app. A clock starts.</h1>
+<p class="sub">The container keeps running. Redeploy inside the window and nothing was ever destroyed &mdash;
+same container, same data, same IP. Let the clock run out and it goes, data and all. Delete the whole
+namespace and there is no window at all.</p>
+<p class="rule">Accidents get a grace period. Decisions do not.</p>
+
+<nav class="toc">
+  <a href="#clock">The clock</a>
+  <a href="#speeds">Two speeds</a>
+  <a href="#tick">How it knows</a>
+  <a href="#finalizer">The finalizer</a>
+  <a href="#soft">Soft delete</a>
+  <a href="#resurrect">Resurrection</a>
+  <a href="#sweep">Expiry</a>
+  <a href="#hard">Hard delete</a>
+  <a href="#stuck">When it stalls</a>
+  <a href="#run">See it</a>
+</nav>
+
+<section id="clock">
+  <div class="card">
+    <h2>The clock, in one picture</h2>
+    <p class="lede">Delete the deployment, then either redeploy or let the window run out. The list on the
+    right is what still exists at each moment. The window is compressed to a few seconds here, so the
+    machinery is visible; in the cluster it is the annotation's own <code>softDeleteTTL</code>.</p>
+
+    <div class="sim">
+      <div class="sim-bar">
+        <button class="act primary" id="b-del">Delete the deployment</button>
+        <button class="act" id="b-re" disabled>Redeploy inside the window</button>
+        <button class="act danger" id="b-exp" disabled>Let the clock expire</button>
+        <button class="act" id="b-reset">Reset</button>
+        <label>window
+          <select id="ttl">
+            <option value="10m" data-secs="600">10m &mdash; what this repo deploys</option>
+            <option value="2m" data-secs="120">2m &mdash; what the verification suite forces</option>
+            <option value="30d" data-secs="2592000">30d &mdash; the default if omitted</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="clock">
+        <div class="track">
+          <div class="fill" id="fill"></div>
+          <div class="mark" id="mark"></div>
+        </div>
+        <div class="ticks">
+          <span class="t start">deployment deleted<span class="v">t = 0</span></span>
+          <span class="t end">expiresAt<span class="v" id="t-end">+ 10m</span></span>
+        </div>
+      </div>
+
+      <div class="simgrid">
+        <div class="panel">
+          <h3>The claim</h3>
+          <div><span class="chip ready" id="phase">Ready</span> <span class="chip plain" id="refs">referencedBy: 1</span></div>
+          <p class="verdict" id="verdict">A Deployment references this claim. Nothing is on a clock.</p>
+        </div>
+        <div class="panel">
+          <h3>What still exists</h3>
+          <div class="obj" data-o="container"><span class="dot"></span><span class="what">container voting-a-redis</span><span class="tagl" data-l>running</span></div>
+          <div class="obj" data-o="ip"><span class="dot"></span><span class="what">IP 172.19.0.100</span><span class="tagl" data-l>reserved</span></div>
+          <div class="obj" data-o="secret"><span class="dot"></span><span class="what">Secret jit-redis</span><span class="tagl" data-l>present</span></div>
+          <div class="obj" data-o="service"><span class="dot"></span><span class="what">Service jit-redis</span><span class="tagl" data-l>present</span></div>
+          <div class="obj" data-o="endpoint"><span class="dot"></span><span class="what">EndpointSlice jit-redis</span><span class="tagl" data-l>present</span></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>On expiry &mdash; the sweep, in order</h3>
+        <ol class="steps" id="sweep">
+          <li>The runner destroys the container and its volume</li>
+          <li>Secret, Service and EndpointSlice are deleted</li>
+          <li>The IP address returns to the IPAM pool</li>
+          <li>The finalizer is removed and the InfraClaim is deleted</li>
+        </ol>
+      </div>
+
+      <p class="muted">The clock starts <b>late</b>, never early: <code>expiresAt</code> is set on the first
+      resync that notices the Deployment is gone, not at the moment Kubernetes deleted it. If the controller
+      is down, the infra simply lives longer than expected. That is the safe direction to be wrong in.</p>
+    </div>
+  </div>
+</section>
+
+<section id="speeds">
+  <div class="card">
+    <h2>Two ways in, two speeds</h2>
+    <p class="lede">Both roads end at the same destroy. They differ in whether a clock gets a say.</p>
+    <div class="lanes">
+      <div class="lane slow">
+        <span class="chip orphan">slow &middot; soft delete</span>
+        <h3>The Deployment is deleted</h3>
+        <ul>
+          <li>Routine &mdash; every rollout, every image change, every scale event</li>
+          <li>The claim survives: it is owned by the <b>Namespace</b>, not the Deployment</li>
+          <li>No references left &rarr; claim goes <b>Orphaned</b>, the clock starts</li>
+          <li>Redeploy inside the window &rarr; back to <b>Ready</b>, nothing reprovisioned</li>
+          <li>Window runs out &rarr; destroyed</li>
+        </ul>
+      </div>
+      <div class="lane fast">
+        <span class="chip deleting">fast &middot; hard delete</span>
+        <h3>The Namespace is deleted</h3>
+        <ul>
+          <li>Deliberate &mdash; someone removed a whole environment</li>
+          <li>Kubernetes GC deletes every namespaced resource</li>
+          <li>The finalizer intercepts each InfraClaim instead</li>
+          <li><code>expiresAt</code> is never consulted &mdash; the clock is irrelevant</li>
+          <li>Destroyed now</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="flow">
+      <div class="node dim"><div class="t">Deployment deleted</div><div class="s">soft path</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">claim Orphaned</div><div class="s">expiresAt = now + TTL</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">redeploy, or wait</div><div class="s">Ready again, or expire</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">destroy_infra()</div><div class="s">container + volume gone</div></div>
+    </div>
+    <div class="flow">
+      <div class="node dim"><div class="t">Namespace deleted</div><div class="s">hard path</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">GC marks every resource</div><div class="s">claims are held by a finalizer</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">on.delete fires</div><div class="s">clock ignored</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">destroy_infra()</div><div class="s">same function</div></div>
+    </div>
+  </div>
+</section>
+
+<section id="tick">
+  <div class="card">
+    <h2>How the controller knows</h2>
+    <p class="lede">It does not watch for delete events and it does not sleep until expiry. Every InfraClaim
+    gets a <b>30-second timer</b>, and each tick re-derives the truth from what is actually in the cluster.</p>
+<pre><span class="c"># jit-controller/main.py</span>
+<span class="k">@kopf.timer</span>("jit.io", "v1alpha1", "infraclaims", interval=30, initial_delay=True)
+<span class="k">def</span> resync_referenced_by(body, namespace, name, logger, **kwargs):
+    <span class="c">"""Periodic resync: recompute referencedBy, handle orphaning and TTL sweep."""</span></pre>
+    <p class="muted" style="margin-top:14px">Each tick: list the live Deployments referencing this module,
+    fresh-read the claim's status from the API server (the kopf body can lag the controller's own patches),
+    then decide.</p>
+
+    <table>
+      <thead><tr><th>References exist?</th><th>Current phase</th><th>What the tick does</th></tr></thead>
+      <tbody>
+        <tr><td>Yes</td><td class="mono">not Ready, not Failed</td><td>Try provisioning &mdash; call the runner</td></tr>
+        <tr><td>Yes</td><td class="mono">Ready</td><td>Update <code>referencedBy</code>, clear <code>expiresAt</code></td></tr>
+        <tr><td>Yes</td><td class="mono">Failed</td><td>Log and skip &mdash; Failed is terminal until the Deployment changes</td></tr>
+        <tr class="hl"><td>No</td><td class="mono">not Orphaned</td><td>Mark <b>Orphaned</b>, set <code>expiresAt = now + TTL</code></td></tr>
+        <tr><td>No</td><td class="mono">Orphaned</td><td>Compare <code>now</code> against <code>expiresAt</code>; if past it, sweep</td></tr>
+        <tr><td>No</td><td class="mono">Deleting</td><td>Retry the destroy &mdash; a previous attempt failed</td></tr>
+      </tbody>
+    </table>
+    <p class="muted">The expiry test is a plain datetime comparison on each tick. There is no scheduled
+    callback and no watch event for expiry; 30-second granularity is fine when the shortest window in
+    testing is two minutes.</p>
+  </div>
+</section>
+
+<section id="finalizer">
+  <div class="card">
+    <h2>The finalizer: why cleanup cannot be skipped</h2>
+    <p class="lede">Every InfraClaim carries the finalizer <code>jit.infra/teardown</code>. Kubernetes refuses
+    to remove the object until the controller takes it off &mdash; and the controller only takes it off after
+    a destroy has succeeded.</p>
+
+    <div class="flow">
+      <div class="node dim"><div class="t">a delete is requested</div><div class="s">user, GC, or the TTL sweep</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">marked, not removed</div><div class="s">the claim sits in Terminating</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node mono"><div class="t">the delete handler runs</div><div class="s">destroy, then cleanup</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">finalizer removed</div><div class="s">only now does it go</div></div>
+    </div>
+    <p class="muted">The consequence is the point: the controller gets its turn even if it was down when the
+    delete was requested. The object waits in <code>Terminating</code> until it comes back.</p>
+
+    <h3 style="margin-top:24px">Two paths, one teardown</h3>
+    <table>
+      <thead><tr><th style="width:18%">&nbsp;</th><th>Path 1 &mdash; TTL sweep</th><th>Path 2 &mdash; hard delete</th></tr></thead>
+      <tbody>
+        <tr><td><b>Triggered by</b></td><td>The timer, when <code>expiresAt</code> has passed</td><td>Namespace deletion; GC marks the claim</td></tr>
+        <tr><td><b>Destroys</b></td><td class="mono">destroy_infra()</td><td class="mono">destroy_infra()</td></tr>
+        <tr><td><b>Cleans up</b></td><td class="mono">cleanup_k8s_resources()</td><td class="mono">cleanup_k8s_resources()</td></tr>
+        <tr><td><b>Finalizer</b></td><td class="mono">remove_finalizer_and_delete()</td><td>patch the finalizer off</td></tr>
+        <tr><td><b>IP block</b></td><td class="mono">release_block()</td><td class="mono">release_block() &mdash; <b>skipped</b> if phase is Deleting</td></tr>
+        <tr><td><b>Then</b></td><td>Kubernetes deletes the InfraClaim</td><td>Kubernetes deletes the InfraClaim</td></tr>
+      </tbody>
+    </table>
+
+    <h3 style="margin-top:26px">The double-release guard</h3>
+    <p class="lede">Both paths release the IP block, and the same claim can reach both: the sweep removes the
+    finalizer, the object is deleted, and that deletion fires <code>on.delete</code> a second time. The guard
+    is one check on the claim's phase.</p>
+    <div class="guardbar" role="group" aria-label="double release guard">
+      <button id="g-on" aria-pressed="true">with the guard</button>
+      <button id="g-off" aria-pressed="false">without it &mdash; the bug that was fixed</button>
+    </div>
+<pre><span class="k">phase</span> = (body.get("status", {}) or {}).get("phase", "")
+<span class="k">if</span> phase == "Deleting":
+    logger.info(f"Claim {name} was already swept; not releasing its IP block twice")
+<span class="k">else</span>:
+    release_block(namespace)</pre>
+
+    <div class="grid2" id="guard-view">
+      <div class="panel">
+        <h3>voting-a</h3>
+        <div class="obj"><span class="dot"></span><span class="what">block 172.19.0.100/28</span><span class="tagl" id="ga-block">held</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">container voting-a-redis</span><span class="tagl" id="ga-ip">172.19.0.100</span></div>
+      </div>
+      <div class="panel">
+        <h3>voting-b</h3>
+        <div class="obj"><span class="dot"></span><span class="what" id="gb-block">block 172.19.0.110/28</span><span class="tagl" id="gb-state">held</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">container voting-b-redis</span><span class="tagl" id="gb-ip">172.19.0.110</span></div>
+      </div>
+    </div>
+    <p id="guard-verdict" class="ok">Releasing once per claim leaves each namespace holding its own block.
+    No collision, nothing to debug.</p>
+  </div>
+</section>
+
+<section id="stuck">
+  <div class="card">
+    <h2>When the runner is down</h2>
+    <p class="lede">The destroy fails, so the finalizer is never removed, so Kubernetes never finishes the
+    deletion. The claim stays <code>Terminating</code>; a namespace deletion leaves the namespace
+    <code>Terminating</code> too.</p>
+    <div class="flow">
+      <div class="node dim"><div class="t">destroy fails</div><div class="s">runner unreachable</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">finalizer stays</div><div class="s">cleanup is not skipped</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">retried every 30s</div><div class="s">phase Deleting</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">runner returns</div><div class="s">next tick succeeds</div></div>
+    </div>
+    <div class="warn">It stalls visibly rather than leaking quietly. That is deliberate: the system would
+    rather stop and be noticed than forget a container exists. The cost is a namespace stuck in
+    <code>Terminating</code> until someone acts.</div>
+    <p class="lede" style="margin-top:16px">The manual escape hatch, in order:</p>
+<pre><span class="c"># 1. destroy the infra by hand</span>
+tofu destroy -auto-approve ...
+
+<span class="c"># 2. patch the finalizer off</span>
+kubectl patch infraclaim voting-a-redis -n voting-a --type=json \
+  -p='[{"op":"replace","path":"/metadata/finalizers","value":[]}]'
+
+<span class="c"># 3. clean up the IPAM ledger</span>
+kubectl get configmap jit-ipam -n default -o json \
+  | jq --arg ns 'voting-a' '.data.allocations |= (fromjson | del(.[$ns]) | tojson)' \
+  | kubectl replace -f -</pre>
+  </div>
+</section>
+
+<section id="soft">
+  <div class="card">
+    <h2>Soft delete: the Deployment goes</h2>
+    <p class="lede">Routine. Kubernetes does this on every rollout, every <code>kubectl set image</code>, every
+    scale event &mdash; so the infra is not destroyed because of it.</p>
+<pre>kubectl delete deployment voting-app-vote -n voting-a
+<span class="c"># or: make demo-undeploy</span></pre>
+
+    <div class="flow" style="margin-top:18px">
+      <div class="node"><div class="t">01 &middot; Deployment deleted</div><div class="s">pods terminate; the claim is owned by<br>the Namespace, so it survives</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">02 &middot; next tick, &le;30s</div><div class="s">referencedBy recomputed from live<br>Deployments &mdash; now empty</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">03 &middot; claim goes Orphaned</div><div class="s">expiresAt = now + the annotation's<br>softDeleteTTL</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">04 &middot; nothing else changes</div><div class="s">only phase and expiresAt moved</div></div>
+    </div>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3>The annotation decides the window</h3>
+        <p class="muted" style="margin:0 0 10px">Nothing is hard-coded in the controller.</p>
+<pre style="margin:0"><span class="c">annotations:</span>
+  jit.infra/redis: '{"module":"redis",
+                     "softDeleteTTL":"30d"}'</pre>
+      </div>
+      <div class="panel">
+        <h3>Which window you will actually see</h3>
+        <div class="obj"><span class="dot"></span><span class="what">30d</span><span class="tagl">default when omitted</span></div>
+        <div class="obj"><span class="dot" style="background:var(--blue)"></span><span class="what">10m</span><span class="tagl">set by this repo's manifests</span></div>
+        <div class="obj"><span class="dot" style="background:var(--amber)"></span><span class="what">2m</span><span class="tagl">forced by the verification suite</span></div>
+      </div>
+    </div>
+
+    <h3 style="margin-top:26px">What stays alive during the window</h3>
+    <div class="grid2">
+      <div class="panel">
+        <div class="obj"><span class="dot"></span><span class="what">Docker container</span><span class="tagl">running, same data</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">IP address</span><span class="tagl">reserved &mdash; nobody else can take it</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">Secret jit-redis</span><span class="tagl">present</span></div>
+      </div>
+      <div class="panel">
+        <div class="obj"><span class="dot"></span><span class="what">Service jit-redis</span><span class="tagl">present, still routes</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">EndpointSlice</span><span class="tagl">Service &rarr; container IP works</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">Any app pods still up</span><span class="tagl">keep talking to it</span></div>
+      </div>
+    </div>
+    <div class="note">The whole point of the window: a redeploy is free. The row that changed is
+    <code>status</code> &mdash; nothing under it was touched.</div>
+  </div>
+</section>
+
+<section id="resurrect">
+  <div class="card">
+    <h2>Resurrection: redeploy inside the window</h2>
+<pre>kubectl apply -k app/kustomize/overlays/voting-a
+<span class="c"># or: make demo-redeploy</span></pre>
+    <div class="flow" style="margin-top:18px">
+      <div class="node"><div class="t">a Deployment appears</div><div class="s">same annotation, same namespace</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">the claim already exists</div><div class="s">it has an IP and a running container</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node hi"><div class="t">claim returns to Ready</div><div class="s">expiresAt cleared &mdash; clock stopped</div></div>
+    </div>
+    <div class="ok">No <code>tofu apply</code>. No new container. No data loss. A rollout that removes a
+    Deployment and puts it back costs nothing but the two API calls.</div>
+  </div>
+</section>
+
+<section id="sweep">
+  <div class="card">
+    <h2>Expiry: the clock runs out</h2>
+    <p class="lede">When <code>now</code> passes <code>expiresAt</code>, the sweep runs in this order.</p>
+    <ol class="steps" id="sweep-static">
+      <li class="on">The runner is called: <code>DELETE /v1/runs/{namespace}</code>, with the module name</li>
+      <li class="on">The runner runs <code>tofu destroy -auto-approve</code> &mdash; container and volume removed</li>
+      <li class="on">The controller removes the Secret, the Service and the EndpointSlice</li>
+      <li class="on">The IP address returns to the IPAM pool</li>
+      <li class="on">The finalizer is removed and the InfraClaim is deleted</li>
+    </ol>
+    <div class="note">Afterwards the namespace looks as if the infra was never there. MinIO state objects
+    live outside the cluster and survive &mdash; <code>make jit-down</code> clears those.</div>
+    <div class="warn">If the runner is down at expiry: the destroy fails, the finalizer stays, and the
+    controller retries on the next tick. See <a href="#stuck">When the runner is down</a>.</div>
+  </div>
+</section>
+
+<section id="hard">
+  <div class="card">
+    <h2>Hard delete: the Namespace goes</h2>
+    <p class="lede">Deliberate. Someone went out of their way to remove an entire environment, so there is
+    nothing accidental to protect and no clock to consult.</p>
+<pre>kubectl delete namespace voting-a
+<span class="c"># or: make ns-delete NS=voting-a</span></pre>
+
+    <ol class="steps" style="margin-top:18px">
+      <li class="on">Kubernetes marks the Namespace for deletion &mdash; it enters <code>Terminating</code></li>
+      <li class="on">Garbage collection marks every namespaced resource, Deployments and InfraClaims alike.
+        The claims carry a finalizer, so their removal is blocked</li>
+      <li class="on">The finalizer intercepts each claim and the delete handler fires. It does <b>not</b>
+        look at <code>expiresAt</code> &mdash; the clock is irrelevant here</li>
+      <li class="on">The controller calls the runner once per module:
+        <code>DELETE /v1/runs/voting-a/&lt;module&gt;</code></li>
+      <li class="on">The runner runs <code>tofu destroy -auto-approve</code> &mdash; container and volume removed</li>
+      <li class="on">The controller removes the Secret, the Service and the EndpointSlice, where GC has not
+        already done it</li>
+      <li class="on">Each claim's address returns to the IPAM pool; when the namespace's last claim is
+        released, the whole block is freed</li>
+      <li class="on">The finalizer comes off, the InfraClaims are deleted, and the Namespace completes its
+        deletion</li>
+    </ol>
+
+    <div class="grid2">
+      <div class="panel">
+        <h3>What is left afterwards</h3>
+        <div class="obj gone"><span class="dot"></span><span class="what">the namespace</span><span class="tagl">gone</span></div>
+        <div class="obj gone"><span class="dot"></span><span class="what">the containers</span><span class="tagl">gone</span></div>
+        <div class="obj gone"><span class="dot"></span><span class="what">the IP block</span><span class="tagl">free again</span></div>
+        <div class="obj"><span class="dot" style="background:var(--amber)"></span><span class="what">MinIO state objects</span><span class="tagl">outside the cluster; jit-down clears them</span></div>
+      </div>
+      <div class="panel">
+        <h3>The other namespace</h3>
+        <div class="obj"><span class="dot"></span><span class="what">voting-b claims</span><span class="tagl">still Ready</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">voting-b containers</span><span class="tagl">still running</span></div>
+        <div class="obj"><span class="dot"></span><span class="what">voting-b IP block</span><span class="tagl">still allocated</span></div>
+        <div class="note" style="margin-top:10px;font-size:13px">Nothing at all &mdash; J8 in the
+        verification suite exists to prove exactly this.</div>
+      </div>
+    </div>
+    <div class="warn">Runner down on this path? The finalizer cannot complete, so the namespace stays
+    <code>Terminating</code> and the controller retries each tick. Same escape hatch as the other path.</div>
+  </div>
+</section>
+
+<section id="run">
+  <div class="card">
+    <h2>See it happen</h2>
+    <p class="lede">The console walks the whole lifecycle in four clicks.</p>
+    <div class="flow">
+      <div class="node"><div class="t">1 &middot; Start the demo</div><div class="s">infra provisioned, app running</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">2 &middot; Delete the deployment</div><div class="s">soft delete: claim Orphaned</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">3 &middot; Redeploy in the window</div><div class="s">resurrection: back to Ready</div></div>
+      <span class="arw">&rarr;</span>
+      <div class="node"><div class="t">4 &middot; Delete the namespace</div><div class="s">hard delete: everything gone</div></div>
+    </div>
+<pre>python3 console/serve.py            <span class="c"># the four buttons above</span>
+
+<span class="c"># or watch the claim itself, in two terminals</span>
+watch -n2 'kubectl get infraclaims -A -o wide'
+
+make demo-undeploy     <span class="c"># phase -&gt; Orphaned, containers still running</span>
+make demo-redeploy     <span class="c"># phase -&gt; Ready, same containers</span>
+make ns-delete NS=voting-a   <span class="c"># everything disappears, clock or no clock</span></pre>
+  </div>
+</section>
+
+<footer>
+  Drawn from <a href="deletion-lifecycle.md">docs/deletion-lifecycle.md</a>, the claim state machine in
+  <a href="jit-infra-flows.md">docs/jit-infra-flows.md</a>, and <code>jit-controller/main.py</code>.
+  Related: <a href="controller-explained.html">the controller deck</a> &middot;
+  <a href="annotation-to-state.md">annotation to state</a> &middot;
+  <a href="timeline.html">the timeline viewer</a>.
+  <br><br>No dependencies, no server: one file, opens in any browser.
+</footer>
+
+</div>
+<script>
+(function(){
+  "use strict";
+
+  var WINDOW_MS = 9000;   // the retention window, compressed so it can be watched
+  var TICK_MS   = 80;
+  var STEP_MS   = 850;    // one sweep step
+
+  var KEYS = ["container", "ip", "secret", "service", "endpoint"];
+  var ALIVE_LABEL = {container:"running", ip:"reserved", secret:"present",
+                     service:"present", endpoint:"present"};
+  var GONE_LABEL  = {container:"destroyed", ip:"released", secret:"deleted",
+                     service:"deleted", endpoint:"deleted"};
+
+  var el = {};
+  ["fill","mark","phase","refs","verdict","t-end","b-del","b-re","b-exp","b-reset","ttl","sweep"]
+    .forEach(function(id){ el[id.replace("-","_")] = document.getElementById(id); });
+  el.objs = {};
+  KEYS.forEach(function(k){ el.objs[k] = document.querySelector('.obj[data-o="' + k + '"]'); });
+  el.sweepItems = Array.prototype.slice.call(document.querySelectorAll("#sweep li"));
+
+  var S = { phase:"Ready", frac:0, refs:1, alive:null, steps:0, running:false, timer:null,
+            ttl:"10m" };
+
+  function aliveAll(){
+    var m = {};
+    KEYS.forEach(function(k){ m[k] = true; });
+    return m;
+  }
+
+  function render(){
+    el.fill.style.width = (S.frac * 100) + "%";
+    el.fill.classList.toggle("hot", S.frac > 0.85);
+    el.mark.classList.toggle("on", S.frac > 0);
+    el.mark.style.left = (S.frac * 100) + "%";
+
+    var p = S.phase, cls = "chip plain";
+    if (p === "Ready") cls = "chip ready";
+    else if (p === "Orphaned") cls = "chip orphan";
+    else if (p === "Deleting") cls = "chip deleting";
+    el.phase.className = cls;
+    el.phase.textContent = p;
+
+    el.refs.textContent = "referencedBy: " + S.refs;
+    el.t_end.textContent = "+ " + S.ttl;
+
+    KEYS.forEach(function(k){
+      var on = S.alive[k];
+      el.objs[k].classList.toggle("gone", !on);
+      el.objs[k].querySelector("[data-l]").textContent = on ? ALIVE_LABEL[k] : GONE_LABEL[k];
+    });
+
+    el.sweepItems.forEach(function(li, i){ li.classList.toggle("on", i < S.steps); });
+
+    el.b_del.disabled = (S.phase !== "Ready");
+    el.b_re.disabled  = (S.phase !== "Orphaned");
+    el.b_exp.disabled = (S.phase !== "Orphaned");
+  }
+
+  function say(html){ el.verdict.innerHTML = html; }
+
+  function stop(){ if (S.timer) { clearInterval(S.timer); S.timer = null; } S.running = false; }
+  function reset(){
+    stop();
+    S.phase = "Ready"; S.frac = 0; S.refs = 1; S.alive = aliveAll(); S.steps = 0;
+    say("A Deployment references this claim. Nothing is on a clock.");
+    render();
+  }
+
+  function del(){
+    if (S.phase !== "Ready") return;
+    S.phase = "Orphaned"; S.refs = 0; S.running = true;
+    say("No Deployment references it any more. <b>expiresAt</b> is set \u2014 the clock is running, " +
+        "and nothing else has changed.");
+    S.timer = setInterval(function(){
+      S.frac = Math.min(1, S.frac + TICK_MS / WINDOW_MS);
+      if (S.frac >= 1) startSweep(false); else render();
+    }, TICK_MS);
+    render();
+  }
+
+  function redeploy(){
+    if (S.phase !== "Orphaned") return;
+    stop();
+    S.phase = "Ready"; S.frac = 0; S.refs = 1; S.steps = 0;
+    say("The clock is cleared. <b>expiresAt</b> is gone and the phase is Ready again \u2014 same " +
+        "container, same data, nothing reprovisioned.");
+    render();
+  }
+
+  function startSweep(instant){
+    stop();
+    S.frac = 1;
+    S.phase = "Deleting";
+    say("The window has passed. The sweep is running.");
+    render();
+
+    function step(n){
+      S.steps = n;
+      if (n >= 1) S.alive.container = false;
+      if (n >= 2) { S.alive.secret = false; S.alive.service = false; S.alive.endpoint = false; }
+      if (n >= 3) S.alive.ip = false;
+      if (n >= 4) { S.phase = "deleted"; S.refs = 0; }
+      render();
+      if (n >= 4){
+        say("Everything is gone and the address is back in the pool. The namespace now looks as if the " +
+            "infra was never there.");
+        return;
+      }
+      if (instant) step(n + 1);
+      else setTimeout(function(){ step(n + 1); }, STEP_MS);
+    }
+    step(1);
+  }
+
+  el.b_del.addEventListener("click", del);
+  el.b_re.addEventListener("click", redeploy);
+  el.b_exp.addEventListener("click", function(){ if (S.phase === "Orphaned") startSweep(false); });
+  el.b_reset.addEventListener("click", reset);
+  el.ttl.addEventListener("change", function(){ S.ttl = el.ttl.value; reset(); });
+
+  // Exposed so the behaviour can be driven and checked from a script rather than eyeballed.
+  // The page itself never reads it.
+  window.__sim = {
+    del: del,
+    redeploy: redeploy,
+    expireNow: function(){ if (S.phase === "Orphaned") startSweep(true); },
+    reset: reset,
+    snapshot: function(){
+      var on = KEYS.filter(function(k){ return S.alive[k]; });
+      return "phase=" + S.phase + " refs=" + S.refs + " steps=" + S.steps +
+             " alive=" + (on.length ? on.join(",") : "none");
+    }
+  };
+
+  /* ---- the double-release guard toggle ---------------------------------- */
+  var g = {
+    on: document.getElementById("g-on"),
+    off: document.getElementById("g-off"),
+    verdict: document.getElementById("guard-verdict"),
+    aBlock: document.getElementById("ga-block"),
+    bBlock: document.getElementById("gb-block"),
+    bState: document.getElementById("gb-state"),
+    bIp: document.getElementById("gb-ip")
+  };
+
+  function guardView(withGuard){
+    g.on.setAttribute("aria-pressed", withGuard ? "true" : "false");
+    g.off.setAttribute("aria-pressed", withGuard ? "false" : "true");
+    if (withGuard){
+      g.aBlock.textContent = "held";
+      g.bBlock.textContent = "block 172.19.0.110/28";
+      g.bState.textContent = "held";
+      g.bIp.textContent = "172.19.0.110";
+      g.verdict.className = "ok";
+      g.verdict.textContent = "Releasing once per claim leaves each namespace holding its own block. " +
+        "No collision, nothing to debug.";
+    } else {
+      g.aBlock.textContent = "released twice";
+      g.bBlock.textContent = "block 172.19.0.100/28 \u2014 taken from the pool";
+      g.bState.textContent = "double-released";
+      g.bIp.textContent = "172.19.0.100 \u2014 collision";
+      g.verdict.className = "bad";
+      g.verdict.textContent = "The block goes back to the pool while voting-a still holds an address " +
+        "in it, so another namespace is handed the same block and two containers get 172.19.0.100. " +
+        "The loser fails with \u201cAddress already in use\u201d. A real bug, found by J1.";
+    }
+  }
+
+  g.on.addEventListener("click", function(){ guardView(true); });
+  g.off.addEventListener("click", function(){ guardView(false); });
+
+  reset();
+  guardView(true);
+})();
+</script>
+</body>
+</html>

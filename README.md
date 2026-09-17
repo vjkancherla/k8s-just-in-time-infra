@@ -87,7 +87,7 @@ would be the thing you debug instead of the system.
 ## See it first: the walkthrough
 
 Before reading anything else, open the slide deck. It walks through the whole system
-in nine slides — what the annotations do, how the controller provisions infra, the
+in fourteen slides — what the annotations do, how the controller provisions infra, the
 two-speed cleanup, and why the design is split the way it is.
 
 ```bash
@@ -96,6 +96,28 @@ open docs/how-it-works-presentation.html
 
 No server, no dependencies, no build step. One HTML file, opens in any browser, arrow
 keys to navigate. Everything it shows is in this repo.
+
+There is a second deck for the controller on its own — what kind of controller it is, the
+four things that trigger it, what it does on each one, and the state machine it keeps:
+
+```bash
+open docs/controller-explained.html
+```
+
+Same rules: one file, arrow keys, no dependencies. Read it before changing
+`jit-controller/main.py`, or when the claim behaviour surprises you.
+
+Two more pages cover the two questions this system gets asked most. Both are meant to be worked
+rather than read:
+
+```bash
+open docs/deletion-lifecycle.html    # drive the retention window: delete, redeploy, expire
+open docs/annotation-to-state.html   # pick a namespace and a module; every name resolves
+```
+
+The first runs the soft-delete clock and shows which objects survive at each stage. The second
+resolves the whole annotation → claim → IP → container → Secret → MinIO state chain for the
+module you pick, and rewrites the lookup commands to match.
 
 ---
 
@@ -352,6 +374,9 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |
 +-- docs/
     +-- how-it-works-presentation.html <- visual walkthrough: open in browser, arrow keys
+    +-- controller-explained.html      <- the controller alone: triggers, states, the gate
+    +-- deletion-lifecycle.html        <- the retention window, with a working clock
+    +-- annotation-to-state.html       <- the naming chain, resolved per namespace and module
     +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
     +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
     +-- runner-api.md        <- runner HTTP API reference
@@ -378,7 +403,10 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 
 | Document | What it covers | Read when |
 |---|---|---|
-| [`docs/how-it-works-presentation.html`](docs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Nine slides, arrow keys, no dependencies |
+| [`docs/how-it-works-presentation.html`](docs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Fourteen slides, arrow keys, no dependencies |
+| [`docs/controller-explained.html`](docs/controller-explained.html) | **Controller deck** — the JIT controller on its own: reconciler vs admission controller, its four kopf triggers, what each one does, the claim state machine, and why the missing Secret is the gate | Reading or changing `jit-controller/main.py`, or when a claim's behaviour surprises you |
+| [`docs/deletion-lifecycle.html`](docs/deletion-lifecycle.html) | **Lifecycle page** — the same window as `docs/deletion-lifecycle.md`, made drivable: delete the deployment, redeploy inside the clock, or let it expire, and watch which of the container, IP, Secret, Service and EndpointSlice survive each stage. Also the with/without double-release-guard comparison | Understanding the retention window, or when a claim will not go away |
+| [`docs/annotation-to-state.html`](docs/annotation-to-state.html) | **Trace resolver** — the same chain as `docs/annotation-to-state.md`, resolved: pick a namespace and module and every name follows — annotation key, InfraClaim, IP (with the block map), container, Secret/Service/EndpointSlice, MinIO state key — plus the five lookup commands with their answers | Tracing an app's infrastructure, or working out what a name should be |
 | [`docs/timeline.html`](docs/timeline.html) | **Timeline viewer** — one real run on five lanes (deployment, controller, runner, container, pod), every event with the source of its timestamp: run picker, sub-second zoom, subject filter. Reads `docs/evidence/timeline.log` | You want to see what actually happened, in order |
 | [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
 | [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
