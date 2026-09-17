@@ -1,19 +1,19 @@
 Updated: 2026-09-17
 
 ## Working
-Nothing - the annotation realignment is complete, verified against a live cluster and
-re-baselined. The work is uncommitted.
+Nothing. The annotation realignment is committed, verified against a live cluster and
+re-baselined; the host was torn down afterwards.
 
 ## Done (verified)
-- Annotations aligned to their consumers (vote redis+pgadmin, worker redis+postgres, result
-  postgres) and the suite re-baselined: R1-R17 17 PASS; J1-J11 11 PASS, 0 FAIL.
-- J4/J6/J7/J9 rewritten for the new refcounts. J6's live result: pgadmin swept 155s after vote
-  was deleted, redis+postgres stayed Ready, the postgres data volume remained - the old split
-  could not make that assertion at all.
-- The annotation contract holds through the real parser: legal key grammar, JSON limited to
+- addcf88, 39597af, a70f832: manifests + J-checks + six docs realigned; the demo rehearsal plan
+  and the run evidence are tracked.
+- Live, before the teardown: R1-R17 17 PASS; J1-J11 11 PASS, 0 FAIL. J6 swept pgadmin 155s after
+  vote was deleted and left redis+postgres Ready with the postgres data volume intact.
+- The annotation contract held through the real parser: legal key grammar, JSON limited to
   module/moduleVersion/params/softDeleteTTL, value.module == key suffix, `10m` -> 0:10:00,
-  every required variables.tf input injected. 97/97 in /tmp/verify_jit_annotations.py.
-- Six docs realigned; S15-findings.md amended with a dated note rather than rewritten.
+  params checked against variables.tf, refcounts agreeing (97 checks; the script was scratch
+  and went with the rest of /tmp).
+- Host clean: no k3d cluster, no module containers, no volumes.
 - S20 and S21: findings CLEAR at bfd996b, both boxes ticked in d7f2e41.
 
 ## Broken (confirmed by execution)
@@ -24,6 +24,7 @@ re-baselined. The work is uncommitted.
   directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks
   fail; `ipam.py` has no lock.
 - moduleVersion is inert - the runner never reads the field.
+- No gate covers volume removal on destroy (see activeContext's Watch out).
 
 ## In progress
 Nothing.
