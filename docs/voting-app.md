@@ -66,24 +66,37 @@ because two Ingresses claiming the same host route unpredictably through Traefik
 
 ## JIT annotations on the app
 
-The `vote` Deployment declares three infrastructure needs:
+An annotation is a provisioning request **and** a keep-alive lease, not a list of the pod's
+dependencies: the controller reads only Deployment metadata, and `status.referencedBy` is
+recomputed from those annotations alone. Every Deployment that uses a module must therefore
+name it, or the last-reference rule can destroy infrastructure a running pod is still using.
+
+| Deployment | Annotates | Consumes |
+|---|---|---|
+| `vote` | `redis`, `pgadmin` | Redis (`REDIS_URL`). pgAdmin has no consumer — it is leased here as the demo's soft-delete subject, and it is the only module with a cross-module dependency |
+| `worker` | `redis`, `postgres` | Redis (the queue) and Postgres (writes the `votes` table) |
+| `result` | `postgres` | Postgres only |
 
 ```yaml
+# vote
+annotations:
+  jit.infra/redis:   '{"module":"redis",  "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
+  jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
+
+# worker
 annotations:
   jit.infra/redis:    '{"module":"redis",   "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
   jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
-  jit.infra/pgadmin:  '{"module":"pgadmin", "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
-```
 
-The `worker` Deployment declares one:
-
-```yaml
+# result
 annotations:
-  jit.infra/redis: '{"module":"redis", "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
+  jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
 ```
 
-Both reference `redis` — the controller's refcount rule means the redis claim stays
-`Ready` until the **last** referencing Deployment is deleted (J7).
+`redis` is referenced by `vote` and `worker`; `postgres` by `worker` and `result`. The
+controller's refcount rule keeps each claim `Ready` until the **last** referencing Deployment
+is deleted (J7), so deleting `vote` orphans only `pgadmin` — the one module it leases alone —
+and leaves the queue and the live database untouched.
 
 `voting-b` overrides the pgadmin annotation to use a different host port (`5051` instead
 of `5050`) because two pgAdmin containers cannot share the same host port.

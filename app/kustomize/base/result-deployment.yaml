@@ -6,6 +6,12 @@ metadata:
     app.kubernetes.io/name: voting-app
     app.kubernetes.io/instance: voting-app
     app.kubernetes.io/component: result
+  annotations:
+    # JIT: result reads Postgres and nothing else, so it leases postgres.
+    # It previously carried no annotation, which made it an invisible consumer:
+    # no claim's status.referencedBy mentioned it, and deleting the vote
+    # Deployment armed a 10m destroy clock on the database this pod queries.
+    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
 spec:
   replicas: 1
   selector:

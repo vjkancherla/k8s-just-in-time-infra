@@ -40,6 +40,13 @@ runtime (three containers, vote→result e2e, Postgres tally increments).
 | `openssl` step gone from deploy.sh | ✅ not found |
 | `softDeleteTTL: 10m` on every claim | ✅ 10m on all 4 annotations |
 
+> **Amended 2026-09-17.** The two annotation rows above record what S15 shipped and verified at
+> the time; the split has since been realigned so that every consumer holds a lease —
+> `vote` = redis + pgadmin, `worker` = redis + postgres, `result` = postgres (it previously
+> carried none). Postgres is referenced by its two readers rather than by `vote`, so deleting
+> `vote` no longer arms a destroy clock under a running database. `scripts/verify-jit.sh`
+> J4/J6/J7/J9 now assert the new sets; the other rows above are unaffected.
+
 The `softDeleteTTL: 10m` is a deliberate choice, not a requirement. 10 minutes is long
 enough for a redeploy to reuse the same containers (the design's core value prop) but
 short enough that abandoned infra does not linger indefinitely. Acceptable for a PoC;

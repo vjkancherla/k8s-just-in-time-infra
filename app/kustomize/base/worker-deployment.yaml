@@ -7,11 +7,18 @@ metadata:
     app.kubernetes.io/instance: voting-app
     app.kubernetes.io/component: worker
   annotations:
-    # JIT: build-plan S15 annotates vote with redis/postgres/pgadmin and worker
-    # with redis only. The worker still reaches Postgres through the jit-postgres
-    # Service, provisioned in this namespace by the vote Deployment's claim -
-    # annotations drive provisioning, they do not gate connectivity.
+    # JIT: worker is the only workload that uses both modules - it drains Redis
+    # and writes the votes table in Postgres - so it leases both. The annotation
+    # is a provisioning request and a keep-alive lease, not a dependency list,
+    # and it must name every module the pod uses: a module that is read but not
+    # named has no lease on it.
+    #
+    # postgres is leased here and on result, the two readers of that database,
+    # which is what keeps jit-postgres Ready while vote is deleted. This
+    # supersedes build-plan S15's vote-centric split (vote: redis, postgres,
+    # pgadmin; worker: redis), which left both Postgres readers unrepresented.
     jit.infra/redis: '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
 spec:
   replicas: 1
   selector:

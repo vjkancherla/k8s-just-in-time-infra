@@ -301,7 +301,8 @@ REGISTRY=1 ./scripts/cleanup.sh       # target the registry overlay
 ```
 
 > **Order matters:** resources are always deleted before the cluster. Deleting the app's Deployment only
-> *orphans* the out-of-cluster infra — it is destroyed after the annotation's `softDeleteTTL`. Deleting the
+> *orphans* the infra that Deployment was the last reference for — a module several Deployments annotate
+> keeps its lease, and an orphan is destroyed after the annotation's `softDeleteTTL`. Deleting the
 > **namespace** destroys it immediately (build-plan S11).
 
 ---

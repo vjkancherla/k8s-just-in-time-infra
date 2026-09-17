@@ -235,8 +235,10 @@ every scaling event. The JIT infra does not destroy the database because of it.
    survives.
 
 2. **Controller detects the Deployment is gone.** On the next resync tick (≤30s), the
-   controller computes `referencedBy` from live Deployments. No Deployment references
-   the redis claim → it is orphaned.
+   controller computes `referencedBy` from live Deployments. A claim with no references
+   left is orphaned; one that still has a reference keeps its lease and arms no clock —
+   after `make demo-undeploy` deletes only `vote`, `redis` and `postgres` stay `Ready`
+   because `worker` (and `result`) still name them, and only `pgadmin` orphans.
 
 3. **Controller marks the claim `Orphaned`.** Sets `expiresAt = now + TTL`. The TTL
    comes from the annotation:
@@ -246,7 +248,8 @@ every scaling event. The JIT infra does not destroy the database because of it.
      jit.infra/redis: '{"module":"redis","softDeleteTTL":"30d"}'
    ```
 
-   Default is 30 days. The PoC demo uses 2 minutes so you can watch it happen.
+   Default is 30 days. The app's base annotations ship `10m`, so the demo countdown is ten
+   minutes; `make jit-verify` rewrites it to 2 minutes so J6 does not wait out the full window.
 
 4. **Everything else stays alive.** The container, the IP, the Secret, the Service,
    the EndpointSlice — all untouched. The claim's `phase` and `expiresAt` are the

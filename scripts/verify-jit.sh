@@ -254,7 +254,10 @@ id_count="$(for m in $MODULES; do container_id "$A-$m-$m"; done | grep -c . || t
   || fail "$J" "could not read all three container ids before the delete: [$ids_before]"
 
 kubectl delete deployment voting-app-vote -n "$A" --wait=true >/dev/null
-for m in postgres pgadmin; do
+# pgadmin is the only module vote leases alone, so it is the only claim that can orphan.
+# redis and postgres each keep a live reference - worker; worker and result - and must stay
+# Ready: a lease belongs to every Deployment that annotates the module.
+for m in pgadmin; do
   wait_phase "$A" "$A-$m" Orphaned 150 \
     || fail "$J" "claim $A-$m did not go Orphaned after deleting the vote Deployment"
   [[ -n "$(expires_of "$A-$m" "$A")" ]] \
@@ -262,6 +265,10 @@ for m in postgres pgadmin; do
 done
 [[ "$(phase_of "$A-redis" "$A")" == "Ready" ]] \
   || fail "$J" "claim $A-redis is '$(phase_of "$A-redis" "$A")' although voting-app-worker still annotates redis"
+[[ "$(phase_of "$A-postgres" "$A")" == "Ready" ]] \
+  || fail "$J" "claim $A-postgres is '$(phase_of "$A-postgres" "$A")' although worker and result still annotate postgres"
+[[ -z "$(expires_of "$A-postgres" "$A")" ]] \
+  || fail "$J" "claim $A-postgres carries expiresAt although two live Deployments still reference it"
 for m in $MODULES; do
   is_running "$A-$m-$m" \
     || fail "$J" "container $A-$m-$m is not running: deleting a Deployment must not stop the infra"
@@ -291,7 +298,7 @@ done
 queued="$(redis_q "$A-redis-redis" LLEN votes)"
 [[ -z "$queued" || "$queued" == "0" ]] \
   || fail "$J" "the queue still holds '${queued}' entries; the worker is not draining it"
-pass "$J" "vote deleted: postgres+pgadmin Orphaned with expiresAt, all 3 containers still running, worker still drained a vote"
+pass "$J" "vote deleted: pgadmin Orphaned with expiresAt, redis+postgres kept Ready by their live references, all 3 containers still running, worker still drained a vote"
 
 # ═══ J5 - redeploy inside the window: same containers, data intact ═══
 
@@ -316,12 +323,16 @@ r4_rows="$(psql_q "$A-postgres-postgres" "SELECT COUNT(*) FROM votes WHERE voter
   || fail "$J" "the row R4 wrote is gone ('${r4_rows:-<unreadable>}') - the data did not survive"
 pass "$J" "redeployed inside the window: same 3 container ids, tally ${before_rows} -> ${after_rows} (+1 marker), R4's row intact"
 
-# ═══ J6 - delete the Deployment and wait past the TTL: infra is destroyed ═══
+# ═══ J6 - delete the Deployment and wait past the TTL: the orphan is destroyed ═══
+#
+# Only the module vote leases alone is swept. redis and postgres are still referenced by
+# worker (and result), so the sweep must leave their containers, Secrets and data volume
+# alone - that exclusion is what aligning the annotations with the consumers buys.
 
 J=J6
 kubectl delete deployment voting-app-vote -n "$A" --wait=true >/dev/null
 start=$SECONDS
-for m in postgres pgadmin; do
+for m in pgadmin; do
   wait_gone "$A" "$A-$m" 300 \
     || fail "$J" "claim $A-$m was not swept after its 2m TTL expired"
   gone "$A-$m-$m" || fail "$J" "container $A-$m-$m survived the sweep"
@@ -339,22 +350,27 @@ is_running "$A-redis-redis" \
   || fail "$J" "redis was destroyed although voting-app-worker still references it"
 [[ "$(phase_of "$A-redis" "$A")" == "Ready" ]] \
   || fail "$J" "claim $A-redis is '$(phase_of "$A-redis" "$A")', expected Ready while the worker still references it"
-# The data volume belongs to the module, so the destroy takes it with the
-# container: a re-created Postgres must initdb fresh rather than come back holding
-# a database whose password the controller has already forgotten. The module names
-# it "<var.name>-postgres-data", i.e. one "-postgres" more than the container.
+# postgres is referenced by worker and result, so neither the claim nor the container may
+# be swept. The data volume belongs to the module, so a sweep would take the table with
+# it - which is exactly what must not happen while two pods are querying it. The module
+# names the volume "<var.name>-postgres-data", one "-postgres" more than the container.
+is_running "$A-postgres-postgres" \
+  || fail "$J" "postgres was destroyed although worker and result still reference it"
+[[ "$(phase_of "$A-postgres" "$A")" == "Ready" ]] \
+  || fail "$J" "claim $A-postgres is '$(phase_of "$A-postgres" "$A")', expected Ready while worker and result still reference it"
+vol="removed"
 if docker volume inspect "${A}-postgres-postgres-data" >/dev/null 2>&1; then
   vol="present"
-else
-  vol="removed"
 fi
-pass "$J" "after the $TTL window postgres+pgadmin were swept in $((SECONDS - start))s (container, Secret, Service, EndpointSlice) while redis stayed up; postgres data volume $vol"
+[[ "$vol" == "present" ]] \
+  || fail "$J" "the postgres data volume was removed although postgres was never swept"
+pass "$J" "after the $TTL window pgadmin was swept in $((SECONDS - start))s (container, Secret, Service, EndpointSlice) while redis and postgres stayed up on their live references; postgres data volume $vol"
 
-# ═══ J7 - both Deployment annotate redis; deleting only vote leaves it Ready ═══
+# ═══ J7 - every consumer holds a lease: deleting vote leaves redis and postgres Ready ═══
 
 J=J7
 apply_ns "$A"
-for m in postgres pgadmin; do
+for m in $MODULES; do
   wait_phase "$A" "$A-$m" Ready 240 \
     || fail "$J" "claim $A-$m did not come back Ready for J7 (phase '$(phase_of "$A-$m" "$A")')"
 done
@@ -369,9 +385,22 @@ done
   || fail "$J" "claim $A-redis referencedBy is '$(refs_of "$A-redis" "$A")', expected [\"voting-app-worker\"] once vote was gone"
 [[ "$(phase_of "$A-redis" "$A")" == "Ready" ]] \
   || fail "$J" "claim $A-redis is '$(phase_of "$A-redis" "$A")' - the last reference (worker) should keep it Ready"
-wait_phase "$A" "$A-postgres" Orphaned 150 \
-  || fail "$J" "claim $A-postgres stayed '$(phase_of "$A-postgres" "$A")'; with its only reference (vote) gone it must Orphan"
-pass "$J" "vote gone: redis kept Ready + referencedBy [voting-app-worker] (last-reference rule) while postgres Orphaned"
+# postgres is referenced by worker and result, neither of which was deleted, so it keeps
+# its lease: Ready, no expiresAt, and both readers named.
+ok=0
+for _ in $(seq 1 20); do
+  if [[ "$(refs_of "$A-postgres" "$A")" == '["voting-app-result","voting-app-worker"]' ]]; then ok=1; break; fi
+  sleep 3
+done
+[[ "$ok" == "1" ]] \
+  || fail "$J" "claim $A-postgres referencedBy is '$(refs_of "$A-postgres" "$A")', expected [\"voting-app-result\",\"voting-app-worker\"] once vote was gone"
+[[ "$(phase_of "$A-postgres" "$A")" == "Ready" ]] \
+  || fail "$J" "claim $A-postgres is '$(phase_of "$A-postgres" "$A")'; worker and result still reference it so it must stay Ready"
+[[ -z "$(expires_of "$A-postgres" "$A")" ]] \
+  || fail "$J" "claim $A-postgres carries expiresAt while worker and result still reference it"
+wait_phase "$A" "$A-pgadmin" Orphaned 150 \
+  || fail "$J" "claim $A-pgadmin stayed '$(phase_of "$A-pgadmin" "$A")'; vote was its only reference, so it must Orphan"
+pass "$J" "vote gone: redis kept Ready + referencedBy [voting-app-worker] and postgres kept Ready + referencedBy [voting-app-result,voting-app-worker] (last-reference rule) while pgadmin Orphaned"
 
 apply_ns "$A"
 for m in $MODULES; do
@@ -448,12 +477,14 @@ kubectl scale deployment/jit-controller -n "$CTRL_NS" --replicas=1 >/dev/null
 kubectl rollout status deployment/jit-controller -n "$CTRL_NS" --timeout=180s >/dev/null \
   || fail "$J" "the controller did not come back after the restart"
 
-for m in postgres pgadmin; do
+for m in pgadmin; do
   wait_phase "$A" "$A-$m" Orphaned 180 \
     || fail "$J" "after the restart the resync left $A-$m '$(phase_of "$A-$m" "$A")' - the orphan was missed"
 done
 [[ "$(phase_of "$A-redis" "$A")" == "Ready" ]] \
   || fail "$J" "claim $A-redis is '$(phase_of "$A-redis" "$A")' after the restart, although the worker still references it"
+[[ "$(phase_of "$A-postgres" "$A")" == "Ready" ]] \
+  || fail "$J" "claim $A-postgres is '$(phase_of "$A-postgres" "$A")' after the restart, although worker and result still reference it"
 
 # restore the demo state (the last two checks do not touch voting-a)
 apply_ns "$A"
@@ -464,7 +495,7 @@ done
 for d in vote worker result; do
   wait_deploy "$A" "voting-app-$d" 300s || fail "$J" "deployment voting-app-$d is not Ready after J9"
 done
-pass "$J" "controller was down when vote was deleted; the restarted resync still marked postgres+pgadmin Orphaned and redis stayed Ready"
+pass "$J" "controller was down when vote was deleted; the restarted resync still marked pgadmin Orphaned while redis and postgres stayed Ready on their live references"
 
 # ═══ J10 - runner down: the claim fails loudly, pods do not start ═══
 

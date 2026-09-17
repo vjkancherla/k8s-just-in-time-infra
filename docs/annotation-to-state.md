@@ -28,7 +28,9 @@ The readiness gate is the Secret: a pod that depends on `jit-redis` sits in
 
 ## Step by step with a concrete example
 
-Starting point: a tenant applies this to namespace `voting-a`:
+Starting point: a tenant applies this to namespace `voting-a`. Each Deployment names the modules
+it **uses** — the annotation is a provisioning request *and* a keep-alive lease, not a dependency
+list the controller could derive — so the three keys below come from three Deployments:
 
 ```yaml
 # app/kustomize/base/vote-deployment.yaml
@@ -36,9 +38,13 @@ metadata:
   name: voting-app-vote
   annotations:
     jit.infra/redis: '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
-    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
     jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+# worker-deployment.yaml adds jit.infra/postgres (it writes the votes table);
+# result-deployment.yaml carries jit.infra/postgres and nothing else.
 ```
+
+The three keys become three claims, one per module, shared by every Deployment that names the
+module:
 
 ### 1. Controller reads the annotation
 

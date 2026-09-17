@@ -1,38 +1,39 @@
 Updated: 2026-09-17
 
 ## Working
-Stage G's gate is met, the docs it owed are written, the build-plan Done list is closed with nine boxes
-explained in docs/todo.md, and there is now a standalone visual explainer for the controller.
+Nothing - the annotation realignment is complete, verified against a live cluster and
+re-baselined. The work is uncommitted.
 
 ## Done (verified)
-- Three self-contained docs/*.html pages, each driven in headless Chrome rather than eyeballed:
-  controller-explained (14 slides), deletion-lifecycle (clock simulator + guard toggle) and
-  annotation-to-state (resolves all 6 namespace-module combinations against the rendered DOM); README links
-  all three.
-- The "admissions controller" question: none exists here (no webhook, no ValidatingWebhookConfiguration, no
-  ValidatingAdmissionPolicy). The nearest component is the kopf reconciler, jit-controller/main.py.
+- Annotations aligned to their consumers (vote redis+pgadmin, worker redis+postgres, result
+  postgres) and the suite re-baselined: R1-R17 17 PASS; J1-J11 11 PASS, 0 FAIL.
+- J4/J6/J7/J9 rewritten for the new refcounts. J6's live result: pgadmin swept 155s after vote
+  was deleted, redis+postgres stayed Ready, the postgres data volume remained - the old split
+  could not make that assertion at all.
+- The annotation contract holds through the real parser: legal key grammar, JSON limited to
+  module/moduleVersion/params/softDeleteTTL, value.module == key suffix, `10m` -> 0:10:00,
+  every required variables.tf input injected. 97/97 in /tmp/verify_jit_annotations.py.
+- Six docs realigned; S15-findings.md amended with a dated note rather than rewritten.
 - S20 and S21: findings CLEAR at bfd996b, both boxes ticked in d7f2e41.
-- Gate after a cold `make demo-up` ("17 PASS, 0 FAIL"): `make check STEP=18` gave 12 ok lines, PASS, exit 0.
-- docs/todo.md's Review section carries S18-S21; docs/lessons.md has the Stage G section.
-- `make timeline` against a real run: 36 events, five lanes, all thirteen kinds (2eb5073).
 
 ## Broken (confirmed by execution)
 - Nothing.
 
 ## Suspected (read, not reproduced)
-- The three carried from 2026-09-13 stand: postgres's password can disagree across its data directory,
-  container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks fail; `ipam.py` has no lock.
-- docs/deletion-lifecycle.md says the demo window is 2m; the manifests deploy 10m and verify-jit.sh forces 2m.
+- The three carried from 2026-09-13 stand: postgres's password can disagree across its data
+  directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks
+  fail; `ipam.py` has no lock.
+- moduleVersion is inert - the runner never reads the field.
 
 ## In progress
 Nothing.
 
 ## Blocked
-- Nothing. S22 (live lanes) is unwritten future work, not a blocker.
+- Nothing.
 
 ## Learnings
-- A reviewed range must end BEFORE its step's tracker tick, so the tick is deliberately the first commit after
-  the last reviewed SHA; a retro-checkpoint's record commit IS the reviewed diff and must not touch it either.
-- A checkpoint that asserts against live state cannot be re-run green on a stopped host: S18 fails on its own
-  precondition until `make demo-up` has run.
-- "Admission controller" appears nowhere in this repo - grep for the term before explaining a component.
+- An annotation is a provisioning request and a keep-alive lease, not a dependency list: the
+  controller never reads the pod spec, so a consumer with no annotation can lose its infra.
+- `make jit-verify` seds the live annotations to 2m and never restores them, so a rehearsal
+  leaves the demo on a two-minute clock - re-run `make demo-up` (or click Start the demo).
+- Read the read model before quoting it: `/state` runs scripts/state.sh, not console/state.py.
