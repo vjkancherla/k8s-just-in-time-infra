@@ -7,6 +7,7 @@ Serve the console page live on http://127.0.0.1:8090
 GET  /                        -> console/index.html
 GET  /state                   -> make state
 GET  /claim?ns=&module=       -> make claim (one InfraClaim as YAML)
+GET  /timeline                -> make timeline (the run as one JSON document)
 GET  /log?name=x&offset=n     -> whatever the current run has written since n
 POST /run/{name}              -> the command in ALLOWED, and nothing else
 
@@ -49,6 +50,7 @@ ALLOWED = {
 
 STATE = ["make", "-s", "state"]
 CLAIM = ["make", "-s", "claim"]
+TIMELINE = ["make", "-s", "timeline"]
 
 # NS and MODULE are interpolated into a make invocation, so they are checked
 # rather than trusted. Nothing goes through a shell, but a stray "=" or ".."
@@ -120,6 +122,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return self.send_json({"text": text,
                                    "offset": offset + len(text),
                                    "running": lock.locked()})
+
+        if path == "/timeline":
+            r = subprocess.run(TIMELINE, capture_output=True, text=True, cwd=ROOT)
+            try:
+                return self.send_json(json.loads(r.stdout))
+            except Exception:
+                return self.send_json({"up": False, "t0": None, "events": []})
 
         if path in ("/", "/index.html"):
             try:
