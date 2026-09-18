@@ -135,6 +135,20 @@ targets: ## Print the console's allowlist, one target per line (its buttons come
 	@mkdir -p $(EVIDENCE)
 	@printf '%s\n' $(CONSOLE_TARGETS) | tee -a $(EVIDENCE)/targets.log; exit $${PIPESTATUS[0]}
 
+.PHONY: console-test
+console-test: ## Run the console's suites: server, contract, and browser if installed
+	@python3 console/test_serve.py
+	@python3 console/test_console.py
+	@if [ -x console/.venv/bin/python ]; then \
+		console/.venv/bin/python console/test_browser.py; \
+	else \
+		echo "skipping the browser suite - see docs/TESTING-THE-CONSOLE.md §2"; \
+	fi
+
+.PHONY: console-shots
+console-shots: ## Render every console state to console/shots/ for review
+	@console/.venv/bin/python console/test_browser.py --shots
+
 # --- Frozen checkpoints ----------------------------------------------------
 
 .PHONY: check
