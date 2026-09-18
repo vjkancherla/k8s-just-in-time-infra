@@ -946,3 +946,151 @@ CRD infraclaims.jit.io established
 deployment "jit-controller" successfully rolled out
 controller Ready; watching: 
 PASS: jit stack up - MinIO, runner running, CRD, controller
+importing jit-controller:latest into cluster 'voting-app'...
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0002] Importing images into nodes...               
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260918175555.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260918175555.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0006] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0007] Removing k3d-tools node...                   
+[36mINFO[0m[0007] Successfully imported image(s)               
+[36mINFO[0m[0007] Successfully imported 1 image(s) into 1 cluster(s) 
+OK: bucket 'jit-state' created
+MinIO up at http://127.0.0.1:9000 (console http://localhost:9001); bucket jit-state ready
+Building runner image...
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 714B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 ...
+
+#3 [auth] library/debian:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 0.9s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 64B done
+#6 DONE 0.0s
+
+#7 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#7 CACHED
+
+#8 [2/7] WORKDIR /opt/jit-runner
+#8 CACHED
+
+#9 [5/7] COPY requirements.txt .
+#9 CACHED
+
+#10 [3/7] RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
+#10 CACHED
+
+#11 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
+#11 CACHED
+
+#12 [7/7] COPY main.py .
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 writing image sha256:5249cf3723f6881bd5b2127596d331170d1cce934b5312c699f325da5374ea9a done
+#13 naming to docker.io/library/jit-runner:latest done
+#13 DONE 0.0s
+Image built.
+Stopping runner...
+Runner stopped.
+Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
+7818a99c3b649ef8a760a909fce7e017af4c72d60878e2fd22f705f801d27bb8
+Runner started at 172.19.0.10.
+CRD infraclaims.jit.io established
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+importing jit-controller:latest into cluster 'voting-app'...
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0002] Importing images into nodes...               
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260918182014.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260918182014.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0006] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0007] Removing k3d-tools node...                   
+[36mINFO[0m[0007] Successfully imported image(s)               
+[36mINFO[0m[0007] Successfully imported 1 image(s) into 1 cluster(s) 
+OK: bucket 'jit-state' created
+MinIO up at http://127.0.0.1:9000 (console http://localhost:9001); bucket jit-state ready
+Building runner image...
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 714B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 ...
+
+#3 [auth] library/debian:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 1.0s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/debian:bookworm-slim@sha256:88200866dfff7ea7f5cbcb6ec7c8a701889efe6fe859fe64d6990e4b07ea4171
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 64B done
+#6 DONE 0.0s
+
+#7 [3/7] RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
+#8 CACHED
+
+#9 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#9 CACHED
+
+#10 [5/7] COPY requirements.txt .
+#10 CACHED
+
+#11 [2/7] WORKDIR /opt/jit-runner
+#11 CACHED
+
+#12 [7/7] COPY main.py .
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 writing image sha256:5249cf3723f6881bd5b2127596d331170d1cce934b5312c699f325da5374ea9a done
+#13 naming to docker.io/library/jit-runner:latest done
+#13 DONE 0.0s
+Image built.
+Stopping runner...
+Runner stopped.
+Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
+8bc65f7b4e292114f1628f9c3f9af897a9675298207210f750cbafd4d2bdae45
+Runner started at 172.19.0.10.
+CRD infraclaims.jit.io established
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller

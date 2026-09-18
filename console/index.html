@@ -130,7 +130,6 @@
     box-shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.05)}
   .lede{font-size:19px;line-height:1.45;margin:0}
   .lede .mono{font-size:15px}
-  .kv{display:flex;gap:10px;flex-wrap:wrap;font-size:14px;color:var(--ink-2);margin-top:10px}
   .rows{font-size:14.5px}
   .rowline{display:flex;gap:14px;align-items:baseline;padding:9px 0;border-bottom:1px solid var(--hair)}
   .rowline:last-child{border-bottom:0}
@@ -166,6 +165,43 @@
     margin:0;white-space:pre-wrap;max-height:460px;overflow:auto}
   .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
 
+  /* the container, set like the claim so the panel has one visual language */
+  .matched{font-size:12.5px;color:var(--ink-3);margin:0 0 16px}
+  .matched b{font-family:var(--mono);font-weight:500;color:var(--ink-2)}
+  .warn{font-size:13.5px;color:var(--red);margin:0 0 14px}
+  .block{border-top:1px solid var(--hair);padding:14px 0 0;margin-top:14px}
+  .block:first-of-type{border-top:0;margin-top:0;padding-top:0}
+  .block > summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:12px;
+    flex-wrap:wrap;padding:2px 0}
+  .block > summary::-webkit-details-marker{display:none}
+  .block > summary::before{content:'▸';font-size:11px;color:var(--ink-3);width:12px}
+  .block[open] > summary::before{content:'▾'}
+  .block > summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+  .block .where{font-size:14px;font-weight:600;letter-spacing:-.01em}
+  .block .what{font-family:var(--mono);font-size:12.5px;color:var(--ink-3)}
+  .block .after{margin-left:auto;font-size:12.5px;color:var(--ink-3)}
+  .block .body{padding:14px 0 4px 24px}
+  .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
+  .yaml .off{color:var(--ink-3)}
+  .yamltoggle{font:inherit;font-size:13px;color:var(--blue);background:none;border:0;
+    padding:10px 0 0;cursor:pointer}
+  .yamltoggle:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+  .chip.pick{cursor:pointer}
+  .chip.pick:hover{box-shadow:0 0 0 2px rgba(0,113,227,.25)}
+  .chip.orphan{color:var(--red)}
+
+  /* timeline */
+  .tlhead{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-top:6px}
+  .tlhead .big{font-size:clamp(20px,2.4vw,28px);font-weight:600;letter-spacing:-.02em}
+  .tlhead .btn{margin-left:auto}
+  .tlwrap{margin-top:clamp(20px,3vh,34px);overflow-x:auto}
+  .tlwrap svg{display:block;min-width:640px;width:100%;height:auto}
+  .tl-lane{font-family:var(--mono);font-size:11px;fill:var(--ink-3)}
+  .tl-tick{font-family:var(--mono);font-size:10px;fill:var(--ink-3)}
+  .tl-sub{font-size:10.5px;fill:var(--ink-2)}
+  .tlnote{font-size:13.5px;color:var(--ink-2);line-height:1.5;max-width:70ch;margin:14px 0 0}
+  .tlnote b{color:var(--ink);font-weight:500}
+
   .foot{border-top:1px solid var(--hair);padding:26px 0 60px;color:var(--ink-3);font-size:13px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
@@ -183,6 +219,7 @@
       <button role="tab" aria-selected="true" data-view="setup">Setup</button>
       <button role="tab" aria-selected="false" data-view="infra">Infrastructure</button>
       <button role="tab" aria-selected="false" data-view="app">Voting app</button>
+      <button role="tab" aria-selected="false" data-view="timeline">Timeline</button>
       <button role="tab" aria-selected="false" data-view="guide">Guide</button>
     </div>
     <div class="pill"><span class="led" id="led"></span><span id="ledText">—</span></div>
@@ -248,7 +285,7 @@
     </div>
     <div id="appLive" hidden>
       <h1>The app, where it actually runs.</h1>
-      <p class="sub">Both pages come from the cluster's own Ingress — host, scheme and port are read from it, not assumed. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
+      <p class="sub">Both pages come from the cluster's own Ingress: host, scheme and port are read from it, not assumed. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
       <div class="seg small nsswitch" id="nsSwitch" role="tablist"></div>
       <div class="apps">
         <div class="app">
@@ -264,6 +301,35 @@
       </div>
       <div class="strip" id="appChips" style="margin-top:24px"></div>
       <p class="tiny" id="pgadminLine" style="margin-top:16px"></p>
+    </div>
+  </div>
+</div>
+
+<!-- ── timeline ── -->
+<div class="view" id="view-timeline">
+  <div class="wrap">
+    <div class="empty" id="timelineEmpty" hidden>
+      <svg width="46" height="46" viewBox="0 0 46 46" fill="none" aria-hidden="true">
+        <path d="M5 23h36" stroke="#a1a1a6" stroke-width="1.5"/>
+        <circle cx="13" cy="23" r="3" stroke="#a1a1a6" stroke-width="1.5"/>
+        <circle cx="25" cy="23" r="3" stroke="#d2d2d7" stroke-width="1.5"/>
+        <circle cx="37" cy="23" r="3" stroke="#d2d2d7" stroke-width="1.5"/>
+      </svg>
+      <h2>Nothing has been provisioned yet</h2>
+      <p>Once the demo has run, this shows how long each step took and in what order.</p>
+      <button class="btn" data-goto="setup">Go to setup</button>
+    </div>
+
+    <div id="timelineLive" hidden>
+      <div class="tlhead">
+        <span class="big" id="tlHeadline">&mdash;</span>
+        <button class="btn ghost" id="tlRefresh">Refresh</button>
+      </div>
+      <p class="tlnote" id="tlNote"></p>
+
+      <div class="tlwrap" id="tlChart"></div>
+
+      <p class="tiny" id="tlHidden" style="margin-top:14px;max-width:70ch"></p>
     </div>
   </div>
 </div>
@@ -375,6 +441,7 @@ document.querySelectorAll('[data-goto]').forEach(function(b){
 });
 function show(v){
   if(v === 'guide') renderGuide();
+  if(v === 'timeline') loadTimeline();
   document.querySelectorAll('.seg.mid button').forEach(function(x){
     x.setAttribute('aria-selected', String(x.dataset.view === v));
   });
@@ -382,6 +449,7 @@ function show(v){
   $('view-' + v).classList.add('on');
   window.scrollTo(0,0);
 }
+$('tlRefresh').addEventListener('click', function(){ loadTimeline(true); });
 document.querySelectorAll('#modeSwitch button').forEach(function(b){
   b.addEventListener('click', function(){
     S.mode = b.dataset.mode;
@@ -439,6 +507,7 @@ async function run(a){
   }
 
   S.busy = null;
+  S.tlStale = true;      // a run changes what the timeline would say
   poll(); render();
 }
 function lineClass(l){
@@ -479,7 +548,7 @@ function renderActions(){
 
   $('modeNote').textContent = S.mode === 'demo'
     ? 'Demo runs one namespace, voting-a. Fewer containers, faster to start, the same targets underneath.'
-    : 'Testing runs both namespaces. voting-b exists so J8 can prove a hard delete is bounded — its three containers go while voting-a keeps running.';
+    : 'Testing runs both namespaces. voting-b exists so J8 can prove a hard delete is bounded: its three containers go while voting-a keeps running.';
 }
 
 function claimSentence(c, ns){
@@ -634,41 +703,134 @@ async function showClaim(ns, module){
   panel.innerHTML = '<p class="tiny" style="margin:0">Reading ' + esc(ns + '-' + module) + '…</p>';
   renderNamespaces();
 
+  var claim = null;
+  (S.data.namespaces || []).forEach(function(n){
+    if(n.name !== ns) return;
+    (n.claims || []).forEach(function(c){ if(c.module === module) claim = c; });
+  });
+  var ct = findClaimContainer(ns, module);
+
+  var yaml = '', failed = '';
   try{
     var r = await fetch('/claim?ns=' + encodeURIComponent(ns) +
                         '&module=' + encodeURIComponent(module), {cache:'no-store'});
     var j = await r.json();
-    if(!j.text){
-      panel.innerHTML = '<p class="tiny" style="margin:0">' +
-        esc(j.error || 'No object came back.') + '</p>';
-      return;
-    }
-
-    var ct = findClaimContainer(ns, module);
-    var html = '';
-    if(ct){
-      html += '<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:13px">' +
-        '<span style="font-family:var(--mono);font-weight:500">' + esc(ct.name) + '</span>' +
-        (ct.address ? '<span style="color:var(--ink-3)">' + esc(ct.address) + '</span>' : '') +
-        '<span class="tag ' + (ct.running ? 'ready' : 'other') + '" style="margin:0">' +
-          (ct.running ? 'Running' : 'Stopped') + '</span>' +
-        '</div>';
-    }
-    html += '<p class="tiny" style="margin:0 0 14px">' +
-      'Owned by the <b>Namespace</b>, not the Deployment \u2014 which is why a rollout does not ' +
-      'touch it. The <b>finalizer</b> is what holds a namespace in Terminating if a destroy fails.' +
-      '</p><pre class="yaml"></pre>';
-    panel.innerHTML = html;
-    panel.querySelector('.yaml').innerHTML = highlightClaim(j.text);
+    yaml = j.text || '';
+    failed = yaml ? '' : (j.error || 'No object came back.');
   }catch(e){
-    panel.innerHTML = '<p class="tiny" style="margin:0">Could not reach the console process.</p>';
+    failed = 'Could not reach the console process.';
   }
+
+  S.yamlRaw = yaml;
+  S.yamlFull = false;
+  panel.innerHTML = claimPanel(ns, module, claim, ct, yaml, failed);
+  paintYaml();
+  panel.querySelectorAll('.block').forEach(function(d){
+    d.addEventListener('toggle', function(){ if(d.open) paintYaml(); });
+  });
+}
+
+/* the claim is what was asked for; the container is what is running. Showing
+   them together is the only place the console can say they disagree. */
+function claimPanel(ns, module, claim, ct, yaml, failed){
+  var html = '';
+
+  if(claim && ct){
+    html += '<p class="matched">Matched by name, <b>' + esc(ct.name) + '</b>' +
+      (claim.address && ct.address && claim.address === ct.address
+        ? ', and the address agrees.' : '.') + '</p>';
+  } else if(claim && !ct){
+    html += '<p class="warn">The claim is <b>' + esc(claim.phase) +
+      '</b> but no container matches <b>' + esc(ns + '-' + module) +
+      '-</b>. Either it was removed outside the runner, or it was never created.</p>';
+  }
+
+  if(ct){
+    html += '<details class="block" open><summary>' +
+      '<span class="where">Running on Docker</span>' +
+      '<span class="what">' + esc(ct.name) + '</span>' +
+      '<span class="after">outside the cluster' +
+        (ct.address ? ', at ' + esc(ct.address) : '') + '</span>' +
+      '</summary><div class="body"><pre class="yaml">' + containerYaml(ct) + '</pre></div></details>';
+  }
+
+  html += '<details class="block"><summary>' +
+    '<span class="where">Asked for in Kubernetes</span>' +
+    '<span class="what">InfraClaim/' + esc(ns + '-' + module) + '</span>' +
+    '<span class="after">in ' + esc(ns) + '</span>' +
+    '</summary><div class="body">';
+  html += failed
+    ? '<p class="tiny" style="margin:0">' + esc(failed) + '</p>'
+    : '<pre class="yaml" id="claimYaml"></pre>' +
+      '<button class="yamltoggle" id="yamlToggle"></button>';
+  html += '</div></details>';
+  return html;
+}
+
+/* the container as docker describes it, in the same shape as the claim above it */
+function containerYaml(ct){
+  var rows = [
+    ['name', ct.name],
+    ['image', ct.image || 'not reported by make state'],
+    ['status', ct.running ? 'running' : 'stopped'],
+    ['address', ct.address || 'none'],
+    ['ports', ct.ports || 'none published'],
+    ['volume', ct.volume || 'none'],
+    ['created', ct.created ? fmtWhen(ct.created) : ''],
+    ['restarts', typeof ct.restarts === 'number' ? String(ct.restarts) : '']
+  ].filter(function(r){ return r[1] !== ''; });
+
+  var width = Math.max.apply(null, rows.map(function(r){ return r[0].length; }));
+  return rows.map(function(r){
+    var pad = new Array(width - r[0].length + 1).join(' ');
+    var quiet = /^(none|not reported)/.test(r[1]);
+    return '<b>' + esc(r[0]) + '</b>:' + pad + ' ' +
+           (quiet ? '<span class="off">' + esc(r[1]) + '</span>' : esc(r[1]));
+  }).join('\n');
+}
+
+/* Kopf writes a copy of the whole spec into an annotation and adds its own
+   finalizer. Both are bookkeeping, and between them they push the fields worth
+   reading off the first screen. */
+var YAML_NOISE = [
+  /^\s*annotations:\n(?:\s{4,}.*\n)*/gm,
+  /^\s*- kopf\.zalando\.org\/KopfFinalizerMarker\n/gm,
+  /^\s*managedFields:\n(?:\s{4,}.*\n)*/gm,
+  /^\s*(resourceVersion|uid|selfLink|generation):.*\n/gm
+];
+
+function trimYaml(text){
+  var out = text;
+  YAML_NOISE.forEach(function(re){ out = out.replace(re, ''); });
+  return out;
+}
+
+function paintYaml(){
+  var pre = $('claimYaml'), btn = $('yamlToggle');
+  if(!pre) return;
+  var full = S.yamlFull;
+  pre.innerHTML = highlightClaim(S.yamlRaw && !full ? trimYaml(S.yamlRaw) : (S.yamlRaw || ''));
+  if(btn){
+    var hidden = (S.yamlRaw || '').split('\n').length -
+                 trimYaml(S.yamlRaw || '').split('\n').length;
+    btn.textContent = full
+      ? 'Hide the bookkeeping'
+      : 'Show everything, including ' + hidden + ' lines of Kopf bookkeeping';
+    btn.hidden = hidden <= 0;
+    btn.onclick = function(){ S.yamlFull = !S.yamlFull; paintYaml(); };
+  }
+}
+
+function fmtWhen(iso){
+  var d = new Date(iso);
+  return isNaN(d) ? String(iso) : d.toTimeString().slice(0, 8);
 }
 
 /* the two fields worth looking at, marked so they are findable in 60 lines of YAML */
 function highlightClaim(text){
-  return esc(text).replace(/^(\s*)(ownerReferences|finalizers|phase|expiresAt|referencedBy):/gm,
-                           '$1<b>$2</b>:');
+  return esc(text).replace(
+    /^(\s*)(ownerReferences|finalizers|phase|expiresAt|referencedBy|module|moduleVersion|softDeleteTTL|allocatedIP):/gm,
+    '$1<b>$2</b>:');
 }
 
 /* what changed while this page has been open - observed, not stored anywhere */
@@ -719,10 +881,36 @@ function ticks(){
 
 function renderStrips(){
   var cs = $('containers'); cs.textContent = '';
+  var claimed = {};
+  (S.data.namespaces || []).forEach(function(n){
+    (n.claims || []).forEach(function(c){ claimed[n.name + '-' + c.module + '-'] = [n.name, c.module]; });
+  });
+
   (S.data.containers || []).forEach(function(c){
+    var owner = null;
+    Object.keys(claimed).forEach(function(prefix){
+      if(c.name.indexOf(prefix) === 0) owner = claimed[prefix];
+    });
+    var control = /^jit-/.test(c.name);
+
     var el = document.createElement('span');
-    el.className = 'chip' + (c.running ? '' : ' off');
+    el.className = 'chip' + (c.running ? '' : ' off') +
+                   (owner ? ' pick' : (control ? '' : ' orphan'));
     el.textContent = c.name + (c.address ? '  ' + c.address : '');
+
+    if(owner){
+      el.title = 'Part of the ' + owner[1] + ' claim in ' + owner[0] + '. Click to open it.';
+      el.addEventListener('click', function(){
+        S.picked = owner[0] + '/' + owner[1];
+        showClaim(owner[0], owner[1]);
+        $('objectHead').scrollIntoView({behavior: 'smooth', block: 'start'});
+      });
+    } else if(control){
+      el.title = 'Part of the control plane, not a claim.';
+    } else {
+      el.title = 'No claim matches this container. It was created outside the runner, ' +
+                 'or its claim is gone and the container was left behind.';
+    }
     cs.appendChild(el);
   });
   if(!(S.data.containers || []).length) cs.innerHTML = '<span class="tiny">none</span>';
@@ -903,6 +1091,195 @@ function render(){
 function esc(t){
   return String(t == null ? '' : t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+/* ─── the timeline: fetched on demand, never polled ────────────────────── */
+
+/* Five lanes is one too many: deployment and pod are the app's story, not the
+   infrastructure's. Three rows, and everything else goes in the table. */
+var TL_ROWS = [
+  {key:'controller', label:'controller', lanes:['controller']},
+  {key:'runner',     label:'runner',     lanes:['runner']},
+  {key:'infra',      label:'containers', lanes:['container']}
+];
+
+/* Kubernetes object timestamps truncate to the second, so an event from one can
+   compute to a small negative offset against a nanosecond t0. Those are drawn as
+   one-second bands rather than points, because a point claims a precision the
+   source does not have. */
+var TL_COARSE = ['claim.created', 'secret.created', 'service.created',
+                 'deployment.applied', 'pod.created', 'pod.started'];
+
+/* What gets drawn. Everything else the payload carries is either the app's own
+   rollout or bookkeeping, and at this scale it all lands on 0s in a heap. The
+   table underneath used to show the rest; `make timeline` still has it, and that
+   is the right place to read it from. */
+var TL_KEEP = ['claim.created', 'runner.call', 'container.created', 'claim.ready'];
+
+function tlSeconds(iso){
+  var t = Date.parse(iso);
+  if(!isNaN(t)) return t / 1000;
+  var m = String(iso).match(/^(.*)\.(\d+)(Z|[+-]\d\d:?\d\d)$/);   // nanoseconds
+  if(!m) return NaN;
+  var base = Date.parse(m[1] + m[3]);
+  return isNaN(base) ? NaN : base / 1000 + Number('0.' + m[2]);
+}
+
+function tlPrepare(payload){
+  var t0 = tlSeconds(payload.t0);
+  var events = (payload.events || []).map(function(e){
+    var at = tlSeconds(e.t);
+    return {
+      lane: e.lane || 'other',
+      kind: e.kind || 'unknown',
+      subject: e.subject || '',
+      source: e.source || '',
+      coarse: TL_COARSE.indexOf(e.kind) >= 0,
+      at: isNaN(at) || isNaN(t0) ? null : at - t0
+    };
+  }).filter(function(e){ return e.at !== null; });
+
+  events.forEach(function(e){ if(e.at < 0) e.at = 0; });   // see TL_COARSE
+  events.sort(function(a, b){ return a.at - b.at; });
+
+  var ready = events.filter(function(e){ return e.kind === 'claim.ready'; });
+  var window = ready.length ? ready[ready.length - 1].at + 2
+                            : (events.length ? events[events.length - 1].at : 0);
+
+  var marked = events.filter(function(e){ return TL_KEEP.indexOf(e.kind) >= 0; });
+
+  return {
+    events: events,
+    marked: marked.filter(function(e){ return e.at <= window; }),
+    hidden: events.length - marked.length,
+    window: window,
+    lastReady: ready.length ? ready[ready.length - 1].at : null
+  };
+}
+
+/* When each module finished, and the gap since the one before it.
+
+   Deliberately not "how long each took": every claim is created within a second
+   of the others, so created-to-ready measures queue wait plus work, and would
+   report three overlapping spans for a queue that is strictly serial. What the
+   payload can support is when each one became Ready, and how far apart those
+   were. If provisioning ever runs in parallel, the gaps collapse and the
+   sentence below changes with them. */
+function tlModules(events){
+  var seen = {};
+  var rows = [];
+  events.forEach(function(e){
+    if(e.kind !== 'claim.ready') return;
+    var name = e.subject.split('/').pop();
+    if(seen[name]) return;
+    seen[name] = true;
+    rows.push({name: name, at: e.at, gap: rows.length ? e.at - rows[rows.length - 1].at : e.at});
+  });
+  var together = rows.some(function(r, i){ return i > 0 && r.gap < 1; });
+  return {rows: rows, together: together};
+}
+
+function tlChart(prepared){
+  var W = 960, left = 96, right = 24, rowH = 54, top = 34;
+  var H = top + TL_ROWS.length * rowH + 18;
+  var span = Math.max(prepared.window, 1);
+  var x = function(t){ return left + (t / span) * (W - left - right); };
+
+  var step = span <= 30 ? 5 : span <= 90 ? 10 : span <= 300 ? 30 : 60;
+  var parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
+               'aria-label="When each step happened, in seconds from the annotation">'];
+
+  for(var t = 0; t <= span; t += step){
+    parts.push('<line x1="' + x(t).toFixed(1) + '" y1="' + (top - 12) +
+               '" x2="' + x(t).toFixed(1) + '" y2="' + (H - 22) +
+               '" stroke="rgba(0,0,0,.07)"/>');
+    parts.push('<text class="tl-tick" x="' + x(t).toFixed(1) + '" y="' + (H - 8) +
+               '" text-anchor="middle">' + t + 's</text>');
+  }
+
+  TL_ROWS.forEach(function(row, i){
+    var y = top + i * rowH + rowH / 2;
+    parts.push('<text class="tl-lane" x="0" y="' + (y + 4) + '">' + esc(row.label) + '</text>');
+    parts.push('<line x1="' + left + '" y1="' + y + '" x2="' + (W - right) +
+               '" y2="' + y + '" stroke="rgba(0,0,0,.10)"/>');
+
+    prepared.marked.filter(function(e){ return row.lanes.indexOf(e.lane) >= 0; })
+      .forEach(function(e){
+        var ready = e.kind === 'claim.ready';
+        var colour = ready ? 'var(--green)' : 'var(--ink-3)';
+        var title = '<title>' + esc(e.kind + '  ' + e.subject + '  +' +
+                                    e.at.toFixed(2) + 's') + '</title>';
+        if(e.coarse){
+          var w = Math.max(x(e.at + 1) - x(e.at), 3);
+          parts.push('<rect x="' + x(e.at).toFixed(1) + '" y="' + (y - 5) + '" width="' +
+                     w.toFixed(1) + '" height="10" rx="2" fill="' + colour +
+                     '" opacity=".35">' + title + '</rect>');
+        } else {
+          parts.push('<circle cx="' + x(e.at).toFixed(1) + '" cy="' + y + '" r="' +
+                     (ready ? 5.5 : 4) + '" fill="' + colour + '">' + title + '</circle>');
+        }
+        if(ready){
+          parts.push('<text class="tl-sub" x="' + x(e.at).toFixed(1) + '" y="' + (y - 12) +
+                     '" text-anchor="middle">' + esc(e.subject.split('/').pop()) + '</text>');
+        }
+      });
+  });
+
+  parts.push('</svg>');
+  return parts.join('');
+}
+
+function renderTimeline(){
+  var payload = S.timeline;
+  var live = $('timelineLive'), empty = $('timelineEmpty');
+
+  if(!payload || !payload.up || !(payload.events || []).length){
+    live.hidden = true; empty.hidden = false;
+    return;
+  }
+  empty.hidden = true; live.hidden = false;
+
+  var prepared = tlPrepare(payload);
+  var modules = tlModules(prepared.events);
+
+  $('tlHeadline').textContent = prepared.lastReady === null
+    ? 'Nothing has reached Ready yet.'
+    : 'Annotation to all infrastructure ready: ' + prepared.lastReady.toFixed(1) + ' seconds.';
+
+  var note = '';
+  if(modules.rows.length){
+    note = modules.rows.map(function(r, i){
+      return '<b>' + esc(r.name) + '</b> ready at ' + r.at.toFixed(1) + 's' +
+             (i ? ', ' + r.gap.toFixed(1) + 's after the last' : '');
+    }).join('. ') + '. ';
+    note += modules.rows.length < 2 ? ''
+      : modules.together
+        ? 'Two finished within a second of each other, so the work overlapped.'
+        : 'They finished one at a time: the queue provisions in sequence, not in parallel.';
+  } else {
+    note = 'No claim has reached Ready in this capture.';
+  }
+  $('tlNote').innerHTML = note;
+
+  $('tlChart').innerHTML = tlChart(prepared);
+
+  $('tlHidden').textContent = prepared.hidden
+    ? prepared.hidden + ' other events are not marked: the app\u2019s own rollout, and the ' +
+      'bookkeeping around it. `make timeline` prints all of them.'
+    : '';
+}
+
+async function loadTimeline(force){
+  if(S.timeline && !force && !S.tlStale) return renderTimeline();
+  $('tlHeadline').textContent = 'Reading…';
+  try{
+    var r = await fetch('/timeline', {cache:'no-store'});
+    S.timeline = await r.json();
+    S.tlStale = false;
+  }catch(e){
+    S.timeline = {up:false, t0:null, events:[]};
+  }
+  renderTimeline();
 }
 
 /* ─── guide: the action table is generated from ACTIONS itself ────────── */

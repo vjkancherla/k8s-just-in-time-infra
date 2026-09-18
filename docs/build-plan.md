@@ -756,6 +756,19 @@ is a controller change as well as a console one.
 **Stage gate:** `make targets` prints 14 names, `make check STEP=18` passes with the
 amended array, and S19, S20 and S21 each hold a ticked `check` box and a `CLEAR` finding.
 
+### Playwright browser tests (outside the plan)
+
+`console/test_browser.py` was added ad-hoc after S21, not as a build-plan step. It
+exercises the console UI end-to-end with Playwright against fixture data — no cluster
+required. The fixtures cover ten states (down, ready, pending, orphaned, expiring,
+failed, plane-only, no-port, no-routes, two-namespaces) and the tests assert on every
+tab (Setup, Infrastructure, App, Timeline, Guide), both modes (Demo, Testing), the LED
+status indicator, claim-object panels, container and state-object strips, app iframes
+and URLs, confirm dialogs, log streaming, and a full JavaScript error sweep across all
+fixtures. `--shots` writes numbered PNGs to `console/shots/` for visual review. Two
+companion files exist: `console/test_console.py` (declaration/contract suite) and
+`console/test_serve.py` (proxy/unit tests).
+
 ## Done
 
 - [x] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:

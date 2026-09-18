@@ -142,7 +142,7 @@ console-test: ## Run the console's suites: server, contract, and browser if inst
 	@if [ -x console/.venv/bin/python ]; then \
 		console/.venv/bin/python console/test_browser.py; \
 	else \
-		echo "skipping the browser suite - see docs/TESTING-THE-CONSOLE.md §2"; \
+		echo "skipping the browser suite - see docs/guides/TESTING-THE-CONSOLE.md §2"; \
 	fi
 
 .PHONY: console-shots
@@ -184,5 +184,5 @@ same logic through its effects, which is enough for a tool with one user.
 `state.sh` is not tested directly. `test_console.py` tests its output, which is
 the part anything else depends on.
 
-None of these are a checkpoint. Per `docs/01-jit-poc.md` they are a diagnostic
+None of these are a checkpoint. Per `.clinerules/01-jit-poc.md` they are a diagnostic
 tool. If the console becomes a build step, its frozen checkpoint is the proof.

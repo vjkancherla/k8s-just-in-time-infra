@@ -94,8 +94,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
                 print(f"!!! make state did not return JSON: {e}", flush=True)
                 if r.stderr.strip():
                     print(r.stderr.strip(), flush=True)
-                return self.send_json({"up": False, "namespaces": [],
-                                       "containers": [], "stateObjects": []})
+                # The same shape state.sh emits when the stack is down, so the
+                # page never has to tell a failed read from an empty one.
+                return self.send_json({"up": False, "generatedAt": None,
+                                       "ingressPorts": {"http": None, "https": None},
+                                       "namespaces": [], "containers": [],
+                                       "stateObjects": []})
 
         if path == "/claim":
             q = parse_qs(urlparse(self.path).query)
@@ -127,8 +131,12 @@ class Handler(http.server.BaseHTTPRequestHandler):
             r = subprocess.run(TIMELINE, capture_output=True, text=True, cwd=ROOT)
             try:
                 return self.send_json(json.loads(r.stdout))
-            except Exception:
-                return self.send_json({"up": False, "t0": None, "events": []})
+            except Exception as e:
+                print(f"!!! make timeline did not return JSON: {e}", flush=True)
+                if r.stderr.strip():
+                    print(r.stderr.strip(), flush=True)
+                return self.send_json({"up": False, "generatedAt": None,
+                                       "t0": None, "events": []})
 
         if path in ("/", "/index.html"):
             try:

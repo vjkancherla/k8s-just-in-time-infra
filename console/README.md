@@ -16,13 +16,29 @@ Ctrl-C stops it. Nothing is left running.
 |---|---|
 | `index.html` | the page. One file, no build step, no dependencies |
 | `serve.py` | serves the page, calls `make state`, runs an allowlist of make targets |
+| `state.py` | the read model — `make state` calls this to build the JSON the page polls |
+| `state.sh` | the shell read model — the original, used by `make state` and the checkpoints |
+| `test_browser.py` | Playwright browser tests — renders every fixture state, asserts on every tab |
+| `test_console.py` | declaration/contract tests — the page's structural assertions against serve.py |
+| `test_serve.py` | proxy/unit tests — the allowlist, the SAFE regex, the /log tail, /claim, /timeline |
+| `fixtures/` | JSON state files written by `test_browser.py` before each run |
+| `shots/` | numbered PNGs from `--shots`, one per fixture × tab |
 
-Four endpoints, and that is the whole surface:
+## Endpoints
 
-- `GET /` — the page
-- `GET /state` — `make state`
-- `GET /log?name=x&offset=n` — what the current run has written since byte `n`
-- `POST /run/{name}` — the make target in `serve.py`'s `ALLOWED`, and nothing else
+Six endpoints, and that is the whole surface:
+
+| Endpoint | Method | What it does |
+|---|---|---|
+| `/` | GET | the page |
+| `/state` | GET | `make state` — the read model the page polls every 2 s |
+| `/claim?ns=&module=` | GET | `make claim` — one InfraClaim as YAML, for the object panel |
+| `/timeline` | GET | `make timeline` — the run as one JSON document, for the Timeline tab |
+| `/log?name=x&offset=n` | GET | what the current run has written since byte `n` |
+| `/run/{name}` | POST | the make target in `ALLOWED`, and nothing else |
+
+`/claim` and `/timeline` are fetched on demand — the page never polls them.
+`/state` is the only endpoint on the 2-second poll.
 
 ## The rule
 
@@ -89,15 +105,84 @@ Two modes in the toolbar:
 Demo is for showing the JIT concept in ~3 minutes. Testing is for running the full
 J1-J11 lifecycle suite — `voting-b` exists so J8 can show that a hard delete is bounded.
 
-Three tabs. **Setup** runs things, with the log below the actions at full width.
-**Infrastructure** shows the claims, their phase, the live countdown on anything
-Orphaned, the containers and the state objects. **Voting app** embeds the vote
-and result pages for the selected namespace.
+Destructive actions (those with `danger:true`) show a browser confirm dialog before
+running. The action list and mode note update immediately when you switch modes.
 
-The panes are real iframes of the real Ingress hosts. The app serves HTTPS with
-a self-signed certificate, so a pane stays blank until the browser trusts it:
-use **Open**, accept the warning once per host, then reload. Chrome gives no
-event for this, which is why the page says so rather than detecting it.
+### Tabs
+
+Five tabs. When nothing is running the non-setup tabs dim to 45 % opacity
+(`.sleeping`); switching to them still works but shows the empty state.
+
+| Tab | What it shows |
+|---|---|
+| **Setup** | The action buttons for the current mode, a mode-explanation note, and the live log of the current run. |
+| **Infrastructure** | Claims grouped by phase (In use / On the clock / In flight / Failed), the namespace summary, the phase-change feed, and a collapsible container/state-object strip. |
+| **Voting app** | The vote and result pages as real iframes, with URLs read from the cluster's Ingress. A namespace switcher appears when two namespaces exist. Claim chips and a pgAdmin note sit below the iframes. |
+| **Timeline** | Fetched on demand (never polled). Shows how long each provisioning step took, with a chart and an event table. Empty until the first run completes. |
+| **Guide** | Reference page: the two modes, what each tab does, the five claim phases, every action with its make target, and common gotchas. |
+
+### The bar
+
+The sticky top bar has: the JIT logo, the Demo/Testing mode switch, the five
+tab buttons, and a status LED pill.
+
+| LED state | Meaning |
+|---|---|
+| Grey | Nothing running (`up: false`) |
+| Green | All claims Ready |
+| Amber | At least one claim is Orphaned or Failed |
+
+The LED text is a short summary: "Nothing running", "3 claims Ready", "1 on the
+clock", "1 claim failed", etc.
+
+### Infrastructure tab in detail
+
+The Infrastructure tab has several sections, top to bottom:
+
+1. **H1 and subtitle** — dynamic: "3 claims across 1 namespace" when Ready,
+   "Nothing was destroyed. A clock started." when Orphaned.
+2. **Namespaces panel** — one row per namespace showing the claim count and
+   phase breakdown (e.g. "3 claims · 3 Ready").
+3. **Claim groups** — claims are grouped by phase category. Each claim card
+   shows the module name, namespace + address, and a sentence: "Used by
+   vote and worker" for Ready, "Destroyed in 9:45 unless something asks for
+   it again" for Orphaned, etc. Clicking a claim opens the object panel.
+4. **Object panel** — appears when a claim is clicked. Two collapsible
+   `<details>` blocks: "Running on Docker" (container name, address, image,
+   status, ports, volume) and "Asked for in Kubernetes" (the InfraClaim YAML,
+   with a toggle to hide/show Kopf bookkeeping lines).
+5. **Phase-change feed** — "What changed since you opened this page". Shows
+   transitions observed across polls (e.g. "pgadmin Ready → Orphaned").
+   Empty on first load: "Nothing yet. Phase changes show up here as they
+   happen."
+6. **Containers and state objects** — collapsed `<details>`. Container chips
+   are colour-coded: green for claim-owned, grey for control-plane, dashed
+   for orphaned. State-object chips show the MinIO key.
+
+### Voting app tab in detail
+
+- Vote and result are real iframes of the Ingress hosts.
+- The URL bar shows the full URL without `http://`.
+- **Open** links open the URL in a new tab — necessary because the app uses
+  HTTPS with a self-signed certificate, and a pane stays blank until the
+  browser trusts it. Accept the warning once per host, then reload.
+- A namespace switcher (`#nsSwitch`) appears only when two namespaces exist.
+- Claim chips below the iframes show each module's phase and address.
+- `#pgAdminLine` shows: "pgAdmin is up on its own host port — open it to see
+  the votes table the worker writes to." when pgAdmin is Ready.
+
+### Timeline tab
+
+Fetched from `/timeline` on demand — never on the 2-second poll. If no events
+exist yet, shows "Nothing has been provisioned yet" with a **Go to setup**
+button. When events exist it shows:
+
+- A headline: "Annotation to all infrastructure ready: 12.3 seconds."
+- A note on ordering: sequential or overlapping.
+- A chart with five lanes (deployment, controller, runner, container, pod).
+- A table of every event with its timestamp and source.
+
+The **Refresh** button re-fetches from `/timeline`.
 
 ## The allowlist
 
@@ -126,11 +211,33 @@ Three places, and they must agree on the name:
 
 1. `CONSOLE_TARGETS` in the root `Makefile` — the allowlist `make targets` prints.
 2. `ALLOWED` in `serve.py` — the name and the target it runs.
-3. `ACTIONS` in `index.html` — the same name, plus the label and description.
+3. `ACTIONS` in `index.html` — the same name, plus the label, description, mode,
+   and optional `hint` and `danger` flags.
 
 A name in the page that is missing from `ALLOWED` gets a 404 rather than
 running something unexpected. Keep the action name and the target name
 identical; there is no reason for them to differ and every reason not to.
+
+## Testing
+
+Three test files, no cluster required:
+
+| File | What it tests | Runner |
+|---|---|---|
+| `test_serve.py` | The allowlist, the SAFE regex, /log tail, /claim, /timeline, rejection of bad names | `python3 console/test_serve.py` |
+| `test_console.py` | Declaration/contract: every ALLOWED name appears in ACTIONS, every ACTIONS name is in ALLOWED, endpoint count, SAFE regex coverage | `python3 console/test_console.py` |
+| `test_browser.py` | Playwright: renders ten fixture states (down, ready, pending, orphaned, expiring, failed, plane-only, no-port, no-routes, two-namespaces) and asserts on every tab, the LED, claim cards, the feed, the object panel, the timeline, the guide, mode switching, destructive confirm dialogs, and a full JS error sweep | `console/.venv/bin/python console/test_browser.py` |
+
+```bash
+# All three
+make console-test
+
+# Browser screenshots only (writes numbered PNGs to console/shots/)
+make console-shots
+```
+
+See [`docs/guides/TESTING-THE-CONSOLE.md`](../docs/guides/TESTING-THE-CONSOLE.md) for the
+full testing guide, including how to set up the Playwright venv.
 
 ## Known rough edges
 

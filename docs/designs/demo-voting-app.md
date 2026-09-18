@@ -51,7 +51,7 @@ app/kustomize/
 ├── base/                          # Shared manifests
 │   ├── vote-deployment.yaml       # vote + JIT annotations (redis, postgres, pgadmin)
 │   ├── worker-deployment.yaml     # worker + JIT annotation (redis only)
-│   ├── result-deployment.yaml     # result (no JIT annotations)
+│   ├── result-deployment.yaml     # result + JIT annotation (postgres)
 │   ├── vote-service.yaml
 │   ├── result-service.yaml
 │   └── ingress.yaml               # Traefik Ingress for vote.localhost / result.localhost

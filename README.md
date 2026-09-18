@@ -78,9 +78,9 @@ would be the thing you debug instead of the system.
 > [!TIP]
 > Endpoints, the no-state rule, how to add an action, known rough edges:
 > [`console/README.md`](console/README.md). The target behind each button is
-> [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md); to run the same steps by
+> [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md); to run the same steps by
 > hand, one command at a time, see
-> [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md).
+> [`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md).
 
 ---
 
@@ -91,7 +91,7 @@ in fourteen slides — what the annotations do, how the controller provisions in
 two-speed cleanup, and why the design is split the way it is.
 
 ```bash
-open docs/how-it-works-presentation.html
+open docs/visual-walkthroughs/how-it-works-presentation.html
 ```
 
 No server, no dependencies, no build step. One HTML file, opens in any browser, arrow
@@ -101,7 +101,7 @@ There is a second deck for the controller on its own — what kind of controller
 four things that trigger it, what it does on each one, and the state machine it keeps:
 
 ```bash
-open docs/controller-explained.html
+open docs/visual-walkthroughs/controller-explained.html
 ```
 
 Same rules: one file, arrow keys, no dependencies. Read it before changing
@@ -111,8 +111,8 @@ Two more pages cover the two questions this system gets asked most. Both are mea
 rather than read:
 
 ```bash
-open docs/deletion-lifecycle.html    # drive the retention window: delete, redeploy, expire
-open docs/annotation-to-state.html   # pick a namespace and a module; every name resolves
+open docs/visual-walkthroughs/deletion-lifecycle.html    # drive the retention window: delete, redeploy, expire
+open docs/visual-walkthroughs/annotation-to-state.html   # pick a namespace and a module; every name resolves
 ```
 
 The first runs the soft-delete clock and shows which objects survive at each stage. The second
@@ -183,7 +183,7 @@ static addresses from the block the IPAM ledger hands each namespace (`172.19.0.
 > [!NOTE]
 > Mermaid: GitHub renders it, VS Code needs the *Markdown Preview Mermaid Support* extension.
 > The full set — create, soft delete, hard delete, resync — is in
-> [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md).
+> [`docs/designs/jit-infra-flows.md`](docs/designs/jit-infra-flows.md).
 
 ### The two things worth knowing
 
@@ -238,7 +238,7 @@ download URL and rebuilding the runner image.
 
 The app the demo deploys is already in this repo at `app/` — nothing to clone alongside it.
 
-[`docs/JIT-MANUAL-GUIDE.md` §2](docs/JIT-MANUAL-GUIDE.md#2-prerequisites) has the same
+[`docs/guides/JIT-MANUAL-GUIDE.md` §2](docs/guides/JIT-MANUAL-GUIDE.md#2-prerequisites) has the same
 list as a table, with the command that checks each tool.
 
 ## Running it
@@ -247,8 +247,8 @@ Two guides, split by how much you want to see:
 
 | Guide | Use it when |
 |---|---|
-| [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | You want the short path: every target, its variables, the common workflows, and what a passing run exits with |
-| [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | You want to watch it happen: cluster creation to teardown, one `kubectl` or `docker` command at a time, each with the output that says it worked |
+| [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md) | You want the short path: every target, its variables, the common workflows, and what a passing run exits with |
+| [`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md) | You want to watch it happen: cluster creation to teardown, one `kubectl` or `docker` command at a time, each with the output that says it worked |
 
 Both demo namespaces come from one kustomize base; only the namespace, ingress hosts, and
 pgAdmin's host port differ (see `app/kustomize/overlays/voting-b/kustomization.yaml`).
@@ -257,7 +257,7 @@ To start from a machine with nothing on it, follow [From cold](#from-cold) — t
 
 ### Make targets
 
-[`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) is the reference: what every
+[`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md) is the reference: what every
 target runs, the four variables (`DEMO_NS`, `TENANTS`, `NS`, `STEP`), worked workflows, and
 the `tee` + `PIPESTATUS` idiom that keeps a target's exit code honest. `make help` lists
 them all.
@@ -373,23 +373,27 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 |   +-- checks/              <- frozen checkpoint scripts, one per step
 |
 +-- docs/
-    +-- how-it-works-presentation.html <- visual walkthrough: open in browser, arrow keys
-    +-- controller-explained.html      <- the controller alone: triggers, states, the gate
-    +-- deletion-lifecycle.html        <- the retention window, with a working clock
-    +-- annotation-to-state.html       <- the naming chain, resolved per namespace and module
-    +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
-    +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
-    +-- runner-api.md        <- runner HTTP API reference
-    +-- testing-strategy.md  <- R1-R17 and J1-J11 check coverage
-    +-- voting-app.md        <- the tenant workload: what it is and how JIT modified it
-    +-- annotation-to-state.md <- the full annotation → InfraClaim → MinIO state chain
-    +-- deletion-lifecycle.md    <- the retention window: clock, resurrection, two speeds
-    +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
-    +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
+    +-- visual-walkthroughs/       <- interactive HTML pages — start here for the big picture
+    |   +-- how-it-works-presentation.html <- 14 slides: open in browser, arrow keys
+    |   +-- controller-explained.html      <- the controller alone: triggers, states, the gate
+    |   +-- annotation-to-state.html       <- the naming chain, resolved per namespace and module
+    |   +-- deletion-lifecycle.html        <- the retention window, with a working clock
+    |   +-- timeline.html                  <- one real run on five lanes, zoomable
+    +-- designs/                 <- design docs (written reference)
+    |   +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
+    |   +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
+    |   +-- runner-api.md        <- runner HTTP API reference
+    |   +-- testing-strategy.md  <- R1-R17 and J1-J11 check coverage
+    |   +-- demo-voting-app.md   <- the tenant workload: what it is and how JIT modified it
+    |   +-- annotation-to-state.md <- the full annotation → InfraClaim → MinIO state chain
+    |   +-- deletion-lifecycle.md    <- the retention window: clock, resurrection, two speeds
+    +-- guides/                    <- operational and how-to guides
+    |   +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
+    |   +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
+    |   +-- TESTING-THE-CONSOLE.md <- how to test the console: unit, declaration, browser
     +-- build-plan.md        <- the implementation plan, one step at a time
     +-- todo.md              <- step tracker (check + review boxes)
     +-- lessons.md           <- corrections that became rules
-    +-- 01-jit-poc.md        <- working rules for AI agent sessions
     +-- decisions/           <- Architecture Decision Records
     +-- evidence/            <- verbatim run logs and probe scripts
     +-- reviews/             <- review prompts and findings, one per reviewed step
@@ -403,37 +407,37 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 
 | Document | What it covers | Read when |
 |---|---|---|
-| [`docs/how-it-works-presentation.html`](docs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Fourteen slides, arrow keys, no dependencies |
-| [`docs/controller-explained.html`](docs/controller-explained.html) | **Controller deck** — the JIT controller on its own: reconciler vs admission controller, its four kopf triggers, what each one does, the claim state machine, and why the missing Secret is the gate | Reading or changing `jit-controller/main.py`, or when a claim's behaviour surprises you |
-| [`docs/deletion-lifecycle.html`](docs/deletion-lifecycle.html) | **Lifecycle page** — the same window as `docs/deletion-lifecycle.md`, made drivable: delete the deployment, redeploy inside the clock, or let it expire, and watch which of the container, IP, Secret, Service and EndpointSlice survive each stage. Also the with/without double-release-guard comparison | Understanding the retention window, or when a claim will not go away |
-| [`docs/annotation-to-state.html`](docs/annotation-to-state.html) | **Trace resolver** — the same chain as `docs/annotation-to-state.md`, resolved: pick a namespace and module and every name follows — annotation key, InfraClaim, IP (with the block map), container, Secret/Service/EndpointSlice, MinIO state key — plus the five lookup commands with their answers | Tracing an app's infrastructure, or working out what a name should be |
-| [`docs/timeline.html`](docs/timeline.html) | **Timeline viewer** — one real run on five lanes (deployment, controller, runner, container, pod), every event with the source of its timestamp: run picker, sub-second zoom, subject filter. Reads `docs/evidence/timeline.log` | You want to see what actually happened, in order |
-| [`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
-| [`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
+| [`docs/visual-walkthroughs/`](docs/visual-walkthroughs/README.md) | **Start here** — five interactive HTML walkthroughs with a recommended viewing order: the system overview, naming chain, controller, deletion lifecycle, and timeline | You are new to the project and want to see how it works before reading the code |
+| [`docs/visual-walkthroughs/how-it-works-presentation.html`](docs/visual-walkthroughs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Fourteen slides, arrow keys, no dependencies |
+| [`docs/visual-walkthroughs/controller-explained.html`](docs/visual-walkthroughs/controller-explained.html) | **Controller deck** — the JIT controller on its own: reconciler vs admission controller, its four kopf triggers, what each one does, the claim state machine, and why the missing Secret is the gate | Reading or changing `jit-controller/main.py`, or when a claim's behaviour surprises you |
+| [`docs/visual-walkthroughs/deletion-lifecycle.html`](docs/visual-walkthroughs/deletion-lifecycle.html) | **Lifecycle page** — the same window as `docs/designs/deletion-lifecycle.md`, made drivable: delete the deployment, redeploy inside the clock, or let it expire, and watch which of the container, IP, Secret, Service and EndpointSlice survive each stage | Understanding the retention window, or when a claim will not go away |
+| [`docs/visual-walkthroughs/annotation-to-state.html`](docs/visual-walkthroughs/annotation-to-state.html) | **Trace resolver** — the same chain as `docs/designs/annotation-to-state.md`, resolved: pick a namespace and module and every name follows | Tracing an app's infrastructure, or working out what a name should be |
+| [`docs/visual-walkthroughs/timeline.html`](docs/visual-walkthroughs/timeline.html) | **Timeline viewer** — one real run on five lanes (deployment, controller, runner, container, pod), every event with the source of its timestamp | You want to see what actually happened, in order |
+| [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
+| [`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
 | [`console/README.md`](console/README.md) | **The console** — the three endpoints, the no-state rule, the full allowlist, Demo vs Testing modes, how to add an action, known rough edges | Running or changing the console |
-| [`docs/runner-api.md`](docs/runner-api.md) | **Runner API reference** — endpoints, request/response schemas, auth, config, state management | Calling the runner or debugging provisioning |
-| [`docs/testing-strategy.md`](docs/testing-strategy.md) | **Testing** — R1-R17 and J1-J11 check coverage, frozen checkpoints, how to add new checks | Understanding what the tests cover or adding a new one |
-| [`docs/voting-app.md`](docs/voting-app.md) | **The voting app** — what it is, how the JIT project modified it, Kustomize layout, how it consumes JIT infrastructure | Understanding the tenant workload the PoC deploys |
-| [`docs/annotation-to-state.md`](docs/annotation-to-state.md) | **Annotation → State mapping** — the full chain from Deployment annotation to InfraClaim to MinIO state, with lookup commands | Tracing an app's infrastructure or debugging a provisioning issue |
-| [`docs/deletion-lifecycle.md`](docs/deletion-lifecycle.md) | **Deletion lifecycle** — what happens when you delete the app: the clock, the window, resurrection, the two speeds of cleanup, and how the controller's timer works | Understanding the retention window and why rollouts don't destroy data |
+| [`docs/designs/runner-api.md`](docs/designs/runner-api.md) | **Runner API reference** — endpoints, request/response schemas, auth, config, state management | Calling the runner or debugging provisioning |
+| [`docs/designs/testing-strategy.md`](docs/designs/testing-strategy.md) | **Testing** — R1-R17 and J1-J11 check coverage, frozen checkpoints, how to add new checks | Understanding what the tests cover or adding a new one |
+| [`docs/designs/demo-voting-app.md`](docs/designs/demo-voting-app.md) | **The voting app** — what it is, how the JIT project modified it, Kustomize layout, how it consumes JIT infrastructure | Understanding the tenant workload the PoC deploys |
+| [`docs/designs/annotation-to-state.md`](docs/designs/annotation-to-state.md) | **Annotation → State mapping** — the full chain from Deployment annotation to InfraClaim to MinIO state, with lookup commands | Tracing an app's infrastructure or debugging a provisioning issue |
+| [`docs/designs/deletion-lifecycle.md`](docs/designs/deletion-lifecycle.md) | **Deletion lifecycle** — what happens when you delete the app: the clock, the window, resurrection, the two speeds of cleanup, and how the controller's timer works | Understanding the retention window and why rollouts don't destroy data |
 
 ### Design & architecture
 
 | Document | What it covers | Read when |
 |---|---|---|
-| [`docs/jit-infra-poc.md`](docs/jit-infra-poc.md) | **Design note (v4)** — core decisions: annotation on Deployment, ownership on Namespace, two-speed cleanup, claim lifecycle | Something feels wrong, or you need to understand *why* |
-| [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md) | **Mermaid diagrams** — create, soft delete, hard delete, claim state machine, resync loop, component layout | You need a visual overview of a specific flow |
+| [`docs/designs/jit-infra-poc.md`](docs/designs/jit-infra-poc.md) | **Design note (v4)** — core decisions: annotation on Deployment, ownership on Namespace, two-speed cleanup, claim lifecycle | Something feels wrong, or you need to understand *why* |
+| [`docs/designs/jit-infra-flows.md`](docs/designs/jit-infra-flows.md) | **Mermaid diagrams** — create, soft delete, hard delete, claim state machine, resync loop, component layout | You need a visual overview of a specific flow |
 | [`docs/decisions/0001-*.md`](docs/decisions/) | **ADR 0001** — why the annotation is on the Deployment, not the Namespace | Understanding the v1→v4 evolution |
 | [`docs/decisions/0002-*.md`](docs/decisions/) | **ADR 0002** — why the runner is a separate HTTP service | Understanding the split-plane design |
 | [`docs/decisions/0003-*.md`](docs/decisions/) | **ADR 0003** — IPAM block allocation (172.19.0.100-199, blocks of 10) | Understanding IP addressing or extending the range |
 | [`docs/decisions/0004-*.md`](docs/decisions/) | **ADR 0004** — console as a stateless page behind a make-target allowlist | Understanding why the console works this way |
-| [`docs/01-jit-poc.md`](docs/01-jit-poc.md) | **Working rules** — scope, method, code conventions for agent-driven implementation | Starting a new AI coding session |
+| [`.clinerules/01-jit-poc.md`](.clinerules/01-jit-poc.md) | **Working rules** — scope, method, code conventions for agent-driven implementation | Starting a new AI coding session |
 
 ### Implementation & tracking
 
 | Document | What it covers | Read when |
 |---|---|---|
-| [`RUNBOOK.md`](RUNBOOK.md) | **Daily page** — the implement -> review -> resolve loop, one step at a time | Every session. Keep it open. |
 | [`docs/build-plan.md`](docs/build-plan.md) | **The steps** — each with scope, checkpoints, and acceptance criteria | Checking what a step involves |
 | [`docs/todo.md`](docs/todo.md) | **Tracker** — check and review boxes per step, settled decisions | Seeing where things stand |
 
@@ -474,15 +478,15 @@ Two transitions carry the design:
 
 A destroy that fails keeps the finalizer and retries on the next resync tick, which is what holds
 a namespace in `Terminating` — the escape hatch is under [Troubleshooting](#troubleshooting). The
-same diagram, with more surrounding detail, is in [`docs/jit-infra-flows.md`](docs/jit-infra-flows.md) section 4.
+same diagram, with more surrounding detail, is in [`docs/designs/jit-infra-flows.md`](docs/designs/jit-infra-flows.md) section 4.
 
 ---
 
 ## Troubleshooting
 
 Symptom→fix tables for the common failures are in
-[`docs/JIT-MAKEFILE-GUIDE.md`](docs/JIT-MAKEFILE-GUIDE.md#troubleshooting) and
-[`docs/JIT-MANUAL-GUIDE.md`](docs/JIT-MANUAL-GUIDE.md#15-when-something-is-wrong). The three
+[`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md#troubleshooting) and
+[`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md#15-when-something-is-wrong). The three
 below need more room than a table row.
 
 ### Where to look first
@@ -574,7 +578,7 @@ make jit-down
 ### A step fails twice
 
 Stop. That is usually a design problem wearing an implementation costume — go back to the
-design note ([`docs/jit-infra-poc.md`](docs/jit-infra-poc.md)) rather than deeper into
+design note ([`docs/designs/jit-infra-poc.md`](docs/designs/jit-infra-poc.md)) rather than deeper into
 the code.
 
 ---
@@ -599,4 +603,4 @@ This is a proof of concept. Things it deliberately does not address:
 
 *(The right-hand column is this README's summary of what the PoC leaves open, not a schedule — the design note has the detail.)*
 
-For production, start with the [design note](docs/jit-infra-poc.md) and work forward.
+For production, start with the [design note](docs/designs/jit-infra-poc.md) and work forward.

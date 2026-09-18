@@ -101,6 +101,17 @@ written from `build-plan.md`'s Goal, then run against the code as it stands.
 - [x] check  - [x] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
 - [x] check  - [x] review  **S21** `make timeline`: every event with a time and a source
 
+### Playwright browser tests (added outside the plan)
+
+`console/test_browser.py` exercises the console UI with Playwright against fixture data
+(no cluster needed). It was built ad-hoc after S21 — not gated by a checkpoint or reviewed
+as a step. Coverage includes: the Setup, Infrastructure, App, Timeline and Guide tabs;
+Demo vs Testing mode switching; action confirm dialogs; claim-object panel; LED status
+indicator; container and state-object strips; app iframes and URLs; and a full-fixture
+JavaScript error sweep. `--shots` renders numbered PNGs to `console/shots/` for visual
+review. `console/test_console.py` (declaration/contract suite) and `console/test_serve.py`
+(proxy/unit tests) are the other two console test files.
+
 ## Notes carried from the app's own docs
 
 - Checkpoint scripts use `set -euo pipefail` and **must** exit non-zero. `verify.sh`

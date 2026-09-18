@@ -142,7 +142,7 @@ console-test: ## Run the console's suites: server, contract, and browser if inst
 	@if [ -x console/.venv/bin/python ]; then \
 		console/.venv/bin/python console/test_browser.py; \
 	else \
-		echo "skipping the browser suite - see docs/TESTING-THE-CONSOLE.md §2"; \
+		echo "skipping the browser suite - see docs/guides/TESTING-THE-CONSOLE.md §2"; \
 	fi
 
 .PHONY: console-shots

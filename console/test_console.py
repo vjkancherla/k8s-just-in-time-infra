@@ -13,7 +13,7 @@ error. A target renamed in the Makefile but not the page. A field the page
 renders that the read model stopped emitting. Neither shows up in a unit test of
 either side, because each side is correct on its own.
 
-Per docs/01-jit-poc.md these are a diagnostic tool, not proof. The checkpoint is
+Per .clinerules/01-jit-poc.md these are a diagnostic tool, not proof. The checkpoint is
 the proof.
 """
 

@@ -136,7 +136,7 @@ Leave the server running and go to Track B.
 
 ## Track B — The cold path, driven from the page (Demo mode)
 
-Cost: ~3 minutes of target time (`docs/JIT-MAKEFILE-GUIDE.md` says ~3 min; **measure it
+Cost: ~3 minutes of target time (`docs/guides/JIT-MAKEFILE-GUIDE.md` says ~3 min; **measure it
 yourself — this is the number you will budget the meeting around**).
 
 ### B1 — *Start the demo* works, and its output is honest

@@ -13,7 +13,7 @@ No cluster is needed. ALLOWED is swapped for harmless commands, and the one test
 that touches `make state` only asserts that a non-JSON answer degrades instead of
 raising.
 
-Per docs/01-jit-poc.md these are a diagnostic tool, not proof the console works.
+Per .clinerules/01-jit-poc.md these are a diagnostic tool, not proof the console works.
 The checkpoint is the proof.
 """
 

@@ -5,7 +5,7 @@ set -euo pipefail
 #
 #   make jit-verify   ->   .workflow/verify-jit.md, exit non-zero if any J FAILs
 #
-# J1-J11 are the acceptance tests from docs/jit-infra-poc.md. Unlike
+# J1-J11 are the acceptance tests from docs/designs/jit-infra-poc.md. Unlike
 # app/scripts/verify.sh - which is a *report* and therefore uses `set -uo pipefail`
 # without `-e`, so a failing check still exits 0 - this is a gate: it uses
 # `set -euo pipefail` and exits non-zero on the first failure. Later J-checks

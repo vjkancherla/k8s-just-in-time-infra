@@ -21,7 +21,7 @@ and the host is clean - no cluster, containers or volumes (deploy/.env is regene
 
 ## Next step
 Decide the J8 volume assertion (Watch out) - it needs a ~20 min suite run to re-baseline - and
-whether to commit console/test_console.py and docs/TESTING-THE-CONSOLE.md, both still untracked.
+whether to commit console/test_console.py and docs/guides/TESTING-THE-CONSOLE.md, both still untracked.
 
 ## Watch out
 - pgadmin's lease is on vote deliberately: no workload consumes it, and moving it breaks both

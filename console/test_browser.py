@@ -19,7 +19,7 @@ being clicked through by hand.
 ALLOWED is swapped for harmless commands, so no test can start or destroy
 anything.
 
-Per docs/01-jit-poc.md these are a diagnostic tool, not proof. The checkpoint is
+Per .clinerules/01-jit-poc.md these are a diagnostic tool, not proof. The checkpoint is
 the proof.
 """
 
@@ -344,6 +344,9 @@ class Page(unittest.TestCase):
         page.locator(".claim").first.click()
         page.wait_for_selector("#objectPanel .yaml", timeout=5000)
         self.assertIn("InfraClaim", page.inner_text("#objectPanel"))
+        # The claim YAML is in a collapsed details — open it to trigger paintYaml
+        page.locator("#objectPanel details").last.locator("summary").click()
+        page.wait_for_timeout(300)
         self.assertIn("finalizers", page.inner_text("#objectPanel"))
 
     # --------------------------------------------------------------- tabs
@@ -361,6 +364,297 @@ class Page(unittest.TestCase):
         listed = page.inner_text("#guideActions")
         for label in ("Start the demo", "Delete everything", "Check the app works"):
             self.assertIn(label, listed)
+
+    # ------------------------------------------------------------ LED
+
+    def test_led_says_nothing_running_when_down(self):
+        page = self.open("down")
+        self.assertEqual(page.inner_text("#ledText"), "Nothing running")
+        self.assertNotIn("on", page.locator("#led").get_attribute("class"))
+
+    def test_led_shows_green_with_ready_claims(self):
+        page = self.open("ready")
+        text = page.inner_text("#ledText")
+        self.assertIn("Ready", text)
+        self.assertIn("claims", text)
+        self.assertIn("on", page.locator("#led").get_attribute("class"))
+
+    def test_led_shows_warn_for_orphaned(self):
+        page = self.open("orphaned")
+        text = page.inner_text("#ledText")
+        self.assertIn("on the clock", text)
+        self.assertIn("warn", page.locator("#led").get_attribute("class"))
+
+    def test_led_shows_warn_for_failed(self):
+        page = self.open("failed")
+        text = page.inner_text("#ledText")
+        self.assertIn("failed", text)
+        self.assertIn("warn", page.locator("#led").get_attribute("class"))
+
+    # ------------------------------------------------ infra containers
+
+    def test_infra_lists_running_containers(self):
+        page = self.open("ready", tab="infra")
+        page.locator("details summary:text('Containers')").click()
+        page.wait_for_timeout(200)
+        box = page.locator("#containers")
+        for name in ("redis", "postgres", "pgadmin"):
+            self.assertIn(name, box.inner_text())
+
+    def test_infra_lists_state_objects(self):
+        page = self.open("ready", tab="infra")
+        page.locator("details summary:text('Containers')").click()
+        page.wait_for_timeout(200)
+        box = page.locator("#objects")
+        text = box.inner_text()
+        self.assertIn("terraform.tfstate", text)
+
+    def test_infra_says_none_when_down(self):
+        page = self.open("down", tab="infra")
+        self.assertIn("No infrastructure", page.inner_text("#view-infra"))
+
+    # ---------------------------------------------------------- timeline
+
+    def test_timeline_shows_empty_when_no_events(self):
+        page = self.open("ready", tab="timeline")
+        page.wait_for_timeout(500)
+        self.assertTrue(page.is_visible("#timelineEmpty"))
+        self.assertIn("provisioned", page.inner_text("#timelineEmpty"))
+
+    # ------------------------------------------------------------ app URLs
+
+    def test_app_tab_shows_vote_and_result_urls(self):
+        page = self.open("ready", tab="app")
+        page.wait_for_timeout(300)
+        vote = page.inner_text("#voteUrl")
+        result = page.inner_text("#resultUrl")
+        self.assertIn("vote.localhost", vote)
+        self.assertIn("result.localhost", result)
+
+    def test_app_tab_shows_iframes(self):
+        page = self.open("ready", tab="app")
+        page.wait_for_timeout(300)
+        self.assertEqual(page.locator("#votePane iframe").count(), 1)
+        self.assertEqual(page.locator("#resultPane iframe").count(), 1)
+
+    # -------------------------------------------------------- setup state
+
+    def test_setup_heading_says_nothing_when_down(self):
+        page = self.open("down")
+        self.assertIn("Nothing is running", page.inner_text("#setupH1"))
+
+    def test_setup_heading_lists_namespaces_when_ready(self):
+        page = self.open("ready")
+        h = page.inner_text("#setupH1")
+        self.assertIn("voting-a", h)
+
+    # --------------------------------------------------------------- claims
+
+    def test_claims_are_grouped_by_phase(self):
+        page = self.open("ready", tab="infra")
+        groups = page.locator(".group")
+        self.assertGreater(groups.count(), 0, "no .group blocks rendered")
+        # Every group has a grouph with an h2 showing the phase category
+        for i in range(groups.count()):
+            h2 = groups.nth(i).locator(".grouph h2")
+            self.assertTrue(h2.count(), f"group {i} has no heading")
+
+    def test_ready_card_says_used_by(self):
+        page = self.open("ready", tab="infra")
+        sentences = page.locator(".sentence")
+        found = False
+        for i in range(sentences.count()):
+            t = sentences.nth(i).inner_text()
+            if "Used by" in t:
+                found = True
+        self.assertTrue(found, "no claim sentence says 'Used by'")
+
+    def test_orphaned_card_mentions_countdown(self):
+        page = self.open("orphaned", tab="infra")
+        sentences = page.locator(".sentence")
+        found = False
+        for i in range(sentences.count()):
+            t = sentences.nth(i).inner_text()
+            if "destroy" in t.lower() or "clock" in t.lower():
+                found = True
+        self.assertTrue(found, "no orphaned claim sentence mentions countdown")
+
+    def test_failed_card_says_provisioning_failed(self):
+        page = self.open("failed", tab="infra")
+        sentences = page.locator(".sentence")
+        found = False
+        for i in range(sentences.count()):
+            t = sentences.nth(i).inner_text()
+            if "failed" in t.lower():
+                found = True
+        self.assertTrue(found, "no claim sentence mentions failure")
+
+    def test_pending_card_says_waiting(self):
+        page = self.open("pending", tab="infra")
+        sentences = page.locator(".sentence")
+        found = False
+        for i in range(sentences.count()):
+            t = sentences.nth(i).inner_text()
+            if "waiting" in t.lower() or "runner" in t.lower() or "cannot start" in t.lower():
+                found = True
+        self.assertTrue(found, "no pending claim sentence mentions waiting")
+
+    # ---------------------------------------------------------- nsSummary
+
+    def test_ns_summary_shows_claim_count_and_phases(self):
+        page = self.open("ready", tab="infra")
+        text = page.inner_text("#nsSummary")
+        self.assertIn("3 claims", text)
+        self.assertIn("Ready", text)
+
+    # ------------------------------------------------------------ app tab
+
+    def test_app_claim_chips_list_each_module(self):
+        page = self.open("ready", tab="app")
+        page.wait_for_timeout(300)
+        text = page.inner_text("#appChips")
+        for name in ("pgadmin", "postgres", "redis"):
+            self.assertIn(name, text)
+
+    def test_pgadmin_line_appears_when_ready(self):
+        page = self.open("ready", tab="app")
+        page.wait_for_timeout(300)
+        pg = page.inner_text("#pgadminLine")
+        self.assertIn("pgAdmin", pg)
+
+    def test_app_tab_shows_message_when_no_ingress(self):
+        page = self.open("no-routes", tab="app")
+        page.wait_for_timeout(300)
+        text = page.inner_text("#view-app")
+        self.assertIn("No Ingress", text)
+
+    # ------------------------------------------------------------ feed
+
+    def test_feed_shells_empty_on_first_load(self):
+        page = self.open("ready", tab="infra")
+        self.assertIn("Nothing yet", page.inner_text("#feed"))
+
+    # --------------------------------------------------- claim object panel
+
+    def test_object_panel_has_container_and_claim_sections(self):
+        page = self.open("ready", tab="infra")
+        page.locator(".claim").first.click()
+        page.wait_for_selector("#objectPanel .yaml", timeout=5000)
+        text = page.locator("#objectPanel").inner_text()
+        self.assertIn("InfraClaim", text)
+
+    def test_object_panel_shows_container_address(self):
+        page = self.open("ready", tab="infra")
+        page.locator(".claim").first.click()
+        page.wait_for_selector("#objectPanel .yaml", timeout=5000)
+        text = page.locator("#objectPanel").inner_text()
+        self.assertIn("172.19.0", text)
+
+    # ---------------------------------------------------------- infra H1
+
+    def test_infra_h1_shows_claim_count_when_ready(self):
+        page = self.open("ready", tab="infra")
+        h = page.inner_text("#infraH1")
+        self.assertIn("3 claims", h)
+        self.assertIn("namespace", h)
+
+    def test_infra_h1_mentions_clock_when_orphaned(self):
+        page = self.open("orphaned", tab="infra")
+        h = page.inner_text("#infraH1")
+        self.assertIn("clock", h.lower())
+
+    def test_infra_subtitle_changes_for_orphaned(self):
+        page = self.open("orphaned", tab="infra")
+        sub = page.inner_text("#infraSub")
+        self.assertIn("pod", sub.lower())
+
+    # ------------------------------------------------- setup placeholder
+
+    def test_log_shows_placeholder_when_idle(self):
+        page = self.open("ready")
+        log = page.inner_text("#log")
+        self.assertIn("appears here", log.lower())
+
+    # -------------------------------------------------------- mode note
+
+    def test_mode_note_mentions_voting_a_in_demo(self):
+        page = self.open("ready")
+        note = page.inner_text("#modeNote")
+        self.assertIn("voting-a", note)
+
+    def test_mode_note_mentions_voting_b_in_testing(self):
+        page = self.open("ready")
+        page.locator('#modeSwitch button:text("Testing")').click()
+        page.wait_for_timeout(150)
+        note = page.inner_text("#modeNote")
+        self.assertIn("voting-b", note)
+
+    # ----------------------------------------------------- sleeping tabs
+
+    def test_non_setup_tabs_are_sleeping_when_down(self):
+        page = self.open("down")
+        for tab in ("infra", "app", "timeline", "guide"):
+            btn = page.locator(f'.seg.mid button[data-view="{tab}"]')
+            self.assertIn("sleeping", btn.get_attribute("class") or "")
+
+    def test_non_setup_tabs_are_not_sleeping_when_ready(self):
+        page = self.open("ready")
+        for tab in ("infra", "app", "timeline", "guide"):
+            btn = page.locator(f'.seg.mid button[data-view="{tab}"]')
+            cls = btn.get_attribute("class") or ""
+            self.assertNotIn("sleeping", cls)
+
+    # ------------------------------------------------------- destructive
+
+    def test_destructive_action_cancel_does_nothing(self):
+        page = self.open("ready")
+        page.once("dialog", lambda d: d.dismiss())
+        for item in page.locator(".item").all():
+            if "delete" in item.inner_text().lower() or "destroy" in item.inner_text().lower():
+                item.click()
+                page.wait_for_timeout(200)
+                cls = page.locator("#led").get_attribute("class") or ""
+                self.assertIn("on", cls,
+                              "LED changed after a cancelled destructive action")
+                break
+
+    def test_destructive_action_buttons_have_danger_hint(self):
+        page = self.open("ready")
+        # ns-delete-a and destroy are the two destructive demo actions.
+        # ns-delete-a has no hint; destroy's hint is "destroy".
+        destroy_item = page.locator('.item[title="make destroy"]')
+        self.assertEqual(destroy_item.locator(".tgt").inner_text(), "destroy")
+
+    # ------------------------------------------------- guide tab content
+
+    def test_guide_shows_phase_definitions(self):
+        page = self.open("ready", tab="guide")
+        text = page.inner_text("#guidePhases")
+        for phase in ("Pending", "Ready", "Orphaned", "Deleting", "Failed"):
+            self.assertIn(phase, text)
+
+    def test_guide_lists_demo_and_testing_action_groups(self):
+        page = self.open("ready", tab="guide")
+        text = page.inner_text("#guideActions")
+        self.assertIn("Demo", text)
+        self.assertIn("Testing", text)
+
+    def test_guide_actions_mention_make_targets(self):
+        page = self.open("ready", tab="guide")
+        text = page.inner_text("#guideActions")
+        self.assertIn("demo-up", text)
+        self.assertIn("verify", text)
+
+    # ------------------------------------------------ timeline empty button
+
+    def test_timeline_empty_has_go_to_setup_button(self):
+        page = self.open("ready", tab="timeline")
+        page.wait_for_timeout(500)
+        btn = page.locator('#timelineEmpty button[data-goto="setup"]')
+        self.assertTrue(btn.is_visible())
+        btn.click()
+        page.wait_for_timeout(200)
+        self.assertTrue(page.is_visible("#view-setup"))
 
     # ------------------------------------------------------------ console
 
@@ -381,23 +675,25 @@ class Page(unittest.TestCase):
 # ----------------------------------------------------------------- shots
 
 def screenshots():
-    """One PNG per state, so ten permutations can be reviewed by eye at once."""
+    """One PNG per state, numbered for ordering, so permutations can be reviewed by eye at once."""
     SHOTS.mkdir(exist_ok=True)
+    n = 0
     with Console() as console, sync_playwright() as pw:
         browser = pw.chromium.launch()
         for fixture in STATE_NAMES:
             serve_fixture(fixture)
             for tab in ("setup", "infra", "app"):
+                n += 1
                 page = browser.new_page(viewport={"width": 1440, "height": 950})
                 page.goto(console.base, wait_until="networkidle")
                 page.click(f'.seg.mid button[data-view="{tab}"]')
                 page.wait_for_timeout(700)
-                out = SHOTS / f"{fixture}-{tab}.png"
+                out = SHOTS / f"{n:02d}-{fixture}-{tab}.png"
                 page.screenshot(path=str(out), full_page=True)
                 page.close()
                 print(out.name)
         browser.close()
-    print(f"\n{len(list(SHOTS.glob('*.png')))} shots in {SHOTS}")
+    print(f"\n{n} shots in {SHOTS}")
 
 
 if __name__ == "__main__":
