@@ -24,62 +24,43 @@ Proof of concept on k3d. **Not production grade** — see [Limits](#limits).
    - [Make targets](#make-targets)
    - [Key lifecycle checks](#key-lifecycle-checks)
    - [From cold](#from-cold)
-7. [Layout](#layout)
-8. [Key documents](#key-documents)
+7. [Key documents](#key-documents)
    - [Running & operating](#running--operating)
    - [Design & architecture](#design--architecture)
    - [Implementation & tracking](#implementation--tracking)
    - [Learning & evidence](#learning--evidence)
-9. [Claim state machine](#claim-state-machine)
-10. [Troubleshooting](#troubleshooting)
+8. [Claim state machine](#claim-state-machine)
+9. [Troubleshooting](#troubleshooting)
     - [pgAdmin shows no server](#pgadmin-shows-no-server)
     - [Namespace stuck in `Terminating`](#namespace-stuck-in-terminating)
     - [A step fails twice](#a-step-fails-twice)
-11. [Limits](#limits)
+10. [Limits](#limits)
 
 ---
 
 ## Start here: the console
 
-The shortest path in. One command serves a page that starts the stack and then shows you
-what it made; every button on it is one of the `make` targets in
-[Make targets](#make-targets).
+One command starts a local page that brings up the stack and shows you what it made.
 
 ```bash
 python3 console/serve.py      # python3 only, no dependencies
 open http://127.0.0.1:8090
 ```
 
-Open it before there is a cluster: the page says **Nothing is running yet** and polls `make state`
-every two seconds. **Start the demo** then runs the whole cold path for one namespace — about three
-minutes, `make demo-up` — and the log pane fills as it goes. `Ctrl-C` stops the page and leaves the
-stack up; ending the stack is what **Shut the JIT plane down** is for.
+Open it before there is a cluster — the page polls `make state` every two seconds
+and tells you when things are ready. **Start the demo** runs the full cold path for
+one namespace (about three minutes, `make demo-up`). `Ctrl-C` stops the page;
+**Shut the JIT plane down** ends the stack.
 
-| Mode | The buttons, in order |
-|---|---|
-| **Demo** — one namespace | **Start the demo** → **Delete the deployment** → **Redeploy inside the window** → **Delete the namespace** |
-| **Testing** — both namespaces | **Set everything up** → **Start the control plane** → **Check the app works** → **Check the JIT behaviour** → **Delete `voting-b`** → **Shut the JIT plane down** → **Delete everything** |
+Every button is a `make` target. The console holds no state and computes nothing —
+everything it shows comes from `make state`, the same source the frozen checks read.
 
-`voting-b` exists for one check, **J8**: a hard delete takes one namespace and leaves the other alone.
-
-| Tab | What it shows |
-|---|---|
-| **Setup** | The buttons. Each one is a single `make` target from [Make targets](#make-targets). |
-| **Infrastructure** | Claims and their phase, the live countdown on anything Orphaned, the containers, the state objects. |
-| **Voting app** | The vote and result pages for the selected namespace, as real iframes. |
-| **Guide** | What every tab, mode, claim state and button does. |
-
-The console holds no state and computes nothing. Everything it displays is read from the
-same sources the frozen checks read, and every button is one entry in `serve.py`'s
-`ALLOWED` dict — there is no command box. If the page ever computed a phase or an expiry
-for itself, it would disagree with `make jit-verify` eventually, and that disagreement
-would be the thing you debug instead of the system.
+For tabs, modes, endpoints, adding actions, and testing, see
+[`console/README.md`](console/README.md).
 
 > [!TIP]
-> Endpoints, the no-state rule, how to add an action, known rough edges:
-> [`console/README.md`](console/README.md). The target behind each button is
-> [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md); to run the same steps by
-> hand, one command at a time, see
+> To run the same steps by hand, one command at a time, see
+> [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md) and
 > [`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md).
 
 ---
@@ -111,13 +92,16 @@ Two more pages cover the two questions this system gets asked most. Both are mea
 rather than read:
 
 ```bash
-open docs/visual-walkthroughs/deletion-lifecycle.html    # drive the retention window: delete, redeploy, expire
-open docs/visual-walkthroughs/annotation-to-state.html   # pick a namespace and a module; every name resolves
+open docs/visual-walkthroughs/deletion-lifecycle.html    # interactive: delete → redeploy → expire, or hard-delete
+open docs/visual-walkthroughs/annotation-to-state.html   # pick a namespace and module; every name in the chain resolves
 ```
 
-The first runs the soft-delete clock and shows which objects survive at each stage. The second
-resolves the whole annotation → claim → IP → container → Secret → MinIO state chain for the
-module you pick, and rewrites the lookup commands to match.
+The first is an interactive walkthrough of the full deletion lifecycle: the soft-delete
+clock, what survives during the window, redeploying inside it, letting it expire, hard
+deleting the namespace, and what to do when the runner stalls. The second resolves the
+eight-step provisioning chain (annotation → InfraClaim → IPAM → runner → OpenTofu →
+MinIO state → K8s Secret/Service/EndpointSlice → pod) for the namespace and module you
+pick, and rewrites the lookup commands to match.
 
 ---
 
@@ -320,83 +304,6 @@ make jit-up                       # 4. imports the controller image, starts the 
 kubectl create ns voting-a        # 5. an overlay sets a namespace; it does not create one
 cd app && make all                # 6. 17 PASS, 0 FAIL
 make jit-verify                   # 7. 11 PASS, 0 FAIL
-```
-
----
-
-## Layout
-
-```
-.
-+-- README.md                <- you are here
-+-- RUNBOOK.md               <- the page to keep open while building
-+-- Makefile                 <- root orchestration (jit-up, jit-down, verify, check)
-|
-+-- console/                 <- the console: a local page, no build step, no dependencies
-|   +-- serve.py             <- the page, /state (make state), /log, POST /run/{name} (ALLOWED)
-|   +-- index.html           <- the page itself
-|
-+-- app/                     <- the voting app: copied in, edited here
-|   +-- Makefile             <- app build/deploy/verify (make all, make verify)
-|   +-- kustomize/           <- base + per-tenant overlays (voting-a, voting-b)
-|   +-- scripts/             <- build.sh, deploy.sh, verify.sh, cleanup.sh
-|   +-- vote/                <- vote frontend
-|   +-- worker/              <- background processor
-|   +-- result/              <- result frontend
-|
-+-- jit-controller/          <- in-cluster operator (Python, kopf)
-|   +-- main.py              <- claim lifecycle, IPAM, resync loop
-|   +-- ipam.py              <- per-namespace IP block allocator
-|   +-- test_ipam.py         <- unit tests for pure allocation logic
-|
-+-- jit-runner/              <- out-of-cluster provisioning service (Python, FastAPI)
-|   +-- main.py              <- /v1/runs API, tofu init/apply/destroy
-|   +-- deployment.yaml      <- Kubernetes Deployment for the runner
-|
-+-- jit-modules/             <- Terraform/OpenTofu modules (one per infra type)
-|   +-- modules/
-|       +-- redis/
-|       +-- postgres/
-|       +-- pgadmin/
-|
-+-- deploy/                  <- bootstrap: cluster, MinIO, runner, CRD
-|   +-- minio.sh             <- MinIO setup (bucket, credentials)
-|   +-- runner.sh            <- jit-runner container bootstrap
-|   +-- controller.yaml      <- controller Deployment + RBAC
-|   +-- crd/
-|       +-- infraclaim.yaml  <- InfraClaim CustomResourceDefinition
-|
-+-- scripts/
-|   +-- jit-up.sh            <- bring the whole stack up
-|   +-- jit-down.sh          <- tear it down (waits for claims)
-|   +-- verify-jit.sh        <- J1-J11 lifecycle test suite
-|   +-- checks/              <- frozen checkpoint scripts, one per step
-|
-+-- docs/
-    +-- visual-walkthroughs/       <- interactive HTML pages — start here for the big picture
-    |   +-- how-it-works-presentation.html <- 14 slides: open in browser, arrow keys
-    |   +-- controller-explained.html      <- the controller alone: triggers, states, the gate
-    |   +-- annotation-to-state.html       <- the naming chain, resolved per namespace and module
-    |   +-- deletion-lifecycle.html        <- the retention window, with a working clock
-    |   +-- timeline.html                  <- one real run on five lanes, zoomable
-    +-- designs/                 <- design docs (written reference)
-    |   +-- jit-infra-poc.md     <- design note (v4) -- the source of truth
-    |   +-- jit-infra-flows.md   <- Mermaid diagrams for all flows
-    |   +-- runner-api.md        <- runner HTTP API reference
-    |   +-- testing-strategy.md  <- R1-R17 and J1-J11 check coverage
-    |   +-- demo-voting-app.md   <- the tenant workload: what it is and how JIT modified it
-    |   +-- annotation-to-state.md <- the full annotation → InfraClaim → MinIO state chain
-    |   +-- deletion-lifecycle.md    <- the retention window: clock, resurrection, two speeds
-    +-- guides/                    <- operational and how-to guides
-    |   +-- JIT-MAKEFILE-GUIDE.md <- every make target, its variables and its workflows
-    |   +-- JIT-MANUAL-GUIDE.md  <- the same thing by hand, one command at a time
-    |   +-- TESTING-THE-CONSOLE.md <- how to test the console: unit, declaration, browser
-    +-- build-plan.md        <- the implementation plan, one step at a time
-    +-- todo.md              <- step tracker (check + review boxes)
-    +-- lessons.md           <- corrections that became rules
-    +-- decisions/           <- Architecture Decision Records
-    +-- evidence/            <- verbatim run logs and probe scripts
-    +-- reviews/             <- review prompts and findings, one per reviewed step
 ```
 
 ---
