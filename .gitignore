@@ -51,3 +51,7 @@ Thumbs.db
 # for a name in ALLOWED.
 docs/evidence/console-hello.log
 docs/evidence/console-failing.log
+
+console/.venv/
+console/shots/
+console/fixtures/
