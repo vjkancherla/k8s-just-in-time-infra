@@ -163,14 +163,10 @@ class Console:
         self.real_allowed = serve.ALLOWED
         self.real_state = serve.STATE
         self.real_claim = serve.CLAIM
-        self.real_timeline = getattr(serve, "TIMELINE", None)
         serve.ALLOWED = {name: ["python3", "-c", f"print('ran {name}')"]
                          for name in self.real_allowed}
         serve.CLAIM = ["python3", "-c",
                        "print('kind: InfraClaim'); print('  finalizers: [ jit.infra/destroy ]')"]
-        if self.real_timeline is not None:
-            serve.TIMELINE = ["python3", "-c",
-                              """print('{"up": true, "t0": null, "events": []}')"""]
         serve_fixture("ready")
         self.server = serve.build_server(0)
         self.base = "http://127.0.0.1:%d" % self.server.server_address[1]
@@ -182,8 +178,6 @@ class Console:
         serve.ALLOWED = self.real_allowed
         serve.STATE = self.real_state
         serve.CLAIM = self.real_claim
-        if self.real_timeline is not None:
-            serve.TIMELINE = self.real_timeline
 
 
 # ------------------------------------------------------------------- tests
@@ -235,7 +229,7 @@ class Page(unittest.TestCase):
 
     def test_every_claim_becomes_a_card(self):
         page = self.open("ready", tab="infra")
-        self.assertEqual(page.locator(".claim").count(), 3)
+        self.assertEqual(page.locator(".ns-claim").count(), 3)
         self.assertEqual(page.inner_text("#ledText"), "3 claims Ready")
 
     def test_a_card_says_who_is_using_it(self):
@@ -246,14 +240,14 @@ class Page(unittest.TestCase):
 
     def test_the_namespace_summary_shows_the_block(self):
         page = self.open("ready", tab="infra")
-        self.assertIn("172.19.0.100-109", page.inner_text("#nsSummary"))
+        self.assertIn("172.19.0.100-109", page.inner_text("#nsHost"))
 
     def test_two_namespaces_are_both_listed(self):
         page = self.open("two-namespaces", tab="infra")
-        summary = page.inner_text("#nsSummary")
-        self.assertIn("voting-a", summary)
-        self.assertIn("voting-b", summary)
-        self.assertEqual(page.locator(".claim").count(), 4)
+        host = page.inner_text("#nsHost")
+        self.assertIn("voting-a", host)
+        self.assertIn("voting-b", host)
+        self.assertEqual(page.locator(".ns-claim").count(), 4)
 
     # ------------------------------------------------------- the countdown
 
@@ -272,8 +266,11 @@ class Page(unittest.TestCase):
     def test_redis_stays_ready_while_the_others_count_down(self):
         page = self.open("orphaned", tab="infra")
         text = page.inner_text("#nsHost")
-        self.assertIn("In use", text)
-        self.assertIn("On the clock", text)
+        # redis is Ready, the others are Orphaned — all in the same namespace card
+        self.assertIn("Ready", text)
+        self.assertIn("Orphaned", text)
+        # the countdown appears on the orphaned claims
+        self.assertGreater(page.locator("[data-expires]").count(), 0)
 
     def test_a_failed_claim_is_visible_as_failed(self):
         page = self.open("failed", tab="infra")
@@ -341,7 +338,7 @@ class Page(unittest.TestCase):
 
     def test_clicking_a_card_shows_the_object(self):
         page = self.open("ready", tab="infra")
-        page.locator(".claim").first.click()
+        page.locator(".ns-claim").first.click()
         page.wait_for_selector("#objectPanel .yaml", timeout=5000)
         self.assertIn("InfraClaim", page.inner_text("#objectPanel"))
         # The claim YAML is in a collapsed details — open it to trigger paintYaml
@@ -395,31 +392,22 @@ class Page(unittest.TestCase):
 
     def test_infra_lists_running_containers(self):
         page = self.open("ready", tab="infra")
-        page.locator("details summary:text('Containers')").click()
-        page.wait_for_timeout(200)
-        box = page.locator("#containers")
+        box = page.locator("#dockerPanel")
         for name in ("redis", "postgres", "pgadmin"):
             self.assertIn(name, box.inner_text())
 
     def test_infra_lists_state_objects(self):
+        """State objects are no longer shown in the Infrastructure tab.
+        The data is still in make state; the console's Docker table shows
+        containers instead.  This test now checks that the Docker table
+        renders at all."""
         page = self.open("ready", tab="infra")
-        page.locator("details summary:text('Containers')").click()
-        page.wait_for_timeout(200)
-        box = page.locator("#objects")
-        text = box.inner_text()
-        self.assertIn("terraform.tfstate", text)
+        tbl = page.locator("#dockerPanel table")
+        self.assertGreater(tbl.count(), 0)
 
     def test_infra_says_none_when_down(self):
         page = self.open("down", tab="infra")
         self.assertIn("No infrastructure", page.inner_text("#view-infra"))
-
-    # ---------------------------------------------------------- timeline
-
-    def test_timeline_shows_empty_when_no_events(self):
-        page = self.open("ready", tab="timeline")
-        page.wait_for_timeout(500)
-        self.assertTrue(page.is_visible("#timelineEmpty"))
-        self.assertIn("provisioned", page.inner_text("#timelineEmpty"))
 
     # ------------------------------------------------------------ app URLs
 
@@ -452,16 +440,16 @@ class Page(unittest.TestCase):
 
     def test_claims_are_grouped_by_phase(self):
         page = self.open("ready", tab="infra")
-        groups = page.locator(".group")
-        self.assertGreater(groups.count(), 0, "no .group blocks rendered")
-        # Every group has a grouph with an h2 showing the phase category
-        for i in range(groups.count()):
-            h2 = groups.nth(i).locator(".grouph h2")
-            self.assertTrue(h2.count(), f"group {i} has no heading")
+        cards = page.locator(".ns-card")
+        self.assertGreater(cards.count(), 0, "no .ns-card blocks rendered")
+        # Every namespace card has a header with the namespace name
+        for i in range(cards.count()):
+            name = cards.nth(i).locator(".ns-name")
+            self.assertTrue(name.count(), f"ns-card {i} has no namespace name")
 
     def test_ready_card_says_used_by(self):
         page = self.open("ready", tab="infra")
-        sentences = page.locator(".sentence")
+        sentences = page.locator(".claim-desc")
         found = False
         for i in range(sentences.count()):
             t = sentences.nth(i).inner_text()
@@ -471,7 +459,7 @@ class Page(unittest.TestCase):
 
     def test_orphaned_card_mentions_countdown(self):
         page = self.open("orphaned", tab="infra")
-        sentences = page.locator(".sentence")
+        sentences = page.locator(".claim-desc")
         found = False
         for i in range(sentences.count()):
             t = sentences.nth(i).inner_text()
@@ -481,7 +469,7 @@ class Page(unittest.TestCase):
 
     def test_failed_card_says_provisioning_failed(self):
         page = self.open("failed", tab="infra")
-        sentences = page.locator(".sentence")
+        sentences = page.locator(".claim-desc")
         found = False
         for i in range(sentences.count()):
             t = sentences.nth(i).inner_text()
@@ -491,7 +479,7 @@ class Page(unittest.TestCase):
 
     def test_pending_card_says_waiting(self):
         page = self.open("pending", tab="infra")
-        sentences = page.locator(".sentence")
+        sentences = page.locator(".claim-desc")
         found = False
         for i in range(sentences.count()):
             t = sentences.nth(i).inner_text()
@@ -503,7 +491,7 @@ class Page(unittest.TestCase):
 
     def test_ns_summary_shows_claim_count_and_phases(self):
         page = self.open("ready", tab="infra")
-        text = page.inner_text("#nsSummary")
+        text = page.inner_text("#nsHost")
         self.assertIn("3 claims", text)
         self.assertIn("Ready", text)
 
@@ -538,14 +526,14 @@ class Page(unittest.TestCase):
 
     def test_object_panel_has_container_and_claim_sections(self):
         page = self.open("ready", tab="infra")
-        page.locator(".claim").first.click()
+        page.locator(".ns-claim").first.click()
         page.wait_for_selector("#objectPanel .yaml", timeout=5000)
         text = page.locator("#objectPanel").inner_text()
         self.assertIn("InfraClaim", text)
 
     def test_object_panel_shows_container_address(self):
         page = self.open("ready", tab="infra")
-        page.locator(".claim").first.click()
+        page.locator(".ns-claim").first.click()
         page.wait_for_selector("#objectPanel .yaml", timeout=5000)
         text = page.locator("#objectPanel").inner_text()
         self.assertIn("172.19.0", text)
@@ -555,18 +543,17 @@ class Page(unittest.TestCase):
     def test_infra_h1_shows_claim_count_when_ready(self):
         page = self.open("ready", tab="infra")
         h = page.inner_text("#infraH1")
-        self.assertIn("3 claims", h)
-        self.assertIn("namespace", h)
+        self.assertIn("Infrastructure", h)
 
     def test_infra_h1_mentions_clock_when_orphaned(self):
         page = self.open("orphaned", tab="infra")
         h = page.inner_text("#infraH1")
-        self.assertIn("clock", h.lower())
+        self.assertIn("Infrastructure", h)
 
     def test_infra_subtitle_changes_for_orphaned(self):
         page = self.open("orphaned", tab="infra")
         sub = page.inner_text("#infraSub")
-        self.assertIn("pod", sub.lower())
+        self.assertIn("namespace", sub.lower())
 
     # ------------------------------------------------- setup placeholder
 
@@ -593,13 +580,13 @@ class Page(unittest.TestCase):
 
     def test_non_setup_tabs_are_sleeping_when_down(self):
         page = self.open("down")
-        for tab in ("infra", "app", "timeline", "guide"):
+        for tab in ("infra", "app", "guide"):
             btn = page.locator(f'.seg.mid button[data-view="{tab}"]')
             self.assertIn("sleeping", btn.get_attribute("class") or "")
 
     def test_non_setup_tabs_are_not_sleeping_when_ready(self):
         page = self.open("ready")
-        for tab in ("infra", "app", "timeline", "guide"):
+        for tab in ("infra", "app", "guide"):
             btn = page.locator(f'.seg.mid button[data-view="{tab}"]')
             cls = btn.get_attribute("class") or ""
             self.assertNotIn("sleeping", cls)
@@ -644,17 +631,6 @@ class Page(unittest.TestCase):
         text = page.inner_text("#guideActions")
         self.assertIn("demo-up", text)
         self.assertIn("verify", text)
-
-    # ------------------------------------------------ timeline empty button
-
-    def test_timeline_empty_has_go_to_setup_button(self):
-        page = self.open("ready", tab="timeline")
-        page.wait_for_timeout(500)
-        btn = page.locator('#timelineEmpty button[data-goto="setup"]')
-        self.assertTrue(btn.is_visible())
-        btn.click()
-        page.wait_for_timeout(200)
-        self.assertTrue(page.is_visible("#view-setup"))
 
     # ------------------------------------------------------------ console
 

@@ -17,7 +17,7 @@
 #
 # A target that runs appends its output to docs/evidence/<target>.log and keeps its exit code:
 # `| tee` would hand make tee's status, so each recipe re-exits on ${PIPESTATUS[0]}. `state`,
-# `claim`, `timeline` and `targets` are read rather than run - their stdout *is* the payload the
+# `claim` and `targets` are read rather than run - their stdout *is* the payload the
 # console parses - so nothing else may touch it; `claim` keeps stderr on stderr, because that is
 # the error the page shows rather than a log line.
 
@@ -31,11 +31,10 @@ EVIDENCE := docs/evidence
 DEMO_NS ?= voting-a
 TENANTS := voting-a voting-b
 
-# The allowlist, in the order the design's action table gives it, plus the two the page reads on
-# demand rather than as buttons: `claim` (one InfraClaim as YAML) and `timeline` (S21's record of
-# what happened). `make targets` prints exactly this list, and the console builds its buttons from
-# that output.
-CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim timeline targets
+# The allowlist, in the order the design's action table gives it, plus the one the page reads on
+# demand rather than as a button: `claim` (one InfraClaim as YAML). `make targets` prints exactly
+# this list, and the console builds its buttons from that output.
+CONSOLE_TARGETS := demo-up demo-undeploy demo-redeploy ns-delete test-up jit-up verify jit-verify jit-down destroy state claim targets
 
 .DEFAULT_GOAL := help
 

@@ -145,14 +145,25 @@
   details[open]>summary::before{content:'▾ '}
   details>summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
 
-  /* infrastructure */
-  .group{margin-top:30px}
-  .grouph{display:flex;align-items:baseline;gap:10px;margin-bottom:2px}
-  .grouph h2{font-size:17px}
-  .grouph .n{font-size:13px;color:var(--ink-3)}
-  .sentence{font-size:14.5px;color:var(--ink-2);margin-top:8px;line-height:1.45}
-  .sentence b{color:var(--ink);font-weight:500}
-  .claim .who{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);margin-top:2px}
+  /* infrastructure — namespace cards */
+  .ns-card{background:var(--surface);border-radius:var(--radius);padding:0;
+    box-shadow:0 0 0 1px var(--hair),0 2px 12px rgba(0,0,0,.04);margin-bottom:20px;overflow:hidden}
+  .ns-header{display:flex;align-items:baseline;gap:12px;padding:20px 28px 0;flex-wrap:wrap}
+  .ns-name{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:-.01em}
+  .ns-meta{font-size:13px;color:var(--ink-3)}
+  .ns-block{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-left:auto}
+  .ns-claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
+    gap:1px;background:var(--hair);margin-top:16px}
+  .ns-claim{background:var(--surface);padding:20px 24px;cursor:pointer;transition:background .15s}
+  .ns-claim:hover{background:rgba(0,0,0,.015)}
+  .ns-claim.selected{background:rgba(0,113,227,.04)}
+  .ns-claim .claim-name{font-size:15px;font-weight:500;margin-bottom:2px}
+  .ns-claim .claim-addr{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+  .ns-claim .claim-desc{font-size:14px;color:var(--ink-2);margin-top:8px;line-height:1.45}
+  .ns-claim .claim-desc b{color:var(--ink);font-weight:500}
+  .ns-claim .count{font-family:var(--mono);font-variant-numeric:tabular-nums;
+    font-weight:600;color:var(--amber)}
+  .no-claims{font-size:13px;color:var(--ink-3);padding:16px 28px 20px}
   .feed{font-size:13.5px;color:var(--ink-2)}
   .feed div{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--hair)}
   .feed div:last-child{border-bottom:0}
@@ -166,8 +177,7 @@
   .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
 
   /* the container, set like the claim so the panel has one visual language */
-  .matched{font-size:12.5px;color:var(--ink-3);margin:0 0 16px}
-  .matched b{font-family:var(--mono);font-weight:500;color:var(--ink-2)}
+  .matched{font-size:14px;color:var(--green);margin:0 0 10px;font-weight:500}
   .warn{font-size:13.5px;color:var(--red);margin:0 0 14px}
   .block{border-top:1px solid var(--hair);padding:14px 0 0;margin-top:14px}
   .block:first-of-type{border-top:0;margin-top:0;padding-top:0}
@@ -190,17 +200,24 @@
   .chip.pick:hover{box-shadow:0 0 0 2px rgba(0,113,227,.25)}
   .chip.orphan{color:var(--red)}
 
-  /* timeline */
-  .tlhead{display:flex;align-items:baseline;gap:16px;flex-wrap:wrap;margin-top:6px}
-  .tlhead .big{font-size:clamp(20px,2.4vw,28px);font-weight:600;letter-spacing:-.02em}
-  .tlhead .btn{margin-left:auto}
-  .tlwrap{margin-top:clamp(20px,3vh,34px);overflow-x:auto}
-  .tlwrap svg{display:block;min-width:640px;width:100%;height:auto}
-  .tl-lane{font-family:var(--mono);font-size:11px;fill:var(--ink-3)}
-  .tl-tick{font-family:var(--mono);font-size:10px;fill:var(--ink-3)}
-  .tl-sub{font-size:10.5px;fill:var(--ink-2)}
-  .tlnote{font-size:13.5px;color:var(--ink-2);line-height:1.5;max-width:70ch;margin:14px 0 0}
-  .tlnote b{color:var(--ink);font-weight:500}
+  /* docker containers table */
+  .docker-table{width:100%;border-collapse:collapse;font-size:14px}
+  .docker-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.06em;
+    color:var(--ink-3);font-weight:600;padding:0 16px 12px 0;border-bottom:1px solid var(--hair)}
+  .docker-table td{padding:13px 16px 13px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
+  .docker-table tr:last-child td{border-bottom:0}
+  .docker-table .cname{font-family:var(--mono);font-size:13px;font-weight:500;white-space:nowrap}
+  .docker-table .caddr{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+  .docker-table .cstatus{font-size:11px;font-weight:600;padding:3px 10px;border-radius:980px;
+    white-space:nowrap;letter-spacing:.02em}
+  .docker-table .cstatus.running{background:var(--green-bg);color:var(--green)}
+  .docker-table .cstatus.stopped{background:#fdecea;color:var(--red)}
+  .docker-table .clink{font-size:12px;color:var(--blue);cursor:pointer;text-decoration:none;font-weight:500}
+  .docker-table .clink:hover{text-decoration:underline}
+  .docker-table .ccontrol{font-size:12px;color:var(--ink-3)}
+  .docker-table .cnoclaim{font-size:12px;color:var(--amber);font-weight:500}
+  .docker-row{cursor:pointer;transition:background .15s}
+  .docker-row:hover{background:rgba(0,0,0,.015)}
 
   .foot{border-top:1px solid var(--hair);padding:26px 0 60px;color:var(--ink-3);font-size:13px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
@@ -219,7 +236,6 @@
       <button role="tab" aria-selected="true" data-view="setup">Setup</button>
       <button role="tab" aria-selected="false" data-view="infra">Infrastructure</button>
       <button role="tab" aria-selected="false" data-view="app">Voting app</button>
-      <button role="tab" aria-selected="false" data-view="timeline">Timeline</button>
       <button role="tab" aria-selected="false" data-view="guide">Guide</button>
     </div>
     <div class="pill"><span class="led" id="led"></span><span id="ledText">—</span></div>
@@ -253,24 +269,21 @@
       <h1 id="infraH1">—</h1>
       <p class="sub" id="infraSub"></p>
 
-      <div class="oh">Namespaces</div>
-      <div class="panel" id="nsSummary"></div>
-
+      <!-- claims grouped by namespace -->
+      <div class="oh" style="margin-top:46px">Claims</div>
       <div id="nsHost"></div>
 
-      <div class="oh" id="objectHead" hidden>The claim itself</div>
-      <div class="panel" id="objectPanel" hidden></div>
+      <!-- selected claim detail -->
+      <div class="oh" id="objectHead" hidden>Selected claim</div>
+      <div id="objectPanel" hidden></div>
 
-      <div class="oh">What changed since you opened this page</div>
+      <!-- docker containers -->
+      <div class="oh">Docker containers</div>
+      <div class="panel" id="dockerPanel"></div>
+
+      <!-- activity feed -->
+      <div class="oh">Activity</div>
       <div class="panel feed" id="feed"></div>
-
-      <details>
-        <summary>Containers and state objects</summary>
-        <div class="panel" style="margin-top:10px">
-          <div class="strip" id="containers"></div>
-          <div class="strip" id="objects" style="margin-top:14px"></div>
-        </div>
-      </details>
     </div>
   </div>
 </div>
@@ -305,35 +318,6 @@
   </div>
 </div>
 
-<!-- ── timeline ── -->
-<div class="view" id="view-timeline">
-  <div class="wrap">
-    <div class="empty" id="timelineEmpty" hidden>
-      <svg width="46" height="46" viewBox="0 0 46 46" fill="none" aria-hidden="true">
-        <path d="M5 23h36" stroke="#a1a1a6" stroke-width="1.5"/>
-        <circle cx="13" cy="23" r="3" stroke="#a1a1a6" stroke-width="1.5"/>
-        <circle cx="25" cy="23" r="3" stroke="#d2d2d7" stroke-width="1.5"/>
-        <circle cx="37" cy="23" r="3" stroke="#d2d2d7" stroke-width="1.5"/>
-      </svg>
-      <h2>Nothing has been provisioned yet</h2>
-      <p>Once the demo has run, this shows how long each step took and in what order.</p>
-      <button class="btn" data-goto="setup">Go to setup</button>
-    </div>
-
-    <div id="timelineLive" hidden>
-      <div class="tlhead">
-        <span class="big" id="tlHeadline">&mdash;</span>
-        <button class="btn ghost" id="tlRefresh">Refresh</button>
-      </div>
-      <p class="tlnote" id="tlNote"></p>
-
-      <div class="tlwrap" id="tlChart"></div>
-
-      <p class="tiny" id="tlHidden" style="margin-top:14px;max-width:70ch"></p>
-    </div>
-  </div>
-</div>
-
 <!-- ── guide ── -->
 <div class="view" id="view-guide">
   <div class="wrap">
@@ -357,9 +341,11 @@
         <div class="rowline"><span style="min-width:120px"><b>Setup</b></span>
           <span>Runs things. Each row is one make target; output streams into the log underneath and is also written to <span class="mono">docs/evidence/</span>.</span></div>
         <div class="rowline"><span style="min-width:120px"><b>Infrastructure</b></span>
-          <span>What exists right now, grouped by what state it is in rather than which namespace it belongs to. The feed below shows phase changes observed while this page has been open.</span></div>
+          <span>What exists right now, grouped by namespace. Each claim maps to a container running outside the cluster. The feed at the bottom shows phase changes observed while this page has been open.</span></div>
         <div class="rowline"><span style="min-width:120px"><b>Voting app</b></span>
           <span>The vote and result pages embedded, for whichever namespace is selected. Hosts and ports come from the cluster's Ingress objects, not from anything typed here.</span></div>
+        <div class="rowline"><span style="min-width:120px"><b>Guide</b></span>
+          <span>This page. What each tab, mode, claim state and button does.</span></div>
       </div>
     </div>
 
@@ -441,7 +427,6 @@ document.querySelectorAll('[data-goto]').forEach(function(b){
 });
 function show(v){
   if(v === 'guide') renderGuide();
-  if(v === 'timeline') loadTimeline();
   document.querySelectorAll('.seg.mid button').forEach(function(x){
     x.setAttribute('aria-selected', String(x.dataset.view === v));
   });
@@ -449,7 +434,6 @@ function show(v){
   $('view-' + v).classList.add('on');
   window.scrollTo(0,0);
 }
-$('tlRefresh').addEventListener('click', function(){ loadTimeline(true); });
 document.querySelectorAll('#modeSwitch button').forEach(function(b){
   b.addEventListener('click', function(){
     S.mode = b.dataset.mode;
@@ -507,7 +491,6 @@ async function run(a){
   }
 
   S.busy = null;
-  S.tlStale = true;      // a run changes what the timeline would say
   poll(); render();
 }
 function lineClass(l){
@@ -569,111 +552,80 @@ function claimSentence(c, ns){
   return c.phase + '.';
 }
 
-var GROUPS = [
-  {key:'use',   phases:['Ready'],               title:'In use',        note:'A deployment is asking for these.'},
-  {key:'clock', phases:['Orphaned'],            title:'On the clock',  note:'Still running. Nothing is asking for them.'},
-  {key:'work',  phases:['Pending','Deleting'],  title:'In flight',     note:'Mid-transition.'},
-  {key:'bad',   phases:['Failed'],              title:'Failed',        note:'The runner returned an error.'}
-];
-
-function renderNsSummary(){
-  var host = $('nsSummary');
-  host.textContent = '';
-  var list = S.data.namespaces || [];
-
-  if(!list.length){
-    host.innerHTML = '<p class="tiny" style="margin:0">No tenant namespaces.</p>';
+function renderNamespaces(){
+  var host = $('nsHost'); host.textContent = '';
+  var ns = S.data.namespaces || [];
+  if(!ns.length){
+    host.innerHTML = '<p class="tiny" style="margin-top:26px">' +
+      'The control plane is up but no deployment has asked for anything yet.</p>';
     return;
   }
 
-  var rows = document.createElement('div');
-  rows.className = 'rows';
-  list.forEach(function(ns){
-    var cl = ns.claims || [];
-    var by = {};
-    cl.forEach(function(c){ by[c.phase] = (by[c.phase] || 0) + 1; });
-    var phases = Object.keys(by).map(function(k){ return by[k] + ' ' + k; }).join(', ');
+  ns.forEach(function(n){
+    var card = document.createElement('div'); card.className = 'ns-card';
 
-    var d = document.createElement('div');
-    d.className = 'rowline';
-    d.innerHTML =
-      '<span class="mono" style="min-width:110px;font-weight:600"></span>' +
-      '<span class="tiny"></span>' +
-      '<span class="id"></span>';
-    d.children[0].textContent = ns.name;
-    d.children[1].textContent = cl.length
-      ? cl.length + (cl.length === 1 ? ' claim \u00b7 ' : ' claims \u00b7 ') + phases
-      : 'no claims yet';
-    d.children[2].textContent = ns.block || 'no block allocated';
-    rows.appendChild(d);
-  });
-  host.appendChild(rows);
-}
+    // header
+    var hdr = document.createElement('div'); hdr.className = 'ns-header';
+    var nm = document.createElement('span'); nm.className = 'ns-name'; nm.textContent = n.name;
+    var meta = document.createElement('span'); meta.className = 'ns-meta';
+    var cl = n.claims || [];
+    var readyN = 0, orphanN = 0;
+    cl.forEach(function(c){ if(c.phase==='Ready') readyN++; else if(c.phase==='Orphaned') orphanN++; });
+    var parts = [];
+    if(cl.length) parts.push(cl.length + ' claim' + (cl.length > 1 ? 's' : ''));
+    if(readyN) parts.push(readyN + ' Ready');
+    if(orphanN) parts.push(orphanN + ' Orphaned');
+    meta.textContent = parts.length ? parts.join(' · ') : 'no claims';
+    hdr.appendChild(nm); hdr.appendChild(meta);
+    if(n.block){
+      var bl = document.createElement('span'); bl.className = 'ns-block'; bl.textContent = n.block;
+      hdr.appendChild(bl);
+    }
+    card.appendChild(hdr);
 
-function renderNamespaces(){
-  renderNsSummary();
+    // claims grid
+    if(cl.length){
+      var grid = document.createElement('div'); grid.className = 'ns-claims';
+      cl.forEach(function(c){
+        var cell = document.createElement('div'); cell.className = 'ns-claim';
+        cell.dataset.ns = n.name; cell.dataset.mod = c.module;
 
-  var host = $('nsHost');
-  host.textContent = '';
+        var cn = document.createElement('div'); cn.className = 'claim-name'; cn.textContent = c.module;
+        var ca = document.createElement('div'); ca.className = 'claim-addr'; ca.textContent = c.address || '—';
+        var cd = document.createElement('div'); cd.className = 'claim-desc'; cd.innerHTML = claimSentence(c, n);
+        cell.appendChild(cn); cell.appendChild(ca); cell.appendChild(cd);
 
-  var all = [];
-  (S.data.namespaces || []).forEach(function(ns){
-    (ns.claims || []).forEach(function(c){ all.push({ns:ns, c:c}); });
-  });
+        if(c.phase === 'Orphaned'){
+          var r = remaining(c.expiresAt);
+          if(r !== null){
+            var em = document.createElement('span'); em.className = 'tiny';
+            em.innerHTML = ' · expires in <span class="count" data-expires="'+esc(c.expiresAt)+'"></span>';
+            cd.appendChild(em);
+          }
+        }
 
-  GROUPS.forEach(function(g){
-    var rows = all.filter(function(r){ return g.phases.indexOf(r.c.phase) >= 0; });
-    if(!rows.length) return;
+        var tag = document.createElement('span');
+        tag.className = 'tag ' + (c.phase === 'Ready' ? 'ready' : c.phase === 'Orphaned' ? 'orphaned' : c.phase === 'Failed' ? 'failed' : 'pending');
+        tag.textContent = c.phase;
+        cell.appendChild(tag);
 
-    var block = document.createElement('div');
-    block.className = 'group';
-    var head = document.createElement('div');
-    head.className = 'grouph';
-    head.innerHTML = '<h2></h2><span class="n"></span>';
-    head.querySelector('h2').textContent = g.title;
-    head.querySelector('.n').textContent = rows.length + ' \u00b7 ' + g.note;
-    block.appendChild(head);
-
-    var grid = document.createElement('div');
-    grid.className = 'claims';
-    rows.forEach(function(r){
-      var el = document.createElement('div');
-      el.className = 'claim';
-      el.innerHTML = '<div class="name"></div><div class="who"></div><div class="sentence"></div>';
-      el.querySelector('.name').textContent = r.c.module;
-      var multi = (S.data.namespaces || []).length > 1;
-      var who = el.querySelector('.who');
-      who.textContent = r.ns.name + (r.c.address ? '  \u00b7  ' + r.c.address : '');
-      if(multi) who.style.color = 'var(--ink-2)';
-
-      var key = r.ns.name + '/' + r.c.module;
-      el.classList.add('pick');
-      if(S.picked === key) el.classList.add('on');
-      el.title = 'Show the InfraClaim object';
-      el.addEventListener('click', function(){
-        S.picked = (S.picked === key) ? null : key;
-        showClaim(r.ns.name, r.c.module);
+        var key = n.name + '/' + c.module;
+        if(S.picked === key) cell.classList.add('selected');
+        cell.addEventListener('click', function(){
+          S.picked = (S.picked === key) ? null : key;
+          showClaim(n.name, c.module);
+        });
+        grid.appendChild(cell);
       });
-      el.querySelector('.sentence').innerHTML = claimSentence(r.c, r.ns);
-      grid.appendChild(el);
-    });
-    block.appendChild(grid);
-    host.appendChild(block);
+      card.appendChild(grid);
+    } else {
+      var empty = document.createElement('div'); empty.className = 'no-claims';
+      empty.textContent = 'No InfraClaims in this namespace.';
+      card.appendChild(empty);
+    }
+
+    host.appendChild(card);
   });
-
-  if(!all.length){
-    host.innerHTML = '<p class="tiny" style="margin-top:26px">' +
-      'The control plane is up but no deployment has asked for anything yet.</p>';
-  }
-
-  var missing = (S.data.namespaces || []).filter(function(ns){ return !(ns.claims || []).length; });
-  if(missing.length && all.length){
-    var note = document.createElement('p');
-    note.className = 'tiny';
-    note.style.marginTop = '24px';
-    note.textContent = 'No claims in ' + missing.map(function(n){ return n.name; }).join(' or ') + '.';
-    host.appendChild(note);
-  }
 
   renderFeed();
   ticks();
@@ -747,17 +699,16 @@ function claimPanel(ns, module, claim, ct, yaml, failed){
 
   if(ct){
     html += '<details class="block" open><summary>' +
-      '<span class="where">Running on Docker</span>' +
+      '<span class="where">Docker</span>' +
       '<span class="what">' + esc(ct.name) + '</span>' +
-      '<span class="after">outside the cluster' +
-        (ct.address ? ', at ' + esc(ct.address) : '') + '</span>' +
+      '<span class="after">' + (ct.address ? esc(ct.address) : '') + '</span>' +
       '</summary><div class="body"><pre class="yaml">' + containerYaml(ct) + '</pre></div></details>';
   }
 
   html += '<details class="block"><summary>' +
-    '<span class="where">Asked for in Kubernetes</span>' +
+    '<span class="where">Kubernetes</span>' +
     '<span class="what">InfraClaim/' + esc(ns + '-' + module) + '</span>' +
-    '<span class="after">in ' + esc(ns) + '</span>' +
+    '<span class="after">' + esc(ns) + '</span>' +
     '</summary><div class="body">';
   html += failed
     ? '<p class="tiny" style="margin:0">' + esc(failed) + '</p>'
@@ -879,50 +830,91 @@ function ticks(){
   });
 }
 
-function renderStrips(){
-  var cs = $('containers'); cs.textContent = '';
+function renderDockerTable(){
+  var host = $('dockerPanel'); host.textContent = '';
+  var containers = S.data.containers || [];
   var claimed = {};
   (S.data.namespaces || []).forEach(function(n){
-    (n.claims || []).forEach(function(c){ claimed[n.name + '-' + c.module + '-'] = [n.name, c.module]; });
+    (n.claims || []).forEach(function(c){
+      claimed[n.name + '-' + c.module + '-'] = [n.name, c.module, c.phase];
+    });
   });
 
-  (S.data.containers || []).forEach(function(c){
+  if(!containers.length){
+    host.innerHTML = '<p class="tiny" style="margin:0">No containers running.</p>';
+    return;
+  }
+
+  var tbl = document.createElement('table'); tbl.className = 'docker-table';
+  var thead = document.createElement('thead');
+  thead.innerHTML = '<tr><th>Container</th><th>Address</th><th>Status</th><th>Image</th><th>Claim</th></tr>';
+  tbl.appendChild(thead);
+  var tbody = document.createElement('tbody');
+
+  containers.forEach(function(c){
     var owner = null;
     Object.keys(claimed).forEach(function(prefix){
       if(c.name.indexOf(prefix) === 0) owner = claimed[prefix];
     });
     var control = /^jit-/.test(c.name);
 
-    var el = document.createElement('span');
-    el.className = 'chip' + (c.running ? '' : ' off') +
-                   (owner ? ' pick' : (control ? '' : ' orphan'));
-    el.textContent = c.name + (c.address ? '  ' + c.address : '');
-
+    var tr = document.createElement('tr');
+    // name
+    var tdName = document.createElement('td'); tdName.className = 'cname';
+    if(!owner && !control) tdName.style.color = c.running ? 'var(--amber)' : 'var(--ink-3)';
+    tdName.textContent = c.name;
+    // address
+    var tdAddr = document.createElement('td'); tdAddr.className = 'caddr';
+    tdAddr.textContent = c.address || '—';
+    // status
+    var tdStatus = document.createElement('td');
+    var status = document.createElement('span');
+    status.className = 'cstatus ' + (c.running ? 'running' : 'stopped');
+    status.textContent = c.running ? 'running' : 'stopped';
+    tdStatus.appendChild(status);
+    // image
+    var tdImage = document.createElement('td'); tdImage.className = 'caddr';
+    tdImage.textContent = c.image || '—';
+    // claim
+    var tdClaim = document.createElement('td');
     if(owner){
-      el.title = 'Part of the ' + owner[1] + ' claim in ' + owner[0] + '. Click to open it.';
-      el.addEventListener('click', function(){
+      var a = document.createElement('a'); a.className = 'clink';
+      a.textContent = owner[0] + '/' + owner[1];
+      if(owner[2] === 'Orphaned'){ a.style.color = 'var(--amber)'; a.textContent += ' · Orphaned'; }
+      a.addEventListener('click', function(e){
+        e.stopPropagation();
         S.picked = owner[0] + '/' + owner[1];
         showClaim(owner[0], owner[1]);
-        $('objectHead').scrollIntoView({behavior: 'smooth', block: 'start'});
+        $('objectHead').scrollIntoView({behavior:'smooth', block:'start'});
+      });
+      tdClaim.appendChild(a);
+      tr.className = 'docker-row';
+      tr.addEventListener('click', function(){
+        S.picked = owner[0] + '/' + owner[1];
+        showClaim(owner[0], owner[1]);
+        $('objectHead').scrollIntoView({behavior:'smooth', block:'start'});
       });
     } else if(control){
-      el.title = 'Part of the control plane, not a claim.';
+      var sp = document.createElement('span'); sp.className = 'ccontrol'; sp.textContent = 'control plane';
+      tdClaim.appendChild(sp);
     } else {
-      el.title = 'No claim matches this container. It was created outside the runner, ' +
-                 'or its claim is gone and the container was left behind.';
+      var sp2 = document.createElement('span'); sp2.className = 'cnoclaim'; sp2.textContent = 'no claim';
+      tdClaim.appendChild(sp2);
+      tr.className = 'docker-row';
     }
-    cs.appendChild(el);
-  });
-  if(!(S.data.containers || []).length) cs.innerHTML = '<span class="tiny">none</span>';
 
-  var os = $('objects'); os.textContent = '';
-  (S.data.stateObjects || []).forEach(function(k){
-    var el = document.createElement('span');
-    el.className = 'chip';
-    el.textContent = k;
-    os.appendChild(el);
+    tr.appendChild(tdName); tr.appendChild(tdAddr); tr.appendChild(tdStatus);
+    tr.appendChild(tdImage); tr.appendChild(tdClaim);
+    tbody.appendChild(tr);
   });
-  if(!(S.data.stateObjects || []).length) os.innerHTML = '<span class="tiny">none</span>';
+
+  tbl.appendChild(tbody);
+  host.appendChild(tbl);
+
+  var note = document.createElement('p');
+  note.className = 'tiny'; note.style.margin = '16px 0 0';
+  note.textContent = 'Click a row to scroll to its claim. Containers with no matching claim were created outside the runner or their claim is gone.';
+  host.appendChild(note);
 }
 
 function renderApp(){
@@ -1069,15 +1061,12 @@ function render(){
   $('infraEmpty').hidden = d.up; $('infraLive').hidden = !d.up;
   $('appEmpty').hidden = d.up;   $('appLive').hidden = !d.up;
 
-  $('infraH1').textContent = orphaned ? 'Nothing was destroyed. A clock started.'
-    : claims.length + ' claims across ' + (d.namespaces || []).length + ' namespace' + ((d.namespaces||[]).length === 1 ? '' : 's') + '.';
-  $('infraSub').textContent = orphaned
-    ? 'The pods are gone, the containers are not. Put the deployment back and the claim returns to Ready with the same data.'
-    : 'Each one was declared by an annotation on a deployment and created before its pods could start.';
+  $('infraH1').textContent = 'Infrastructure';
+  $('infraSub').textContent = 'Everything the control plane has provisioned, grouped by namespace. Each claim maps to a container running outside the cluster.';
 
   noteTransitions();
   renderActions();
-  if(d.up){ renderNamespaces(); renderStrips(); renderApp(); }
+  if(d.up){ renderNamespaces(); renderDockerTable(); renderApp(); }
 
   if(!S.busy && !$('log').textContent){
     $('log').innerHTML = '<span class="dim">Output from a run appears here, as it happens.\n\n' +
@@ -1091,195 +1080,6 @@ function render(){
 function esc(t){
   return String(t == null ? '' : t)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-}
-
-/* ─── the timeline: fetched on demand, never polled ────────────────────── */
-
-/* Five lanes is one too many: deployment and pod are the app's story, not the
-   infrastructure's. Three rows, and everything else goes in the table. */
-var TL_ROWS = [
-  {key:'controller', label:'controller', lanes:['controller']},
-  {key:'runner',     label:'runner',     lanes:['runner']},
-  {key:'infra',      label:'containers', lanes:['container']}
-];
-
-/* Kubernetes object timestamps truncate to the second, so an event from one can
-   compute to a small negative offset against a nanosecond t0. Those are drawn as
-   one-second bands rather than points, because a point claims a precision the
-   source does not have. */
-var TL_COARSE = ['claim.created', 'secret.created', 'service.created',
-                 'deployment.applied', 'pod.created', 'pod.started'];
-
-/* What gets drawn. Everything else the payload carries is either the app's own
-   rollout or bookkeeping, and at this scale it all lands on 0s in a heap. The
-   table underneath used to show the rest; `make timeline` still has it, and that
-   is the right place to read it from. */
-var TL_KEEP = ['claim.created', 'runner.call', 'container.created', 'claim.ready'];
-
-function tlSeconds(iso){
-  var t = Date.parse(iso);
-  if(!isNaN(t)) return t / 1000;
-  var m = String(iso).match(/^(.*)\.(\d+)(Z|[+-]\d\d:?\d\d)$/);   // nanoseconds
-  if(!m) return NaN;
-  var base = Date.parse(m[1] + m[3]);
-  return isNaN(base) ? NaN : base / 1000 + Number('0.' + m[2]);
-}
-
-function tlPrepare(payload){
-  var t0 = tlSeconds(payload.t0);
-  var events = (payload.events || []).map(function(e){
-    var at = tlSeconds(e.t);
-    return {
-      lane: e.lane || 'other',
-      kind: e.kind || 'unknown',
-      subject: e.subject || '',
-      source: e.source || '',
-      coarse: TL_COARSE.indexOf(e.kind) >= 0,
-      at: isNaN(at) || isNaN(t0) ? null : at - t0
-    };
-  }).filter(function(e){ return e.at !== null; });
-
-  events.forEach(function(e){ if(e.at < 0) e.at = 0; });   // see TL_COARSE
-  events.sort(function(a, b){ return a.at - b.at; });
-
-  var ready = events.filter(function(e){ return e.kind === 'claim.ready'; });
-  var window = ready.length ? ready[ready.length - 1].at + 2
-                            : (events.length ? events[events.length - 1].at : 0);
-
-  var marked = events.filter(function(e){ return TL_KEEP.indexOf(e.kind) >= 0; });
-
-  return {
-    events: events,
-    marked: marked.filter(function(e){ return e.at <= window; }),
-    hidden: events.length - marked.length,
-    window: window,
-    lastReady: ready.length ? ready[ready.length - 1].at : null
-  };
-}
-
-/* When each module finished, and the gap since the one before it.
-
-   Deliberately not "how long each took": every claim is created within a second
-   of the others, so created-to-ready measures queue wait plus work, and would
-   report three overlapping spans for a queue that is strictly serial. What the
-   payload can support is when each one became Ready, and how far apart those
-   were. If provisioning ever runs in parallel, the gaps collapse and the
-   sentence below changes with them. */
-function tlModules(events){
-  var seen = {};
-  var rows = [];
-  events.forEach(function(e){
-    if(e.kind !== 'claim.ready') return;
-    var name = e.subject.split('/').pop();
-    if(seen[name]) return;
-    seen[name] = true;
-    rows.push({name: name, at: e.at, gap: rows.length ? e.at - rows[rows.length - 1].at : e.at});
-  });
-  var together = rows.some(function(r, i){ return i > 0 && r.gap < 1; });
-  return {rows: rows, together: together};
-}
-
-function tlChart(prepared){
-  var W = 960, left = 96, right = 24, rowH = 54, top = 34;
-  var H = top + TL_ROWS.length * rowH + 18;
-  var span = Math.max(prepared.window, 1);
-  var x = function(t){ return left + (t / span) * (W - left - right); };
-
-  var step = span <= 30 ? 5 : span <= 90 ? 10 : span <= 300 ? 30 : 60;
-  var parts = ['<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" ' +
-               'aria-label="When each step happened, in seconds from the annotation">'];
-
-  for(var t = 0; t <= span; t += step){
-    parts.push('<line x1="' + x(t).toFixed(1) + '" y1="' + (top - 12) +
-               '" x2="' + x(t).toFixed(1) + '" y2="' + (H - 22) +
-               '" stroke="rgba(0,0,0,.07)"/>');
-    parts.push('<text class="tl-tick" x="' + x(t).toFixed(1) + '" y="' + (H - 8) +
-               '" text-anchor="middle">' + t + 's</text>');
-  }
-
-  TL_ROWS.forEach(function(row, i){
-    var y = top + i * rowH + rowH / 2;
-    parts.push('<text class="tl-lane" x="0" y="' + (y + 4) + '">' + esc(row.label) + '</text>');
-    parts.push('<line x1="' + left + '" y1="' + y + '" x2="' + (W - right) +
-               '" y2="' + y + '" stroke="rgba(0,0,0,.10)"/>');
-
-    prepared.marked.filter(function(e){ return row.lanes.indexOf(e.lane) >= 0; })
-      .forEach(function(e){
-        var ready = e.kind === 'claim.ready';
-        var colour = ready ? 'var(--green)' : 'var(--ink-3)';
-        var title = '<title>' + esc(e.kind + '  ' + e.subject + '  +' +
-                                    e.at.toFixed(2) + 's') + '</title>';
-        if(e.coarse){
-          var w = Math.max(x(e.at + 1) - x(e.at), 3);
-          parts.push('<rect x="' + x(e.at).toFixed(1) + '" y="' + (y - 5) + '" width="' +
-                     w.toFixed(1) + '" height="10" rx="2" fill="' + colour +
-                     '" opacity=".35">' + title + '</rect>');
-        } else {
-          parts.push('<circle cx="' + x(e.at).toFixed(1) + '" cy="' + y + '" r="' +
-                     (ready ? 5.5 : 4) + '" fill="' + colour + '">' + title + '</circle>');
-        }
-        if(ready){
-          parts.push('<text class="tl-sub" x="' + x(e.at).toFixed(1) + '" y="' + (y - 12) +
-                     '" text-anchor="middle">' + esc(e.subject.split('/').pop()) + '</text>');
-        }
-      });
-  });
-
-  parts.push('</svg>');
-  return parts.join('');
-}
-
-function renderTimeline(){
-  var payload = S.timeline;
-  var live = $('timelineLive'), empty = $('timelineEmpty');
-
-  if(!payload || !payload.up || !(payload.events || []).length){
-    live.hidden = true; empty.hidden = false;
-    return;
-  }
-  empty.hidden = true; live.hidden = false;
-
-  var prepared = tlPrepare(payload);
-  var modules = tlModules(prepared.events);
-
-  $('tlHeadline').textContent = prepared.lastReady === null
-    ? 'Nothing has reached Ready yet.'
-    : 'Annotation to all infrastructure ready: ' + prepared.lastReady.toFixed(1) + ' seconds.';
-
-  var note = '';
-  if(modules.rows.length){
-    note = modules.rows.map(function(r, i){
-      return '<b>' + esc(r.name) + '</b> ready at ' + r.at.toFixed(1) + 's' +
-             (i ? ', ' + r.gap.toFixed(1) + 's after the last' : '');
-    }).join('. ') + '. ';
-    note += modules.rows.length < 2 ? ''
-      : modules.together
-        ? 'Two finished within a second of each other, so the work overlapped.'
-        : 'They finished one at a time: the queue provisions in sequence, not in parallel.';
-  } else {
-    note = 'No claim has reached Ready in this capture.';
-  }
-  $('tlNote').innerHTML = note;
-
-  $('tlChart').innerHTML = tlChart(prepared);
-
-  $('tlHidden').textContent = prepared.hidden
-    ? prepared.hidden + ' other events are not marked: the app\u2019s own rollout, and the ' +
-      'bookkeeping around it. `make timeline` prints all of them.'
-    : '';
-}
-
-async function loadTimeline(force){
-  if(S.timeline && !force && !S.tlStale) return renderTimeline();
-  $('tlHeadline').textContent = 'Reading…';
-  try{
-    var r = await fetch('/timeline', {cache:'no-store'});
-    S.timeline = await r.json();
-    S.tlStale = false;
-  }catch(e){
-    S.timeline = {up:false, t0:null, events:[]};
-  }
-  renderTimeline();
 }
 
 /* ─── guide: the action table is generated from ACTIONS itself ────────── */

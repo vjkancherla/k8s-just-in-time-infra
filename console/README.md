@@ -20,24 +20,23 @@ Ctrl-C stops it. Nothing is left running.
 | `state.sh` | the shell read model — the original, used by `make state` and the checkpoints |
 | `test_browser.py` | Playwright browser tests — renders every fixture state, asserts on every tab |
 | `test_console.py` | declaration/contract tests — the page's structural assertions against serve.py |
-| `test_serve.py` | proxy/unit tests — the allowlist, the SAFE regex, the /log tail, /claim, /timeline |
+| `test_serve.py` | proxy/unit tests — the allowlist, the SAFE regex, the /log tail, /claim |
 | `fixtures/` | JSON state files written by `test_browser.py` before each run |
 | `shots/` | numbered PNGs from `--shots`, one per fixture × tab |
 
 ## Endpoints
 
-Six endpoints, and that is the whole surface:
+Five endpoints, and that is the whole surface:
 
 | Endpoint | Method | What it does |
 |---|---|---|
 | `/` | GET | the page |
 | `/state` | GET | `make state` — the read model the page polls every 2 s |
 | `/claim?ns=&module=` | GET | `make claim` — one InfraClaim as YAML, for the object panel |
-| `/timeline` | GET | `make timeline` — the run as one JSON document, for the Timeline tab |
 | `/log?name=x&offset=n` | GET | what the current run has written since byte `n` |
 | `/run/{name}` | POST | the make target in `ALLOWED`, and nothing else |
 
-`/claim` and `/timeline` are fetched on demand — the page never polls them.
+`/claim` is fetched on demand — the page never polls it.
 `/state` is the only endpoint on the 2-second poll.
 
 ## The rule
@@ -171,19 +170,6 @@ The Infrastructure tab has several sections, top to bottom:
 - `#pgAdminLine` shows: "pgAdmin is up on its own host port — open it to see
   the votes table the worker writes to." when pgAdmin is Ready.
 
-### Timeline tab
-
-Fetched from `/timeline` on demand — never on the 2-second poll. If no events
-exist yet, shows "Nothing has been provisioned yet" with a **Go to setup**
-button. When events exist it shows:
-
-- A headline: "Annotation to all infrastructure ready: 12.3 seconds."
-- A note on ordering: sequential or overlapping.
-- A chart with five lanes (deployment, controller, runner, container, pod).
-- A table of every event with its timestamp and source.
-
-The **Refresh** button re-fetches from `/timeline`.
-
 ## The allowlist
 
 Every button maps to exactly one `make` target. The full mapping:
@@ -224,9 +210,9 @@ Three test files, no cluster required:
 
 | File | What it tests | Runner |
 |---|---|---|
-| `test_serve.py` | The allowlist, the SAFE regex, /log tail, /claim, /timeline, rejection of bad names | `python3 console/test_serve.py` |
+| `test_serve.py` | The allowlist, the SAFE regex, /log tail, /claim, rejection of bad names | `python3 console/test_serve.py` |
 | `test_console.py` | Declaration/contract: every ALLOWED name appears in ACTIONS, every ACTIONS name is in ALLOWED, endpoint count, SAFE regex coverage | `python3 console/test_console.py` |
-| `test_browser.py` | Playwright: renders ten fixture states (down, ready, pending, orphaned, expiring, failed, plane-only, no-port, no-routes, two-namespaces) and asserts on every tab, the LED, claim cards, the feed, the object panel, the timeline, the guide, mode switching, destructive confirm dialogs, and a full JS error sweep | `console/.venv/bin/python console/test_browser.py` |
+| `test_browser.py` | Playwright: renders ten fixture states (down, ready, pending, orphaned, expiring, failed, plane-only, no-port, no-routes, two-namespaces) and asserts on every tab, the LED, claim cards, the feed, the object panel, the guide, mode switching, destructive confirm dialogs, and a full JS error sweep | `console/.venv/bin/python console/test_browser.py` |
 
 ```bash
 # All three

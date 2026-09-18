@@ -1,5 +1,0 @@
-# S21 checkpoint, run before the step exists (2026-09-15T19:33:45Z)
-# Expected: the gate is written first and fails until make timeline exists.
-
-FAIL: no make target 'timeline'
-rc=1
