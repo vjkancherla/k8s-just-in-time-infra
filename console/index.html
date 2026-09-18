@@ -23,6 +23,7 @@
   .bar-in{display:flex;align-items:center;gap:14px;height:56px}
   .logo{font-size:15px;font-weight:600;letter-spacing:-.01em}
   .seg{display:flex;background:rgba(0,0,0,.05);border-radius:9px;padding:2px}
+  .seg[hidden]{display:none}
   .seg.mid{margin:0 auto}
   .seg button{font:inherit;font-size:13px;font-weight:500;color:var(--ink-2);border:0;
     background:transparent;padding:6px 16px;border-radius:7px;cursor:pointer;
@@ -609,6 +610,16 @@ function renderNamespaces(){
   ticks();
 }
 
+/* match a claim to its module container: voting-a-redis → voting-a-redis-redis */
+function findClaimContainer(ns, module){
+  var prefix = ns + '-' + module + '-';
+  var list = S.data.containers || [];
+  for(var i = 0; i < list.length; i++){
+    if(list[i].name.indexOf(prefix) === 0) return list[i];
+  }
+  return null;
+}
+
 /* the object behind a card - fetched when asked for, never in the 2s poll */
 async function showClaim(ns, module){
   var head = $('objectHead'), panel = $('objectPanel');
@@ -632,11 +643,22 @@ async function showClaim(ns, module){
         esc(j.error || 'No object came back.') + '</p>';
       return;
     }
-    panel.innerHTML =
-      '<p class="tiny" style="margin:0 0 14px">' +
+
+    var ct = findClaimContainer(ns, module);
+    var html = '';
+    if(ct){
+      html += '<div style="display:flex;align-items:center;gap:10px;margin:0 0 14px;font-size:13px">' +
+        '<span style="font-family:var(--mono);font-weight:500">' + esc(ct.name) + '</span>' +
+        (ct.address ? '<span style="color:var(--ink-3)">' + esc(ct.address) + '</span>' : '') +
+        '<span class="tag ' + (ct.running ? 'ready' : 'other') + '" style="margin:0">' +
+          (ct.running ? 'Running' : 'Stopped') + '</span>' +
+        '</div>';
+    }
+    html += '<p class="tiny" style="margin:0 0 14px">' +
       'Owned by the <b>Namespace</b>, not the Deployment \u2014 which is why a rollout does not ' +
       'touch it. The <b>finalizer</b> is what holds a namespace in Terminating if a destroy fails.' +
       '</p><pre class="yaml"></pre>';
+    panel.innerHTML = html;
     panel.querySelector('.yaml').innerHTML = highlightClaim(j.text);
   }catch(e){
     panel.innerHTML = '<p class="tiny" style="margin:0">Could not reach the console process.</p>';
