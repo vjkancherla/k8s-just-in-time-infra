@@ -71,10 +71,14 @@ for ns in "${NAMESPACES[@]}"; do
     || { echo "FAIL: namespace $ns could not be created" >&2; exit 1; }
 done
 
-echo "== 6/6  deploy and verify the app, per namespace"
+echo "== 6/7  deploy and verify the app, per namespace"
 for ns in "${NAMESPACES[@]}"; do
   ( cd app && make deploy NS="$ns" KUSTOMIZE_DIR="./kustomize/overlays/$ns" )
   make verify NS="$ns"
+  echo "   enabling demo mode for $ns"
+  kubectl set env deployment/voting-app-vote ALLOW_MULTIPLE_VOTES=true -n "$ns"
+  kubectl rollout status deployment/voting-app-vote -n "$ns" --timeout=120s
 done
 
+echo "== 7/7  demo mode enabled - ${NAMESPACES[*]}"
 echo "PASS: demo up - ${NAMESPACES[*]}"

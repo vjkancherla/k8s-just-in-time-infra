@@ -15,6 +15,11 @@ Nothing.
 - Exposed `ALLOW_MULTIPLE_VOTES` in `app/kustomize/base/vote-deployment.yaml` (default `"false"` to keep R3 passing).
 - Documented the toggle in `app/docs/MANUAL-TESTING-GUIDE.md` §9 with the `kubectl set env` command.
 - Static validation: `python3 -m py_compile app/vote/app.py` and `kubectl kustomize app/kustomize/base` both PASS.
+- Automated the demo-mode workflow:
+  - `scripts/demo-up.sh` verifies with `ALLOW_MULTIPLE_VOTES=false`, then patches the vote Deployment to `true` and waits for rollout.
+  - Root `Makefile` `demo-redeploy` target re-enables demo mode after re-applying the overlay.
+  - Updated `app/docs/MANUAL-TESTING-GUIDE.md` to say `make demo-up` auto-enables demo mode.
+  - `bash -n scripts/demo-up.sh` and `make -n demo-redeploy` both PASS.
 
 ## Broken (confirmed by execution)
 - scripts/checks/S18.sh:147 - "redis did not stay Ready - worker still references it" cannot pass while undeploy removes all three Deployments. The check is frozen, so amending it needs the human's approval.

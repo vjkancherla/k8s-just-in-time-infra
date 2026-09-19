@@ -102,6 +102,8 @@ demo-undeploy: ## Demo · Delete the app's three Deployments; the containers kee
 demo-redeploy: ## Demo · Re-apply the overlay inside the window; the claim returns to Ready
 	@mkdir -p $(EVIDENCE)
 	@kubectl apply -k app/kustomize/overlays/$(DEMO_NS) 2>&1 | tee -a $(EVIDENCE)/demo-redeploy.log; exit $${PIPESTATUS[0]}
+	@kubectl set env deployment/voting-app-vote ALLOW_MULTIPLE_VOTES=true -n $(DEMO_NS) 2>&1 | tee -a $(EVIDENCE)/demo-redeploy.log; exit $${PIPESTATUS[0]}
+	@kubectl rollout status deployment/voting-app-vote -n $(DEMO_NS) --timeout=120s 2>&1 | tee -a $(EVIDENCE)/demo-redeploy.log; exit $${PIPESTATUS[0]}
 
 .PHONY: ns-delete
 ns-delete: ## Demo · Destroy NS now, ignoring the retention clock; only NS=(voting-a|voting-b)

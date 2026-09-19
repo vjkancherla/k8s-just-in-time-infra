@@ -363,14 +363,16 @@ For a holistic, non-scripted check:
 
 ### Demo mode: unlimited votes from one browser
 
-By default the app enforces one vote per browser so R3 passes. For a live demo where you want to click repeatedly and see every click counted, set `ALLOW_MULTIPLE_VOTES=true` on the vote Deployment and restart it:
+By default the app enforces one vote per browser so R3 passes. `make demo-up` deploys with `ALLOW_MULTIPLE_VOTES=false`, verifies all R-checks, then automatically enables demo mode (`ALLOW_MULTIPLE_VOTES=true`) so you can click repeatedly and see every click counted. `make demo-redeploy` also re-enables demo mode after re-applying the overlay.
+
+If you deployed another way and want to enable demo mode manually:
 
 ```bash
 kubectl set env deployment/voting-app-vote ALLOW_MULTIPLE_VOTES=true -n voting-a
 kubectl rollout status deployment/voting-app-vote -n voting-a --timeout=120s
 ```
 
-In this mode every click enqueues a fresh `voter_id`, so the result page increments on every vote. Set it back to `false` before running `make verify`, because R3 expects a re-vote from the same browser to update the existing row rather than create a new one.
+Set it back to `false` before running `make verify`, because R3 expects a re-vote from the same browser to update the existing row rather than create a new one.
 
 ---
 
