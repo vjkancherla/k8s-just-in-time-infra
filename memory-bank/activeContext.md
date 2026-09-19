@@ -1,37 +1,29 @@
 Updated: 2026-09-19
 
 ## Current focus
-demo-undeploy deletes all three app Deployments now. One frozen S18 assertion needs the
-human's approval to amend before that checkpoint can pass again.
+Option A implemented: the demo app consumes all infrastructure connection URLs from the controller-written module Secrets.
 
 ## Blocked
-- scripts/checks/S18.sh:147 asserts redis stays Ready "because the worker still references
-  it". Unblocking needs approval to edit a file under scripts/checks/.
+- scripts/checks/S18.sh:147 asserts redis stays Ready "because the worker still references it". Unblocking still needs approval to edit a file under scripts/checks/. (Not changed by this task.)
 
 ## Done (verified)
-- `make demo-undeploy` deletes voting-app-{vote,worker,result} in DEMO_NS, mirroring what
-  demo-redeploy starts. `make -n` prints the new command, `make targets` is unchanged, and
-  the S18 target-name assertion still passes.
-- Wording corrected in the Makefile, console/index.html (description only - the button
-  label is kept, six docs quote it as a story beat), console/README, JIT-MAKEFILE-GUIDE,
-  deletion-lifecycle.md and console-demo-test-plan.md.
-- Browser suite realigned to the action-card rework; 69 tests pass.
-- The VOTE header is removed from both app templates.
+- jit-controller/main.py writes `service_url` (Redis/Postgres DSN), `service_host`, `POSTGRES_DB` and `POSTGRES_USER` into the module Secrets.
+- vote/worker/result Deployments source `REDIS_URL` and `DATABASE_URL` from `jit-redis`/`jit-postgres` `service_url`; initContainers source Postgres reachability vars from `jit-postgres`.
+- vote/worker/result app code reads `REDIS_URL` and `DATABASE_URL` only — no hardcoded hosts, ports, DB names or users.
+- Docs updated: docs/designs/demo-voting-app.md, app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
+- `make demo-up` verified end-to-end: `===== 17 PASS, 0 FAIL =====`.
+- Committed as `68bec5d`.
 
 ## Checkpoints
-- S18 cannot pass until the redis assertion is amended: undeploy now removes every referrer.
+- None pending for this task.
 
 ## Next step
-Decide the S18 redis assertion (see Blocked), then commit the working tree.
+Return to the S18 redis assertion decision, or take the next user request.
 
 ## Watch out
-- O11 is now visible: the Setup sub-line hardcodes "one on the clock" while the LED counts
-  ("3 on the clock"). `test_the_setup_subtitle_counts_claims_and_containers` asserts the
-  singular wording, so it moves with any fix.
-- Every claim orphans on undeploy now, so a lapsed 10m window destroys redis and postgres.
+- Existing namespaces created before this change have Secrets without `service_url`; redeploying those pods with the new manifests will fail until the namespace is recreated or the Secrets are patched.
 - app/*/Dockerfile COPYs templates into the image: a template edit needs a rebuild.
-- console/serve.py writes each run to docs/evidence/console-<name>.log; the browser suite
-  redirects serve.EVIDENCE to a temp dir. Keep that swap.
+- console/serve.py writes each run to docs/evidence/console-<name>.log; the browser suite redirects serve.EVIDENCE to a temp dir. Keep that swap.
 - CSS uppercases `.docker-table th` and `.tiny-tag`: compare inner_text lowercased.
 - pgadmin's lease is on vote deliberately; moving it breaks the orphaning demo.
 - refs/cline/checkpoints/* snapshot .env and terraform.tfstate; never `git push --all`/`--mirror`.
