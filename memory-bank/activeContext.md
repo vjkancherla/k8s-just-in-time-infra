@@ -1,24 +1,23 @@
 Updated: 2026-09-19
 
 ## Current focus
-Option A implemented: the demo app consumes all infrastructure connection URLs from the controller-written module Secrets.
+Add a demo-mode toggle so one browser can vote repeatedly.
 
 ## Blocked
 - scripts/checks/S18.sh:147 asserts redis stays Ready "because the worker still references it". Unblocking still needs approval to edit a file under scripts/checks/. (Not changed by this task.)
 
 ## Done (verified)
-- jit-controller/main.py writes `service_url` (Redis/Postgres DSN), `service_host`, `POSTGRES_DB` and `POSTGRES_USER` into the module Secrets.
-- vote/worker/result Deployments source `REDIS_URL` and `DATABASE_URL` from `jit-redis`/`jit-postgres` `service_url`; initContainers source Postgres reachability vars from `jit-postgres`.
-- vote/worker/result app code reads `REDIS_URL` and `DATABASE_URL` only — no hardcoded hosts, ports, DB names or users.
-- Docs updated: docs/designs/demo-voting-app.md, docs/designs/annotation-to-state.md (new "What each module Secret contains" section), app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
-- `make demo-up` verified end-to-end: `===== 17 PASS, 0 FAIL =====`.
-- Committed as `68bec5d`.
+- Option A implemented: the demo app consumes all infrastructure connection URLs from the controller-written module Secrets.
+- Added `ALLOW_MULTIPLE_VOTES` env var to `app/vote/app.py`: when set to `"true"`, every POST generates a fresh `voter_id`, so repeated clicks from the same browser count as separate votes.
+- Exposed `ALLOW_MULTIPLE_VOTES` in `app/kustomize/base/vote-deployment.yaml` (default `"false"` to keep R3 passing).
+- Documented the toggle in `app/docs/MANUAL-TESTING-GUIDE.md` §9 with the `kubectl set env` command.
+- Static validation: `python3 -m py_compile app/vote/app.py` and `kubectl kustomize app/kustomize/base` both PASS.
 
 ## Checkpoints
 - None pending for this task.
 
 ## Next step
-Return to the S18 redis assertion decision, or take the next user request.
+User can run `make demo-up` (rebuilds the vote image with the new code), then `kubectl set env deployment/voting-app-vote ALLOW_MULTIPLE_VOTES=true -n voting-a` to enable unlimited clicking.
 
 ## Watch out
 - Existing namespaces created before this change have Secrets without `service_url`; redeploying those pods with the new manifests will fail until the namespace is recreated or the Secrets are patched.

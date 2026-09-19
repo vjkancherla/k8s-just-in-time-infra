@@ -22,6 +22,10 @@ def _redis():
 
 
 def _voter_id():
+    # Demo mode: every click registers as a distinct vote, ignoring the browser
+    # session. Set ALLOW_MULTIPLE_VOTES=true on the vote Deployment to enable.
+    if os.environ.get("ALLOW_MULTIPLE_VOTES", "").lower() in ("1", "true", "yes"):
+        return uuid.uuid4().hex
     if "voter_id" not in session:
         session["voter_id"] = uuid.uuid4().hex
     return session["voter_id"]

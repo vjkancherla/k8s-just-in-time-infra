@@ -61,6 +61,12 @@ spec:
                   key: service_url
             - name: OPTIONS
               value: '["Cats","Dogs"]'
+            # Demo toggle: when "true", every button click enqueues a fresh voter_id,
+            # so the result page counts every click instead of updating the voter's
+            # prior choice. Leave "false" to keep the one-vote-per-browser behaviour
+            # that R3 verifies.
+            - name: ALLOW_MULTIPLE_VOTES
+              value: "false"
           ports:
             - containerPort: 80
               name: http

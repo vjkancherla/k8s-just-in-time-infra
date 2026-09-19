@@ -361,6 +361,17 @@ For a holistic, non-scripted check:
 4. Reload the vote page in the **same browser tab** and vote for `Dogs` — the total vote count should **not** increase (one vote per browser).
 5. Open the vote page in a **private/invisible window** and vote — this is a different `voter_id`, so it counts as a separate vote.
 
+### Demo mode: unlimited votes from one browser
+
+By default the app enforces one vote per browser so R3 passes. For a live demo where you want to click repeatedly and see every click counted, set `ALLOW_MULTIPLE_VOTES=true` on the vote Deployment and restart it:
+
+```bash
+kubectl set env deployment/voting-app-vote ALLOW_MULTIPLE_VOTES=true -n voting-a
+kubectl rollout status deployment/voting-app-vote -n voting-a --timeout=120s
+```
+
+In this mode every click enqueues a fresh `voter_id`, so the result page increments on every vote. Set it back to `false` before running `make verify`, because R3 expects a re-vote from the same browser to update the existing row rather than create a new one.
+
 ---
 
 ## 10. Known Gaps & Expected Behavior

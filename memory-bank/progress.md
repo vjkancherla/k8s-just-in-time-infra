@@ -11,6 +11,10 @@ Nothing.
 - Docs updated: docs/designs/demo-voting-app.md, docs/designs/annotation-to-state.md (new "What each module Secret contains" section), app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
 - `make demo-up` cold-path verification: `===== 17 PASS, 0 FAIL =====`.
 - Committed as `68bec5d`.
+- Added `ALLOW_MULTIPLE_VOTES` env var to `app/vote/app.py`: when `"true"`, every POST generates a fresh `voter_id`, so repeated clicks from the same browser count as separate votes.
+- Exposed `ALLOW_MULTIPLE_VOTES` in `app/kustomize/base/vote-deployment.yaml` (default `"false"` to keep R3 passing).
+- Documented the toggle in `app/docs/MANUAL-TESTING-GUIDE.md` §9 with the `kubectl set env` command.
+- Static validation: `python3 -m py_compile app/vote/app.py` and `kubectl kustomize app/kustomize/base` both PASS.
 
 ## Broken (confirmed by execution)
 - scripts/checks/S18.sh:147 - "redis did not stay Ready - worker still references it" cannot pass while undeploy removes all three Deployments. The check is frozen, so amending it needs the human's approval.
