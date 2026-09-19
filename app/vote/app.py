@@ -13,7 +13,7 @@ app.secret_key = os.environ["SECRET_KEY"]
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+REDIS_URL = os.environ["REDIS_URL"]
 OPTIONS = json.loads(os.environ.get("OPTIONS", '["Cats", "Dogs"]'))
 
 

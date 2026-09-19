@@ -7,6 +7,7 @@ import re
 import secrets
 import threading
 from datetime import datetime, timedelta, timezone
+from urllib.parse import quote
 
 import kopf
 import requests
@@ -376,7 +377,7 @@ def provision_infra(api, ns, name, module, spec):
     if module == "postgres" and runner_params.get("postgres_password"):
         outputs["POSTGRES_PASSWORD"] = runner_params["postgres_password"]
 
-    _write_k8s_resources(api, ns, name, module, outputs, allocated_ip)
+    _write_k8s_resources(api, ns, name, module, outputs, allocated_ip, runner_params)
 
 
 def _provision_fake(api, ns, name, module):
@@ -404,10 +405,31 @@ def _provision_fake(api, ns, name, module):
         pass
 
 
-def _write_k8s_resources(api, ns, name, module, outputs, fallback_ip):
+def _write_k8s_resources(api, ns, name, module, outputs, fallback_ip, params=None):
     """Write Secret + Service + EndpointSlice from runner outputs."""
+    params = params or {}
     secret_name = f"jit-{module}"
     svc_name = f"jit-{module}"
+
+    # Add app-facing connection metadata that uses the controller-written Service.
+    # The raw IP outputs stay present for pgadmin and the controller's own use;
+    # pods consume the service-hosted URL so they resolve the Service and its
+    # EndpointSlice rather than binding to a single container IP.
+    outputs = dict(outputs)
+    default_port = "6379" if module == "redis" else "5432"
+    port = int(outputs.get("port", default_port))
+    outputs["service_host"] = svc_name
+    if module == "redis":
+        outputs["service_url"] = f"redis://{svc_name}:{port}/0"
+    elif module == "postgres":
+        password = outputs.get("POSTGRES_PASSWORD", "")
+        db = params.get("postgres_db") or outputs.get("POSTGRES_DB") or "voting"
+        user = params.get("postgres_user") or outputs.get("POSTGRES_USER") or "postgres"
+        outputs["POSTGRES_DB"] = db
+        outputs["POSTGRES_USER"] = user
+        # Percent-encode the password so special characters do not break the DSN.
+        quoted_pw = quote(password, safe="")
+        outputs["service_url"] = f"postgresql://{user}:{quoted_pw}@{svc_name}:{port}/{db}"
 
     # Secret with runner outputs.
     try:

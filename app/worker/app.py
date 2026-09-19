@@ -25,7 +25,8 @@ logging.basicConfig(
 )
 log = logging.getLogger("worker")
 
-REDIS_URL = os.environ.get("REDIS_URL", "redis://redis:6379/0")
+REDIS_URL = os.environ["REDIS_URL"]
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 UPSERT = """
 INSERT INTO votes (voter_id, choice, updated_at)
@@ -41,13 +42,7 @@ _shutdown = False
 
 
 def _connect_db():
-    return psycopg2.connect(
-        host=os.environ["PGHOST"],
-        port=os.environ.get("PGPORT", "5432"),
-        dbname=os.environ["PGDATABASE"],
-        user=os.environ["PGUSER"],
-        password=os.environ["PGPASSWORD"],
-    )
+    return psycopg2.connect(dsn=DATABASE_URL)
 
 
 def healthcheck() -> int:

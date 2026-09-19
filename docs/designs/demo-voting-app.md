@@ -37,8 +37,10 @@ The voting app was built first as a standalone project. The JIT project then:
 1. **Moved the stateful tiers out** (build-plan S15) — Redis, Postgres, and pgAdmin
    removed from `app/kustomize/` and replaced with JIT-provisioned containers
 2. **Added JIT annotations** to the `vote` and `worker` Deployments
-3. **Replaced credentials** — the app reads `jit-redis`, `jit-postgres` Secrets and
-   Services instead of in-cluster Deployments
+3. **Replaced connection details** — the app consumes `REDIS_URL` and `DATABASE_URL`
+   from the controller-written `jit-redis` / `jit-postgres` Secrets, so no infra
+   hostname, port, database name, user or password is hardcoded in the manifests
+   or application code.
 4. **Preserved the verification** — R1-R17 still pass, now reading from JIT-provisioned
    infrastructure
 
@@ -110,14 +112,15 @@ The controller writes three Kubernetes resources per module into the app's names
 
 | JIT creates | App reads | Purpose |
 |---|---|---|
-| `Secret jit-redis` | `REDIS_URL` env var | Connection URL |
-| `Secret jit-postgres` | `PGPASSWORD` env var (via `secretKeyRef`) | Database password |
-| `Service jit-redis` | `redis://jit-redis:6379/0` | In-cluster DNS to the container |
-| `Service jit-postgres` | `jit-postgres` hostname | In-cluster DNS to the container |
+| `Secret jit-redis` | `REDIS_URL` env var (via `secretKeyRef` key `service_url`) | Full Redis connection URL |
+| `Secret jit-postgres` | `DATABASE_URL` env var (via `secretKeyRef` key `service_url`) | Full Postgres connection URL |
+| `Secret jit-postgres` | `PGHOST`/`PGPORT`/`PGDATABASE`/`PGUSER`/`PGPASSWORD` env vars (initContainer) | Postgres reachability check before app start |
+| `Service jit-redis` | *(automatic, via `service_url`)* | In-cluster DNS to the container |
+| `Service jit-postgres` | *(automatic, via `service_url`)* | In-cluster DNS to the container |
 | `EndpointSlice jit-redis` | *(automatic)* | Routes Service traffic to the container's IP |
 | `EndpointSlice jit-postgres` | *(automatic)* | Routes Service traffic to the container's IP |
 
-The app never knows about Docker, IPAM, or the runner. It reads Secrets and connects to
+The app never knows about Docker, IPAM, hostnames, ports, database names, or the runner. It reads Secrets and connects to
 Services — exactly how it would consume infrastructure in a production cluster.
 
 ## Running the app

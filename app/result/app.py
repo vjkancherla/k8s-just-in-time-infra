@@ -11,6 +11,7 @@ from psycopg2 import errors
 app = Flask(__name__)
 
 OPTIONS = json.loads(os.environ.get("OPTIONS", '["Cats", "Dogs"]'))
+DATABASE_URL = os.environ["DATABASE_URL"]
 
 # Retry settings for transient Postgres connection failures under load
 _DB_RETRIES = int(os.environ.get("DB_RETRIES", "3"))
@@ -18,13 +19,7 @@ _DB_RETRY_DELAY = float(os.environ.get("DB_RETRY_DELAY", "0.1"))
 
 
 def _connect():
-    return psycopg2.connect(
-        host=os.environ["PGHOST"],
-        port=os.environ.get("PGPORT", "5432"),
-        dbname=os.environ["PGDATABASE"],
-        user=os.environ["PGUSER"],
-        password=os.environ["PGPASSWORD"],
-    )
+    return psycopg2.connect(dsn=DATABASE_URL)
 
 
 def _connect_with_retry():

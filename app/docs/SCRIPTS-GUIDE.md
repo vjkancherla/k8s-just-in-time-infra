@@ -188,8 +188,9 @@ End-to-end, **idempotent** deployment script.
    Runs only if the cluster doesn't already exist — safe to re-run.
 2. **Build + load images** by calling `build.sh` (passing `REGISTRY`, `REGISTRY_PORT`, `CLUSTER`).
 3. **Check the JIT stack is up:** the app has no stateful workload in the cluster, so its pods consume the
-   controller-written `jit-redis` / `jit-postgres` Services and the `jit-postgres` Secret. If the
-   `InfraClaim` CRD is not installed, deploy.sh stops with an error rather than hanging in `Init` for 300s.
+   controller-written `jit-redis` / `jit-postgres` Services and Secrets (`service_url` keys provide
+   `REDIS_URL` and `DATABASE_URL`). If the `InfraClaim` CRD is not installed, deploy.sh stops with an
+   error rather than hanging in `Init` for 300s.
 4. **Apply Kustomize:** `kubectl apply -k kustomize/` (or `kustomize/overlays/registry/` in registry mode).
 5. **Wait for ready:** `kubectl rollout status` on the **three** workloads (300s timeout each).
 
@@ -418,7 +419,7 @@ Script-related caveats to be aware of (see `README.md` §6 for the full gaps lis
 | **verify.sh doesn't check `.localhost`** | Assumes `.localhost` resolves (it does natively on macOS/Linux); won't fail if your resolver is misconfigured. Verify with `nslookup vote.localhost` (§3). |
 | **deploy.sh doesn't wait for the ingress** | Assumes the ingress controller is already running; doesn't verify ingress pods are ready. |
 | **verify.sh not `-e`** | Uses `set -uo pipefail` (no exit-on-error) so all checks run — good, but a failing check doesn't set a non-zero exit code. |
-| **RESOLVED — POSTGRES_DB mismatch** | The database is `voting` everywhere now: `modules/postgres` defaults `postgres_db = "voting"` and every pod sets `PGDATABASE=voting`. `postgres-secret.env` and its `votingdb` placeholder are gone (build-plan S15). |
+| **RESOLVED — POSTGRES_DB mismatch** | The database is `voting` everywhere now: `modules/postgres` defaults `postgres_db = "voting"`, the controller writes `POSTGRES_DB` into `jit-postgres`, and the app consumes it through `DATABASE_URL` from the Secret. `postgres-secret.env` and its `votingdb` placeholder are gone (build-plan S15). |
 | **pgAdmin publishes a fixed host port** | `modules/pgadmin` publishes `http_port` (default 5050) on the host, so two namespaces cannot both run pgAdmin on the default. RESOLVED in the two-namespace demo (build-plan S17): the claim's annotation carries `params.http_port`, and `overlays/voting-b` sets it to 5051. |
 | **verify.sh.bak is stale** | `scripts/verify.sh.bak` is an outdated backup — not executed by any workflow. Safe to delete. |
 

@@ -4,8 +4,10 @@ kind: Kustomization
 # The application. There is no stateful workload in the cluster: Redis,
 # Postgres and pgAdmin are provisioned out of cluster by the JIT controller and
 # runner (build-plan S15). The pods reach them through the controller-written
-# Services jit-redis, jit-postgres and jit-pgadmin, whose addresses come from
-# the jit-postgres / jit-redis Secrets.
+# Secrets jit-redis and jit-postgres: REDIS_URL and DATABASE_URL come from the
+# service_url keys, and the initContainers source PGHOST/PGPORT/PGDATABASE/PGUSER
+# from the jit-postgres Secret. No infrastructure host, port, user or database
+# name is hardcoded in the manifests or the app code.
 
 resources:
   - vote-deployment.yaml

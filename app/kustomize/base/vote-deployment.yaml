@@ -55,7 +55,10 @@ spec:
                   name: voting-app-secret-key
                   key: SECRET_KEY
             - name: REDIS_URL
-              value: "redis://jit-redis:6379/0"
+              valueFrom:
+                secretKeyRef:
+                  name: jit-redis
+                  key: service_url
             - name: OPTIONS
               value: '["Cats","Dogs"]'
           ports:

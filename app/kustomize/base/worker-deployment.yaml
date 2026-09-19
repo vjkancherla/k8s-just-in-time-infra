@@ -36,18 +36,40 @@ spec:
       initContainers:
         # Single source of truth for the schema: wait for Postgres, then
         # create the table idempotently. Postgres is out of cluster now, reached
-        # through the jit-postgres Service the controller writes.
+        # through the jit-postgres Service the controller writes. Every
+        # connection detail comes from the jit-postgres Secret so the manifest
+        # and the app code carry no hardcoded infrastructure values.
         - name: init-db
           image: postgres:16-alpine
           command: ["/bin/sh", "-c"]
           args:
             - |
-              until pg_isready -h jit-postgres -U postgres; do
+              until pg_isready; do
                 echo "waiting for postgres";
                 sleep 2;
               done;
-              psql -h jit-postgres -U postgres -d voting -c "CREATE TABLE IF NOT EXISTS votes (voter_id VARCHAR(255) PRIMARY KEY, choice VARCHAR(255) NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT NOW());"
+              psql -c "CREATE TABLE IF NOT EXISTS votes (voter_id VARCHAR(255) PRIMARY KEY, choice VARCHAR(255) NOT NULL, updated_at TIMESTAMP NOT NULL DEFAULT NOW());"
           env:
+            - name: PGHOST
+              valueFrom:
+                secretKeyRef:
+                  name: jit-postgres
+                  key: service_host
+            - name: PGPORT
+              valueFrom:
+                secretKeyRef:
+                  name: jit-postgres
+                  key: port
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: jit-postgres
+                  key: POSTGRES_DB
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: jit-postgres
+                  key: POSTGRES_USER
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
@@ -59,20 +81,15 @@ spec:
           imagePullPolicy: IfNotPresent
           env:
             - name: REDIS_URL
-              value: "redis://jit-redis:6379/0"
-            - name: PGHOST
-              value: "jit-postgres"
-            - name: PGPORT
-              value: "5432"
-            - name: PGDATABASE
-              value: "voting"
-            - name: PGUSER
-              value: "postgres"
-            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: jit-redis
+                  key: service_url
+            - name: DATABASE_URL
               valueFrom:
                 secretKeyRef:
                   name: jit-postgres
-                  key: POSTGRES_PASSWORD
+                  key: service_url
           livenessProbe:
             exec:
               command: ["python", "/app/app.py", "--healthcheck"]

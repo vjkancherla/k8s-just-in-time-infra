@@ -369,7 +369,7 @@ These are documented, accepted characteristics — a "failure" here is often **e
 
 | Area | Behavior | Reference |
 |------|----------|-----------|
-| **Postgres database name** | The module sets `POSTGRES_DB=voting`, matching `PGDATABASE=voting` in the workloads, so the old `votingdb` placeholder is gone. A container restart keeps the data; only a module destroy removes the tally. | build-plan S4/S15 |
+| **Postgres database name** | The module sets `POSTGRES_DB=voting`, the controller writes it into `jit-postgres`, and the app consumes it through `DATABASE_URL` from the Secret, so the old `votingdb` placeholder is gone. A container restart keeps the data; only a module destroy removes the tally. | build-plan S4/S15 |
 | **Redis no AOF / no volume** | Votes survive a *worker* restart but are **lost if the Redis container restarts** (no AOF, no volume). | README Known Gaps |
 | **In-flight vote loss** | If the worker is killed between `BLPOP` and `COMMIT`, that single vote is lost (documented MVP limitation). | worker/app.py docstring |
 | **Worker healthcheck breadth** | Returns healthy if Redis **and** Postgres are up — the pod can be "ready" while the queue is momentarily stuck. | README §2.2 |
