@@ -10,7 +10,7 @@ Option A implemented: the demo app consumes all infrastructure connection URLs f
 - jit-controller/main.py writes `service_url` (Redis/Postgres DSN), `service_host`, `POSTGRES_DB` and `POSTGRES_USER` into the module Secrets.
 - vote/worker/result Deployments source `REDIS_URL` and `DATABASE_URL` from `jit-redis`/`jit-postgres` `service_url`; initContainers source Postgres reachability vars from `jit-postgres`.
 - vote/worker/result app code reads `REDIS_URL` and `DATABASE_URL` only — no hardcoded hosts, ports, DB names or users.
-- Docs updated: docs/designs/demo-voting-app.md, app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
+- Docs updated: docs/designs/demo-voting-app.md, docs/designs/annotation-to-state.md (new "What each module Secret contains" section), app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
 - `make demo-up` verified end-to-end: `===== 17 PASS, 0 FAIL =====`.
 - Committed as `68bec5d`.
 

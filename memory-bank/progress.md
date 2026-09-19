@@ -8,7 +8,7 @@ Nothing.
 - jit-controller/main.py writes `service_url`, `service_host`, `POSTGRES_DB`, `POSTGRES_USER` into module Secrets.
 - vote/worker/result Deployments source `REDIS_URL`/`DATABASE_URL` from Secrets; initContainers source Postgres reachability vars from Secrets.
 - vote/worker/result app code consumes `REDIS_URL` and `DATABASE_URL` only.
-- Docs updated: docs/designs/demo-voting-app.md, app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
+- Docs updated: docs/designs/demo-voting-app.md, docs/designs/annotation-to-state.md (new "What each module Secret contains" section), app/docs/SCRIPTS-GUIDE.md, app/docs/MANUAL-TESTING-GUIDE.md, app/kustomize/base/kustomization.yaml.
 - `make demo-up` cold-path verification: `===== 17 PASS, 0 FAIL =====`.
 - Committed as `68bec5d`.
 

@@ -123,6 +123,9 @@ The controller writes three Kubernetes resources per module into the app's names
 The app never knows about Docker, IPAM, hostnames, ports, database names, or the runner. It reads Secrets and connects to
 Services — exactly how it would consume infrastructure in a production cluster.
 
+For the exact Secret name and every key each module Secret contains, see
+[What each module Secret contains](annotation-to-state.md#what-each-module-secret-contains).
+
 ## Running the app
 
 ```bash

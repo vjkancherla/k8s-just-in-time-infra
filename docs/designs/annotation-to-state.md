@@ -233,3 +233,37 @@ Everything follows the same pattern: **`{namespace}-{module}`**
 The container name looks odd (`redis-redis`) because the module's Terraform appends
 `-redis` to the `name` variable, and the controller sets `name` to `{namespace}-{module}`.
 This is a PoC convention, not a design rule.
+
+## What each module Secret contains
+
+The controller writes one Secret per module. The Secret name is always `jit-{module}`
+in the claim's namespace. These are the keys a Deployment author can consume:
+
+### `jit-redis`
+
+| Key | Example | Consumer |
+|---|---|---|
+| `service_url` | `redis://jit-redis:6379/0` | App containers (`REDIS_URL`) |
+| `service_host` | `jit-redis` | App containers if a host-only value is needed |
+| `address` | `172.19.0.100` | Controller / pgAdmin (raw container IP) |
+| `port` | `6379` | Controller / pgAdmin (raw container port) |
+| `url` | `redis://172.19.0.100:6379/0` | Controller / pgAdmin (raw container URL) |
+
+### `jit-postgres`
+
+| Key | Example | Consumer |
+|---|---|---|
+| `service_url` | `postgresql://postgres:<pass>@jit-postgres:5432/voting` | App containers (`DATABASE_URL`) |
+| `service_host` | `jit-postgres` | App containers if a host-only value is needed |
+| `POSTGRES_DB` | `voting` | App initContainers (`PGDATABASE`) |
+| `POSTGRES_USER` | `postgres` | App initContainers (`PGUSER`) |
+| `POSTGRES_PASSWORD` | `<generated>` | App initContainers (`PGPASSWORD`) |
+| `address` | `172.19.0.101` | Controller / pgAdmin (raw container IP) |
+| `port` | `5432` | Controller / pgAdmin (raw container port) |
+| `url` | `postgresql://postgres:<pass>@172.19.0.101:5432/voting` | Controller / pgAdmin (raw container URL) |
+| `volume_name` | `voting-a-postgres-data` | Controller (Docker volume name) |
+
+App pods should consume `service_url` so they resolve the Service rather than binding
+to a single container IP. The raw `address`/`port`/`url` keys are kept for pgAdmin and
+controller-internal use. `POSTGRES_PASSWORD` is URL-encoded inside `service_url` so
+special characters do not break the DSN.
