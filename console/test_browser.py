@@ -13,11 +13,11 @@ and into states it is hard to produce on purpose at all - a failed claim, a
 namespace with no routes, a claim whose clock has four seconds left.
 
 `--shots` is the other half of the value: one command renders every state as a
-picture, so eight permutations can be reviewed by eye in ten seconds instead of
+picture, so ten permutations can be reviewed by eye in ten seconds instead of
 being clicked through by hand.
 
-ALLOWED is swapped for harmless commands, so no test can start or destroy
-anything.
+ALLOWED is swapped for harmless commands and the evidence directory for a throwaway
+one, so no test can start or destroy anything, or overwrite the log of a real run.
 
 Per .clinerules/01-jit-poc.md these are a diagnostic tool, not proof. The checkpoint is
 the proof.
@@ -25,7 +25,9 @@ the proof.
 
 import json
 import pathlib
+import shutil
 import sys
+import tempfile
 import threading
 import time
 import unittest
@@ -163,6 +165,12 @@ class Console:
         self.real_allowed = serve.ALLOWED
         self.real_state = serve.STATE
         self.real_claim = serve.CLAIM
+        self.real_evidence = serve.EVIDENCE
+        # serve.py writes every run to docs/evidence/console-<name>.log. An action
+        # clicked here would otherwise overwrite the log of a real run, so the
+        # suite's runs are written to a throwaway directory instead.
+        self.evidence = pathlib.Path(tempfile.mkdtemp(prefix="console-browser-evidence-"))
+        serve.EVIDENCE = self.evidence
         serve.ALLOWED = {name: ["python3", "-c", f"print('ran {name}')"]
                          for name in self.real_allowed}
         serve.CLAIM = ["python3", "-c",
@@ -178,6 +186,8 @@ class Console:
         serve.ALLOWED = self.real_allowed
         serve.STATE = self.real_state
         serve.CLAIM = self.real_claim
+        serve.EVIDENCE = self.real_evidence
+        shutil.rmtree(self.evidence, ignore_errors=True)
 
 
 # ------------------------------------------------------------------- tests
@@ -249,6 +259,18 @@ class Page(unittest.TestCase):
         self.assertIn("voting-b", host)
         self.assertEqual(page.locator(".ns-claim").count(), 4)
 
+    def test_a_claim_card_tag_shows_its_phase(self):
+        page = self.open("orphaned", tab="infra")
+        host = page.locator("#nsHost")
+        self.assertGreater(host.locator(".tag.ready").count(), 0)
+        self.assertGreater(host.locator(".tag.orphaned").count(), 0)
+
+    def test_a_claim_foot_says_whether_anything_still_uses_it(self):
+        page = self.open("orphaned", tab="infra")
+        text = page.inner_text("#nsHost")
+        self.assertIn("Active link", text)              # redis is still referenced by worker
+        self.assertIn("Nothing referencing it", text)   # the two on the clock are not
+
     # ------------------------------------------------------- the countdown
 
     def test_an_orphaned_claim_shows_a_clock(self):
@@ -289,9 +311,7 @@ class Page(unittest.TestCase):
     def test_an_http_route_does_not_become_https(self):
         """tls decides the scheme, so a plain route must open on the http port."""
         page = self.open("two-namespaces", tab="app")
-        page.click('#nsSwitch button[data-ns="1"]') if page.locator(
-            '#nsSwitch button[data-ns="1"]').count() else page.locator(
-            "#nsSwitch button").nth(1).click()
+        page.locator("#nsSwitch button").nth(1).click()
         page.wait_for_timeout(250)
         self.assertEqual(page.get_attribute("#voteOpen", "href"),
                          "http://vote-b.localhost:8081")
@@ -314,25 +334,89 @@ class Page(unittest.TestCase):
         self.assertNotEqual(demo.inner_text("#actionList"), test.inner_text("#actionList"))
         self.assertIn("Start the demo", demo.inner_text("#actionList"))
         self.assertIn("Check the JIT behaviour", test.inner_text("#actionList"))
+        self.assertIn("$ make ns-delete NS=voting-a", demo.inner_text("#actionList"))
+        self.assertIn("$ make ns-delete NS=voting-b", test.inner_text("#actionList"))
+
+    def test_destructive_actions_are_cards_in_the_one_list(self):
+        """They share the list with every other action now, marked rather than
+        moved into a box of their own."""
+        page = self.open("ready", mode="test")
+        cards = page.locator("#actionList .action-card")
+        danger = page.locator("#actionList .action-card.danger")
+        self.assertGreater(danger.count(), 0, "no destructive card rendered")
+        self.assertLess(danger.count(), cards.count())
+        self.assertIn("Delete everything", page.inner_text("#actionList"))
+
+    def test_a_card_carries_its_hint_or_destructive_pill(self):
+        page = self.open("ready", mode="test")
+        hint = page.locator("#actionList .action-card", has_text="Start the control plane")
+        self.assertEqual(hint.locator(".action-pill").inner_text(), "jit-up")
+        destroy = page.locator("#actionList .action-card.danger", has_text="Delete everything")
+        self.assertEqual(destroy.locator(".action-pill").inner_text().lower(), "destroy")
+
+    def test_a_running_action_is_marked_live(self):
+        """The card, the terminal title and the LIVE pill all follow the run.
+        The action is slowed down here so the state can be observed at all."""
+        page = self.open("ready", mode="demo")
+        real = serve.ALLOWED["demo-up"]
+        serve.ALLOWED["demo-up"] = ["python3", "-c",
+                                    "import time; time.sleep(3); print('ran demo-up')"]
+        self.addCleanup(lambda: serve.ALLOWED.__setitem__("demo-up", real))
+        page.locator("#actionList .action-run").first.click()
+        page.wait_for_selector("#actionList .action-card.running", timeout=8000)
+        card = page.locator("#actionList .action-card.running")
+        self.assertEqual(card.locator(".action-title").inner_text(), "Start the demo")
+        self.assertGreater(card.locator(".action-pulse").count(), 0, "no running pulse")
+        self.assertEqual(card.locator(".action-pill.streaming").inner_text(), "Streaming\u2026")
+        self.assertEqual(card.locator(".action-tag").inner_text(), "Active target")
+        page.wait_for_selector("#termLive", state="visible", timeout=5000)
+        self.assertEqual(page.inner_text("#termTitle"), "make demo-up")
+        self.assertIn("running make demo-up", page.inner_text("#termStatus"))
+        page.wait_for_selector("#log:has-text('exit 0')", timeout=15000)
+        page.wait_for_selector("#termLive", state="hidden", timeout=5000)
+        self.assertEqual(page.inner_text("#termTitle"), "$")
+        self.assertEqual(card.locator(".action-pill.streaming").count(), 0)
 
     def test_every_row_that_destroys_asks_first(self):
         page = self.open("ready", mode="test")
         page.on("dialog", lambda d: d.dismiss())
-        rows = page.locator(".item")
+        rows = page.locator("#actionList .action-card.danger")
+        self.assertGreater(rows.count(), 0, "no destructive card found in Testing")
         for i in range(rows.count()):
-            if "Delete everything" in rows.nth(i).inner_text():
-                rows.nth(i).click()
-                page.wait_for_timeout(300)
-                self.assertNotIn("ran destroy", page.inner_text("#log"),
-                                 "a dismissed confirm still ran the command")
-                return
-        self.fail("no destructive row found in Testing")
+            rows.nth(i).locator(".action-run").click()
+            page.wait_for_timeout(300)
+            self.assertNotIn("ran ", page.inner_text("#log"),
+                             f"a dismissed confirm still ran {rows.nth(i).inner_text()}")
 
     def test_a_run_streams_into_the_log(self):
         page = self.open("ready", mode="demo")
-        page.locator(".item").first.click()
+        page.locator("#actionList .action-run").first.click()
         page.wait_for_selector("#log:has-text('ran demo-up')", timeout=8000)
         self.assertIn("exit 0", page.inner_text("#log"))
+
+    def test_the_terminal_is_idle_until_something_runs(self):
+        page = self.open("ready")
+        self.assertEqual(page.inner_text("#termStatus"), "idle")
+        self.assertNotIn("live", page.locator("#termDot").get_attribute("class") or "")
+        self.assertEqual(page.inner_text("#termTitle"), "$")
+        self.assertFalse(page.is_visible("#termLive"))
+        self.assertIn("Auto-scroll: ON", page.inner_text(".term-foot"))
+
+    def test_the_terminal_is_idle_again_once_a_run_has_finished(self):
+        page = self.open("ready", mode="demo")
+        page.locator("#actionList .action-run").first.click()
+        page.wait_for_selector("#log:has-text('exit 0')", timeout=8000)
+        page.wait_for_timeout(300)
+        self.assertEqual(page.inner_text("#termStatus"), "idle")
+        self.assertEqual(page.inner_text("#termTitle"), "$")
+
+    def test_clear_empties_the_log(self):
+        page = self.open("ready", mode="demo")
+        page.locator("#actionList .action-run").first.click()
+        page.wait_for_selector("#log:has-text('exit 0')", timeout=8000)
+        page.click("#termClear")
+        page.wait_for_timeout(150)
+        self.assertNotIn("exit 0", page.inner_text("#log"))
 
     # -------------------------------------------------------- claim object
 
@@ -341,10 +425,24 @@ class Page(unittest.TestCase):
         page.locator(".ns-claim").first.click()
         page.wait_for_selector("#objectPanel .yaml", timeout=5000)
         self.assertIn("InfraClaim", page.inner_text("#objectPanel"))
-        # The claim YAML is in a collapsed details — open it to trigger paintYaml
-        page.locator("#objectPanel details").last.locator("summary").click()
-        page.wait_for_timeout(300)
+        # Both blocks render open, so the claim's own YAML is on screen already
         self.assertIn("finalizers", page.inner_text("#objectPanel"))
+
+    def test_the_panel_names_the_container_the_claim_matched(self):
+        page = self.open("ready", tab="infra")
+        page.locator(".ns-claim").first.click()
+        page.wait_for_selector("#objectPanel .matched", timeout=5000)
+        self.assertIn("voting-a-pgadmin-pgadmin", page.inner_text("#objectPanel .matched"))
+
+    def test_the_claim_yaml_is_highlighted(self):
+        """The dark block holds the Kubernetes object, syntax-highlighted; the
+        light block above it holds the container docker describes."""
+        page = self.open("ready", tab="infra")
+        page.locator(".ns-claim").first.click()
+        page.wait_for_selector("#claimYaml", timeout=5000)
+        self.assertGreater(page.locator("#claimYaml span.yk").count(), 0,
+                           "the claim YAML is not highlighted")
+        self.assertIn("finalizers", page.inner_text("#claimYaml"))
 
     # --------------------------------------------------------------- tabs
 
@@ -396,14 +494,27 @@ class Page(unittest.TestCase):
         for name in ("redis", "postgres", "pgadmin"):
             self.assertIn(name, box.inner_text())
 
-    def test_infra_lists_state_objects(self):
-        """State objects are no longer shown in the Infrastructure tab.
-        The data is still in make state; the console's Docker table shows
-        containers instead.  This test now checks that the Docker table
-        renders at all."""
+    def test_the_docker_table_has_one_column_per_field(self):
+        """State objects are no longer shown in the Infrastructure tab: the
+        table lists containers, and each row links to the claim that owns it."""
         page = self.open("ready", tab="infra")
-        tbl = page.locator("#dockerPanel table")
-        self.assertGreater(tbl.count(), 0)
+        heads = page.locator("#dockerPanel thead th")
+        # the header is uppercased by CSS, so compare the rendered text that way
+        self.assertEqual([heads.nth(i).inner_text().lower() for i in range(heads.count())],
+                         ["container", "address", "status", "image", "claim"])
+
+    def test_clicking_a_docker_row_opens_its_claim(self):
+        page = self.open("ready", tab="infra")
+        page.locator("#dockerPanel tbody tr.docker-row").first.click()
+        page.wait_for_selector("#objectPanel .yaml", timeout=5000)
+        self.assertIn("InfraClaim", page.inner_text("#objectPanel"))
+        page.wait_for_selector("#dockerPanel tr.row-selected", timeout=5000)
+
+    def test_a_docker_row_flags_a_claim_that_is_orphaned(self):
+        page = self.open("orphaned", tab="infra")
+        pills = page.locator("#dockerPanel .clink.orphan-pill")
+        self.assertGreater(pills.count(), 0, "orphaned claims are not flagged in the table")
+        self.assertIn("orphaned", pills.first.inner_text().lower())
 
     def test_infra_says_none_when_down(self):
         page = self.open("down", tab="infra")
@@ -540,20 +651,20 @@ class Page(unittest.TestCase):
 
     # ---------------------------------------------------------- infra H1
 
-    def test_infra_h1_shows_claim_count_when_ready(self):
-        page = self.open("ready", tab="infra")
-        h = page.inner_text("#infraH1")
-        self.assertIn("Infrastructure", h)
+    def test_the_infra_header_reads_the_same_in_every_state(self):
+        """The heading names the tab, not the state. The counts live on Setup,
+        next to the actions that change them."""
+        ready = self.open("ready", tab="infra")
+        orphaned = self.open("orphaned", tab="infra")
+        self.assertEqual(ready.inner_text("#infraH1"), "Infrastructure")
+        self.assertEqual(ready.inner_text("#infraH1"), orphaned.inner_text("#infraH1"))
+        self.assertIn("grouped by namespace", ready.inner_text("#infraSub"))
 
-    def test_infra_h1_mentions_clock_when_orphaned(self):
-        page = self.open("orphaned", tab="infra")
-        h = page.inner_text("#infraH1")
-        self.assertIn("Infrastructure", h)
-
-    def test_infra_subtitle_changes_for_orphaned(self):
-        page = self.open("orphaned", tab="infra")
-        sub = page.inner_text("#infraSub")
-        self.assertIn("namespace", sub.lower())
+    def test_the_setup_subtitle_counts_claims_and_containers(self):
+        page = self.open("ready")
+        self.assertIn("3 claims, 3 containers", page.inner_text("#setupSub"))
+        clock = self.open("orphaned")
+        self.assertIn("one on the clock", clock.inner_text("#setupSub"))
 
     # ------------------------------------------------- setup placeholder
 
@@ -564,10 +675,10 @@ class Page(unittest.TestCase):
 
     # -------------------------------------------------------- mode note
 
-    def test_mode_note_mentions_voting_a_in_demo(self):
+    def test_the_mode_note_is_empty_in_demo(self):
+        """Demo mode carries no note now; only Testing explains itself."""
         page = self.open("ready")
-        note = page.inner_text("#modeNote")
-        self.assertIn("voting-a", note)
+        self.assertEqual(page.inner_text("#modeNote").strip(), "")
 
     def test_mode_note_mentions_voting_b_in_testing(self):
         page = self.open("ready")
@@ -596,21 +707,23 @@ class Page(unittest.TestCase):
     def test_destructive_action_cancel_does_nothing(self):
         page = self.open("ready")
         page.once("dialog", lambda d: d.dismiss())
-        for item in page.locator(".item").all():
-            if "delete" in item.inner_text().lower() or "destroy" in item.inner_text().lower():
-                item.click()
-                page.wait_for_timeout(200)
-                cls = page.locator("#led").get_attribute("class") or ""
-                self.assertIn("on", cls,
-                              "LED changed after a cancelled destructive action")
-                break
+        rows = page.locator("#actionList .action-card.danger")
+        self.assertGreater(rows.count(), 0, "no destructive cards rendered")
+        rows.first.locator(".action-run").click()
+        page.wait_for_timeout(300)
+        self.assertEqual(page.inner_text("#termStatus"), "idle",
+                         "a cancelled destructive action started a run")
+        self.assertNotIn("ran ", page.inner_text("#log"))
 
-    def test_destructive_action_buttons_have_danger_hint(self):
+    def test_destructive_cards_carry_their_target_and_a_red_run(self):
         page = self.open("ready")
-        # ns-delete-a and destroy are the two destructive demo actions.
-        # ns-delete-a has no hint; destroy's hint is "destroy".
-        destroy_item = page.locator('.item[title="make destroy"]')
-        self.assertEqual(destroy_item.locator(".tgt").inner_text(), "destroy")
+        destroy = page.locator("#actionList .action-card.danger", has_text="Delete everything")
+        self.assertEqual(destroy.locator(".action-cmd").inner_text(), "$ make destroy")
+        self.assertNotEqual(
+            destroy.locator(".action-run").evaluate("el => getComputedStyle(el).backgroundColor"),
+            page.locator("#actionList .action-card:not(.danger) .action-run").first.evaluate(
+                "el => getComputedStyle(el).backgroundColor"),
+            "the destructive button is not visually distinct from an ordinary Run")
 
     # ------------------------------------------------- guide tab content
 

@@ -90,10 +90,13 @@ demo-up: ## Demo · Start the demo: jit-down, deploy, jit-up, then deploy + veri
 	@mkdir -p $(EVIDENCE)
 	@./$(SCRIPTS)/demo-up.sh $(DEMO_NS) 2>&1 | tee -a $(EVIDENCE)/demo-up.log; exit $${PIPESTATUS[0]}
 
+# Undeploy takes the same three Deployments demo-redeploy starts, so the two targets mirror
+# each other: nothing is left to reference a claim, so all of them orphan at once and arm
+# their clock. The containers and their volumes stay for the TTL.
 .PHONY: demo-undeploy
-demo-undeploy: ## Demo · Delete the vote Deployment; the containers keep running on a clock
+demo-undeploy: ## Demo · Delete the app's three Deployments; the containers keep running on a clock
 	@mkdir -p $(EVIDENCE)
-	@kubectl delete deployment voting-app-vote -n $(DEMO_NS) --ignore-not-found 2>&1 | tee -a $(EVIDENCE)/demo-undeploy.log; exit $${PIPESTATUS[0]}
+	@kubectl delete deployment voting-app-vote voting-app-worker voting-app-result -n $(DEMO_NS) --ignore-not-found 2>&1 | tee -a $(EVIDENCE)/demo-undeploy.log; exit $${PIPESTATUS[0]}
 
 .PHONY: demo-redeploy
 demo-redeploy: ## Demo · Re-apply the overlay inside the window; the claim returns to Ready

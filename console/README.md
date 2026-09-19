@@ -177,7 +177,7 @@ Every button maps to exactly one `make` target. The full mapping:
 | Button name | Make target | Notes |
 |---|---|---|
 | `demo-up` | `make demo-up` | Cold start for one namespace |
-| `demo-undeploy` | `make demo-undeploy` | Delete vote Deployment |
+| `demo-undeploy` | `make demo-undeploy` | Delete the three app Deployments (vote, worker, result) |
 | `demo-redeploy` | `make demo-redeploy` | Re-apply the overlay |
 | `ns-delete-a` | `make ns-delete NS=voting-a` | Hard delete voting-a |
 | `test-up` | `make test-up` | Cold start for both namespaces |

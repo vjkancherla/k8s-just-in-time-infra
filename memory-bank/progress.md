@@ -1,40 +1,39 @@
-Updated: 2026-09-17
+Updated: 2026-09-19
 
 ## Working
-Nothing. The annotation realignment is committed, verified against a live cluster and
-re-baselined; the host was torn down afterwards.
+Nothing. demo-undeploy's change is verified in the Makefile, but the checkpoint that covers
+it now fails by design.
 
 ## Done (verified)
-- addcf88, 39597af, a70f832: manifests + J-checks + six docs realigned; the demo rehearsal plan
-  and the run evidence are tracked.
-- Live, before the teardown: R1-R17 17 PASS; J1-J11 11 PASS, 0 FAIL. J6 swept pgadmin 155s after
-  vote was deleted and left redis+postgres Ready with the postgres data volume intact.
-- The annotation contract held through the real parser: legal key grammar, JSON limited to
-  module/moduleVersion/params/softDeleteTTL, value.module == key suffix, `10m` -> 0:10:00,
-  params checked against variables.tf, refcounts agreeing (97 checks; the script was scratch
-  and went with the rest of /tmp).
-- Host clean: no k3d cluster, no module containers, no volumes.
-- S20 and S21: findings CLEAR at bfd996b, both boxes ticked in d7f2e41.
+- `make demo-undeploy` deletes voting-app-{vote,worker,result} in DEMO_NS, mirroring what
+  demo-redeploy starts. `make -n` prints the new command, `make targets` is unchanged, the
+  S18 target-name assertion still passes, and the console renders with no page errors.
+- Wording updated: Makefile help, console/index.html (description only; the button label is
+  kept), console/README, JIT-MAKEFILE-GUIDE, deletion-lifecycle.md, console-demo-test-plan
+  (demo table, item 1, O11).
+- Browser suite realigned with the action-card rework in console/index.html: 69 tests pass.
+- The VOTE header is removed from both app templates, with the offset that cleared it.
 
 ## Broken (confirmed by execution)
-- Nothing.
+- scripts/checks/S18.sh:147 - "redis did not stay Ready - worker still references it" cannot
+  pass while undeploy removes all three Deployments: every claim orphans now. The check is
+  frozen, so amending it needs the human's approval.
 
 ## Suspected (read, not reproduced)
 - The three carried from 2026-09-13 stand: postgres's password can disagree across its data
   directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks
   fail; `ipam.py` has no lock.
-- moduleVersion is inert - the runner never reads the field.
-- No gate covers volume removal on destroy (see activeContext's Watch out).
+- No gate covers volume removal on destroy any more: J6 asserts the volume stays.
 
 ## In progress
 Nothing.
 
 ## Blocked
-- Nothing.
+- The S18 redis assertion (see Broken) - awaiting the human.
 
 ## Learnings
-- An annotation is a provisioning request and a keep-alive lease, not a dependency list: the
-  controller never reads the pod spec, so a consumer with no annotation can lose its infra.
-- `make jit-verify` seds the live annotations to 2m and never restores them, so a rehearsal
-  leaves the demo on a two-minute clock - re-run `make demo-up` (or click Start the demo).
-- Read the read model before quoting it: `/state` runs scripts/state.sh, not console/state.py.
+- CSS text-transform reaches Playwright's inner_text: assert on the rendered casing.
+- serve.py writes every run to docs/evidence/console-<name>.log, so a suite run overwrote
+  real evidence; Console.__enter__ now redirects it to a temp dir.
+- The referrer map is the demo: redis and postgres survived an undeploy only because worker
+  and result named them, so removing all three Deployments arms every clock at once.

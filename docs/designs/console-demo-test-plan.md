@@ -283,7 +283,7 @@ timings are targets, not measurements.
 | 0:40 | Switch to **Infrastructure** while it runs | "The annotations ask for redis, postgres and pgAdmin; each Deployment names the ones it uses. Nothing in the app knows an IP address." | claims appearing, then `In use` |
 | 1:30 | Back to Setup when the log ends | "Three containers, outside the cluster, each with an address from a block the namespace owns." | `3 claims Ready`, `17 PASS, 0 FAIL`, `exit 0` |
 | 1:45 | Click the `redis` card, then **Voting app**, cast a vote | "That is the app using the infrastructure that did not exist two minutes ago." | the tally moving |
-| 2:15 | **Delete the deployment** | "The pods are gone. The infrastructure is not — and a clock has started." | `Nothing was destroyed. A clock started.`, LED `1 on the clock`, a live countdown |
+| 2:15 | **Delete the deployment** | "All three pods are gone. The infrastructure is not — and a clock has started on every claim." | LED `3 on the clock`, a live countdown on each orphaned card |
 | 2:35 | Point at the countdown and the feed | "Ten minutes to change your mind. That window is a field in the annotation, not a hard-coded policy." | `9:5x` counting down; feed lines `Ready → Orphaned` |
 | 2:50 | **Redeploy inside the window** | "Same container, same data, nothing re-provisioned." | back to `Ready`, countdown gone |
 | 3:10 | **Delete the namespace** → confirm **OK** | "And the hard path: the clock is ignored, everything goes at once." | LED `No claims`; heading `Control plane up. Nothing has asked for infrastructure yet.` — **not** `Nothing is running yet.` (see C2) |
@@ -291,11 +291,11 @@ timings are targets, not measurements.
 
 Three things in that table are the demo, and each one is a claim the page makes visibly:
 
-1. **The countdown is 10 minutes, not 2.** `demo-undeploy` deletes only the *vote* Deployment,
-   so `redis` and `postgres` stay `Ready` — `worker` still references both, and `result`
-   references `postgres` — while `pgadmin`, the one module `vote` leases alone, goes `Orphaned`.
-   Expect **two cards under *In use* and one under *On the clock***, not three. Say so before it
-   happens and it looks designed; notice it live and it looks broken.
+1. **The countdown is 10 minutes, not 2.** `demo-undeploy` deletes all three Deployments the
+   overlay starts, so no workload is left to reference anything: every claim goes `Orphaned`
+   at once and the LED reads `3 on the clock`. Deleting *vote* alone would leave `redis` and
+   `postgres` `Ready`, because `worker` (and `result`) still name them. Say which one happens
+   before it happens and it looks designed; notice it live and it looks broken.
 2. **The feed** is the only part of the page that reports *change* rather than *state*. It
    starts empty on every load and fills with `Pending → Ready`, then `Ready → Orphaned`. If you
    want the feed to have something in it, be on the page before you click.
@@ -523,7 +523,7 @@ demo.** They are here so that none of them is discovered in the room.
 | **O8** | The 2 s poll is not free: each one shells out to `kubectl` (namespace, CRD, controller replicas, claims, Ingress), `docker ps`/`inspect`, and a SigV4 listing of the MinIO bucket (`scripts/state.sh`). | Fine for a demo; worth knowing if a laptop is left open on the page all day, and the reason O4's churn happens at all. |
 | **O9** | `serve.py`'s `do_GET` comment names `app/kustomize/postgres-secret.env` as a file it must never hand out. That path is not in the tree — the live secret is `deploy/.env`. | The refusal is correct either way (A4 proves it); only the comment has drifted. Do not use the comment as a file inventory. |
 | **O10** | **`console/state.py` is not the read model.** The page's `/state` runs `make -s state` → **`scripts/state.sh`**. `state.py` is a superseded standalone implementation, restored deliberately as a reference (`memory-bank/journal/2026-09-13.md`, and `README-BAK.md` calls it "the earlier standalone read model"). The two disagree on both of the things you would look it up for: containers (any name starting `jit-` or containing `voting-`, which is 8 on a demo host including the k3d nodes — versus only the three module containers) and `up` (any namespace or running container — versus the cluster answering, the CRD being served and the controller having a replica). | Anyone who reads `state.py` to predict what the page shows gets it wrong. I did, while writing B2, and only `docs/evidence/state.log` caught it. Keep it if it is useful, but its docstring should name the file that superseded it. |
-| **O11** | The Setup sub-line says `, one on the clock.` whenever *any* claim is `Orphaned`, however many there are (`console/index.html`, `render`). | Since the 2026-09-17 realignment only `pgadmin` orphans after **Delete the deployment**, so the pill and the sub-line agree and this is invisible in the single-namespace flow. Still latent: two orphans at once (e.g. `demo-undeploy` in both namespaces) show `2 on the clock` against *one*. Cosmetic and one word wide; a presenter pointing at both would look worse than the bug does. |
+| **O11** | The Setup sub-line says `, one on the clock.` whenever *any* claim is `Orphaned`, however many there are (`console/index.html`, `render`). | **Visible since `demo-undeploy` began deleting all three Deployments:** the claims orphan together, so the LED reads `3 on the clock` while the sub-line still says `one on the clock`, two numbers side by side on screen. Fixing it means pluralising that clause in `render()`, and `test_the_setup_subtitle_counts_claims_and_containers` asserts today's singular wording, so it moves with the fix. |
 | **O12** | The folded *Containers and state objects* strip lists **every** `ns/...` state object in the MinIO bucket, not this namespace's: 21 keys on 2026-09-17, including `ns/voting-b/*` (which Demo mode never creates) and leftovers from historic test namespaces (`ns/default/*`, `ns/s13-a/*`, `ns/hatch-leak/*`, …). | It is inside a `<details>`, closed by default, so a demo that never expands it is unaffected — keep it closed. Pruning the bucket would fix the display, but that is deleting state, so treat it as a decision rather than tidying. |
 
 ---

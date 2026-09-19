@@ -1,1 +1,1 @@
-ran demo-undeploy
+deployment.apps "voting-app-vote" deleted from voting-a namespace

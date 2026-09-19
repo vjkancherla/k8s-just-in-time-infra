@@ -150,3 +150,59 @@ Runner stopped.
 removed the runner and MinIO
 removed the IPAM ledger
 PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)

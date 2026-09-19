@@ -4,13 +4,22 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>JIT Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
 <style>
+  .material-symbols-outlined{font-family:'Material Symbols Outlined';font-weight:normal;font-style:normal;
+    font-size:16px;line-height:1;letter-spacing:normal;text-transform:none;display:inline-block;
+    white-space:nowrap;word-wrap:normal;direction:ltr;vertical-align:middle;
+    -webkit-font-feature-settings:'liga';font-feature-settings:'liga';-webkit-font-smoothing:antialiased}
   :root{
-    --bg:#fbfbfd;--surface:#fff;--ink:#1d1d1f;--ink-2:#6e6e73;--ink-3:#a1a1a6;
+    --bg:#f5f5f7;--surface:#fff;--ink:#1d1d1f;--ink-2:#6e6e73;--ink-3:#a1a1a6;
     --hair:rgba(0,0,0,.08);--blue:#0071e3;--green:#30a46c;--amber:#c76a15;--red:#c9342b;
     --green-bg:#e8f6ee;--amber-bg:#fdf1e2;--radius:18px;
-    --sans:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,Arial,sans-serif;
-    --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI",Helvetica,Arial,sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace;
+    --frame-zoom:0.75;
   }
   *{box-sizing:border-box}
   html,body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
@@ -82,6 +91,7 @@
   .log .ok{color:var(--green)} .log .warn{color:var(--amber)} .log .err{color:var(--red)}
   .notice{font-size:13.5px;color:var(--ink-2);background:rgba(0,0,0,.03);border-radius:12px;
     padding:13px 17px;margin-top:16px;max-width:66ch}
+  .notice:empty{display:none}
 
   /* namespaces */
   .nsblock{margin-top:32px}
@@ -120,8 +130,12 @@
   .url{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin:0 auto;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .chrome a{font-size:12px;color:var(--blue);text-decoration:none;white-space:nowrap}
-  .frame{width:100%;height:330px;border:0;display:block;background:#fff}
-  .framefall{height:330px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  #votePane, #resultPane{position:relative;overflow:hidden;height:clamp(480px,64vh,760px)}
+  .frame{position:absolute;top:0;left:0;border:0;background:#fff;
+    width:calc(100% / var(--frame-zoom));height:calc(100% / var(--frame-zoom));
+    transform:scale(var(--frame-zoom));transform-origin:top left}
+  #resultPane{--frame-zoom:0.70}
+  .framefall{height:clamp(480px,64vh,760px);display:flex;flex-direction:column;align-items:center;justify-content:center;
     gap:14px;text-align:center;color:var(--ink-3);font-size:14px;padding:24px}
 
   /* start here */
@@ -147,28 +161,43 @@
 
   /* infrastructure — namespace cards */
   .ns-card{background:var(--surface);border-radius:var(--radius);padding:0;
-    box-shadow:0 0 0 1px var(--hair),0 2px 12px rgba(0,0,0,.04);margin-bottom:20px;overflow:hidden}
-  .ns-header{display:flex;align-items:baseline;gap:12px;padding:20px 28px 0;flex-wrap:wrap}
-  .ns-name{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:-.01em}
-  .ns-meta{font-size:13px;color:var(--ink-3)}
-  .ns-block{font-family:var(--mono);font-size:12px;color:var(--ink-3);margin-left:auto}
-  .ns-claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
-    gap:1px;background:var(--hair);margin-top:16px}
-  .ns-claim{background:var(--surface);padding:20px 24px;cursor:pointer;transition:background .15s}
-  .ns-claim:hover{background:rgba(0,0,0,.015)}
-  .ns-claim.selected{background:rgba(0,113,227,.04)}
-  .ns-claim .claim-name{font-size:15px;font-weight:500;margin-bottom:2px}
-  .ns-claim .claim-addr{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
-  .ns-claim .claim-desc{font-size:14px;color:var(--ink-2);margin-top:8px;line-height:1.45}
+    box-shadow:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.03);border:1px solid var(--hair);
+    margin-bottom:20px;overflow:hidden}
+  .ns-header{display:flex;align-items:center;gap:12px;padding:14px 24px;flex-wrap:wrap;
+    background:#fafafd;border-bottom:1px solid var(--hair)}
+  .ns-name{font-family:var(--mono);font-size:15px;font-weight:600;letter-spacing:-.01em}
+  .ns-meta{font-size:12.5px;color:var(--ink-2)}
+  .ns-block{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-left:auto;
+    background:rgba(0,0,0,.045);padding:3px 10px;border-radius:6px}
+  .ns-claims{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:14px;padding:18px}
+  .ns-claim{background:var(--surface);border:1.5px solid var(--hair);border-radius:12px;
+    padding:14px 16px;cursor:pointer;transition:border-color .15s,box-shadow .15s;
+    display:flex;flex-direction:column;justify-content:space-between}
+  .ns-claim:hover{border-color:rgba(0,0,0,.18)}
+  .ns-claim.selected{border-color:var(--blue);box-shadow:0 0 0 4px rgba(0,113,227,.1)}
+  .ns-claim .claim-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .ns-claim .claim-name{font-size:14px;font-weight:600}
+  .ns-claim .claim-addr{font-family:var(--mono);font-size:11.5px;color:var(--ink-2);margin-top:9px}
+  .ns-claim .claim-desc{font-size:12px;color:var(--ink-2);margin-top:6px;line-height:1.5}
   .ns-claim .claim-desc b{color:var(--ink);font-weight:500}
   .ns-claim .count{font-family:var(--mono);font-variant-numeric:tabular-nums;
-    font-weight:600;color:var(--amber)}
-  .no-claims{font-size:13px;color:var(--ink-3);padding:16px 28px 20px}
+    font-weight:600;color:var(--amber);background:var(--amber-bg);padding:1px 5px;border-radius:5px}
+  .ns-claim .claim-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;
+    margin-top:12px;padding-top:9px;border-top:1px solid var(--hair);font-size:10.5px;color:var(--ink-3)}
+  .ns-claim.selected .claim-foot{color:var(--blue);font-weight:500}
+  .ns-claim .claim-foot i{width:6px;height:6px;border-radius:50%;display:block;background:var(--ink-3)}
+  .no-claims{font-size:13px;color:var(--ink-3);padding:24px;text-align:center;font-style:italic}
   .feed{font-size:13.5px;color:var(--ink-2)}
-  .feed div{display:flex;gap:12px;padding:7px 0;border-bottom:1px solid var(--hair)}
+  .feed div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:9px 0;
+    border-bottom:1px solid var(--hair)}
   .feed div:last-child{border-bottom:0}
-  .feed .t{font-family:var(--mono);font-size:11.5px;color:var(--ink-3);padding-top:2px}
+  .feed div .left{display:flex;align-items:center;gap:12px}
+  .feed .t{font-family:var(--mono);font-size:11px;color:var(--ink-3)}
   .feed .none{color:var(--ink-3);border:0;padding:4px 0}
+  .feed .fdot{width:6px;height:6px;border-radius:50%;flex:0 0 auto;background:var(--ink-3)}
+  .feed .fdot.ready{background:var(--green)} .feed .fdot.orphaned{background:var(--amber)}
+  .feed .fdot.failed{background:var(--red)} .feed .fdot.other{background:var(--blue)}
   .claim.pick{cursor:pointer}
   .claim.pick:hover{box-shadow:0 1px 2px rgba(0,0,0,.06),0 6px 18px rgba(0,0,0,.09)}
   .claim.on{box-shadow:0 0 0 2px var(--blue),0 6px 18px rgba(0,0,0,.06)}
@@ -176,26 +205,38 @@
     margin:0;white-space:pre-wrap;max-height:460px;overflow:auto}
   .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
 
-  /* the container, set like the claim so the panel has one visual language */
-  .matched{font-size:14px;color:var(--green);margin:0 0 10px;font-weight:500}
-  .warn{font-size:13.5px;color:var(--red);margin:0 0 14px}
-  .block{border-top:1px solid var(--hair);padding:14px 0 0;margin-top:14px}
-  .block:first-of-type{border-top:0;margin-top:0;padding-top:0}
-  .block > summary{cursor:pointer;list-style:none;display:flex;align-items:baseline;gap:12px;
-    flex-wrap:wrap;padding:2px 0}
+  /* selected-claim inspector card */
+  #objectPanel.panel{padding:24px;display:block}
+  .matched{font-size:13px;color:var(--ink);margin:0 0 18px;font-weight:500;display:flex;
+    align-items:center;gap:8px;background:var(--bg);border:1px solid var(--hair);
+    padding:10px 16px;border-radius:12px}
+  .matched .material-symbols-outlined{color:var(--green);font-size:17px;flex:0 0 auto}
+  .warn{font-size:13.5px;color:var(--red);margin:0 0 14px;background:#fdecea;padding:10px 16px;
+    border-radius:12px}
+  .blocks{display:grid;grid-template-columns:1fr;gap:16px}
+  @media(min-width:900px){.blocks{grid-template-columns:1fr 1fr}}
+  .block{border:1px solid var(--hair);border-radius:12px;overflow:hidden;background:#fafafd;
+    display:flex;flex-direction:column}
+  .block > summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;
+    padding:11px 14px;background:#f0f0f3;border-bottom:1px solid var(--hair)}
   .block > summary::-webkit-details-marker{display:none}
-  .block > summary::before{content:'▸';font-size:11px;color:var(--ink-3);width:12px}
-  .block[open] > summary::before{content:'▾'}
-  .block > summary:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
-  .block .where{font-size:14px;font-weight:600;letter-spacing:-.01em}
-  .block .what{font-family:var(--mono);font-size:12.5px;color:var(--ink-3)}
-  .block .after{margin-left:auto;font-size:12.5px;color:var(--ink-3)}
-  .block .body{padding:14px 0 4px 24px}
+  .block > summary .material-symbols-outlined{color:var(--blue);font-size:15px}
+  .block > summary:focus-visible{outline:2px solid var(--blue);outline-offset:-2px;border-radius:4px}
+  .block .where{font-size:12.5px;font-weight:600;letter-spacing:-.01em}
+  .block .what{font-family:var(--mono);font-size:11px;color:var(--ink-2)}
+  .block .after{margin-left:auto;font-size:11px;color:var(--ink-3);font-family:var(--mono)}
+  .block .chev{margin-left:8px;color:var(--ink-3);font-size:14px;flex:0 0 auto}
+  .block[open] .chev-more{display:none} .block:not([open]) .chev-less{display:none}
+  .block .body{padding:14px 16px}
+  .block.dark .body{background:#1c1c1e;padding:16px;overflow-x:auto}
   .yaml b{color:var(--ink);font-weight:600;background:#fff6d6}
-  .yaml .off{color:var(--ink-3)}
-  .yamltoggle{font:inherit;font-size:13px;color:var(--blue);background:none;border:0;
-    padding:10px 0 0;cursor:pointer}
-  .yamltoggle:focus-visible{outline:2px solid var(--blue);outline-offset:3px;border-radius:4px}
+  .yaml .off{color:var(--ink-3);font-style:italic}
+  .yaml .v-img{color:var(--blue)} .yaml .v-ok{color:var(--green);font-weight:600}
+  .yaml-dark{font-family:var(--mono);font-size:12px;line-height:1.75;color:#d1d1d6;margin:0;
+    white-space:pre-wrap;max-height:460px;overflow:auto}
+  .yaml-dark .yk{color:#ff7b72} .yaml-dark .nk{color:#79c0ff} .yaml-dark .ys{color:#a5d6ff}
+  .yaml-dark .yp-ready{color:#3fb950;font-weight:600} .yaml-dark .yp-orphaned{color:#ffbd2e;font-weight:600}
+  .yaml-dark .yp-pending{color:#ffbd2e;font-weight:600} .yaml-dark .yp-failed{color:#ff7b72;font-weight:600}
   .chip.pick{cursor:pointer}
   .chip.pick:hover{box-shadow:0 0 0 2px rgba(0,113,227,.25)}
   .chip.orphan{color:var(--red)}
@@ -206,6 +247,7 @@
     color:var(--ink-3);font-weight:600;padding:0 16px 12px 0;border-bottom:1px solid var(--hair)}
   .docker-table td{padding:13px 16px 13px 0;border-bottom:1px solid var(--hair);vertical-align:middle}
   .docker-table tr:last-child td{border-bottom:0}
+  .docker-table tr.row-selected{background:rgba(0,113,227,.03)}
   .docker-table .cname{font-family:var(--mono);font-size:13px;font-weight:500;white-space:nowrap}
   .docker-table .caddr{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
   .docker-table .cstatus{font-size:11px;font-weight:600;padding:3px 10px;border-radius:980px;
@@ -214,20 +256,118 @@
   .docker-table .cstatus.stopped{background:#fdecea;color:var(--red)}
   .docker-table .clink{font-size:12px;color:var(--blue);cursor:pointer;text-decoration:none;font-weight:500}
   .docker-table .clink:hover{text-decoration:underline}
-  .docker-table .ccontrol{font-size:12px;color:var(--ink-3)}
+  .docker-table .clink.orphan-pill{color:var(--amber);background:var(--amber-bg);padding:3px 9px;
+    border-radius:7px;display:inline-flex;align-items:center;gap:5px}
+  .docker-table .clink.orphan-pill .tiny-tag{font-size:9.5px;text-transform:uppercase;font-weight:700;
+    letter-spacing:.03em}
+  .docker-table .ccontrol{font-size:12px;color:var(--ink-3);font-style:italic}
   .docker-table .cnoclaim{font-size:12px;color:var(--amber);font-weight:500}
   .docker-row{cursor:pointer;transition:background .15s}
   .docker-row:hover{background:rgba(0,0,0,.015)}
 
   .foot{border-top:1px solid var(--hair);padding:26px 0 60px;color:var(--ink-3);font-size:13px}
   @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+  /* ── header brand chip ─────────────────────────────────────────────── */
+  .brand-badge{width:28px;height:28px;border-radius:8px;background:var(--blue);color:#fff;
+    display:flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,.08)}
+
+  /* ── setup: two-column layout ──────────────────────────────────────── */
+  .setup-grid{display:grid;grid-template-columns:1fr;gap:24px;margin-top:26px}
+  @media(min-width:980px){.setup-grid{grid-template-columns:5fr 7fr;align-items:start}}
+  .setup-grid .right{position:sticky;top:76px}
+  @media(max-width:979px){.setup-grid .right{position:static}}
+
+  /* action list - plain cards, no stepper numbering */
+  .actions{display:flex;flex-direction:column;gap:10px}
+  .action-card{background:var(--surface);border-radius:14px;padding:14px 16px;box-shadow:0 1px 2px rgba(0,0,0,.03);
+    transition:background .15s;display:flex;flex-direction:column;gap:6px}
+  .action-card:hover{background:#fafafd}
+  .action-card.danger:hover{background:rgba(201,52,43,.045)}
+  .action-card.running{background:rgba(0,113,227,.05)}
+  .action-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+  .action-name{display:flex;align-items:center;gap:8px}
+  .action-title{font-size:14.5px;font-weight:600;letter-spacing:-.01em}
+  .action-card.running .action-title{color:var(--blue)}
+  .action-pulse{width:7px;height:7px;border-radius:50%;background:var(--blue);
+    animation:actionpulse 1.4s ease-in-out infinite}
+  @keyframes actionpulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .action-controls{display:flex;align-items:center;gap:8px}
+  .action-pill{font-family:var(--mono);font-size:11px;font-weight:500;padding:3px 9px;border-radius:7px;
+    background:rgba(0,0,0,.045);color:var(--ink-2);white-space:nowrap}
+  .action-pill.streaming{background:rgba(0,113,227,.1);color:var(--blue);letter-spacing:.03em}
+  .action-pill.destructive{background:#fdecea;color:var(--red)}
+  .action-run{font:inherit;font-size:12px;font-weight:500;padding:6px 13px;border-radius:8px;cursor:pointer;
+    background:rgba(0,0,0,.05);color:var(--ink);border:0;white-space:nowrap}
+  .action-run:hover{background:rgba(0,0,0,.09)}
+  .action-run[disabled]{opacity:.4;cursor:not-allowed}
+  .action-run.danger-run{background:var(--red);color:#fff}
+  .action-run.danger-run:hover{opacity:.88}
+  .action-desc{font-size:12.5px;color:var(--ink-2);line-height:1.5}
+  .action-foot{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:2px}
+  .action-cmd{font-family:var(--mono);font-size:11px;background:rgba(0,0,0,.045);color:var(--ink-2);
+    padding:4px 9px;border-radius:7px;display:inline-block}
+  .action-card.running .action-cmd{background:rgba(0,113,227,.1);color:var(--blue)}
+  .action-tag{font-family:var(--mono);font-size:10.5px;color:var(--ink-3)}
+
+  /* terminal - GitHub-dark style */
+  .term{background:#0d1117;color:#c9d1d9;border-radius:14px;overflow:hidden;
+    box-shadow:0 4px 24px rgba(0,0,0,.18);border:1px solid rgba(0,0,0,.3)}
+  .term-head{background:#161b22;padding:9px 14px;display:flex;align-items:center;gap:10px;
+    border-bottom:1px solid rgba(255,255,255,.06)}
+  .term-dots{display:flex;gap:6px;flex:0 0 auto}
+  .term-dots i{width:11px;height:11px;border-radius:50%;display:block}
+  .term-dots i:nth-child(1){background:#ff5f56}.term-dots i:nth-child(2){background:#ffbd2e}
+  .term-dots i:nth-child(3){background:#27c93f}
+  .term-title{font-family:var(--mono);font-size:12px;color:#c9d1d9;font-weight:500;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .term-live{font-family:var(--mono);font-size:10px;font-weight:700;letter-spacing:.04em;
+    background:#27c93f;color:#0d1117;padding:2px 7px;border-radius:5px;flex:0 0 auto}
+  .term-live[hidden]{display:none}
+  .term-controls{display:flex;align-items:center;gap:14px;margin-left:auto}
+  .term-btn{font:inherit;font-size:11px;color:#8b949e;background:none;
+    border:0;padding:0;cursor:pointer;display:flex;align-items:center;gap:4px}
+  .term-btn:hover{color:#c9d1d9}
+  .term-btn .material-symbols-outlined{font-size:13px}
+  .term-body{padding:16px;font-family:var(--mono);font-size:12.5px;line-height:1.8;
+    min-height:280px;max-height:520px;overflow:auto;white-space:pre-wrap;background:#0d1117;color:#c9d1d9}
+  .term-foot{height:30px;padding:0 14px;background:#161b22;display:flex;align-items:center;
+    justify-content:space-between;font-family:var(--mono);font-size:10.5px;color:#8b949e;
+    border-top:1px solid rgba(255,255,255,.05)}
+  .term-foot .dot{width:6px;height:6px;border-radius:50%;background:var(--ink-3);display:inline-block;
+    margin-right:6px;vertical-align:middle}
+  .term-foot .dot.live{background:#27c93f}
+
+  /* macOS-style app window chrome */
+  .win{overflow:hidden;background:var(--surface);border-radius:16px;
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.06);border:1px solid var(--hair)}
+  .win-bar{display:flex;align-items:center;gap:10px;padding:9px 12px;border-bottom:1px solid var(--hair);
+    background:#f8f8fa}
+  .win-dots{display:flex;gap:6px;flex:0 0 auto}
+  .win-dots i{width:10px;height:10px;border-radius:50%;display:block}
+  .win-dots i:nth-child(1){background:#ff5f56}.win-dots i:nth-child(2){background:#ffbd2e}
+  .win-dots i:nth-child(3){background:#27c93f}
+  .win-addr{flex:1;max-width:280px;margin:0 auto;background:#fff;border:1px solid var(--hair);
+    border-radius:7px;padding:4px 10px;display:flex;align-items:center;gap:6px;justify-content:center;
+    overflow:hidden}
+  .win-addr .material-symbols-outlined{font-size:12px;color:var(--ink-3)}
+  .win-addr span{font-family:var(--mono);font-size:11px;color:var(--ink);overflow:hidden;
+    text-overflow:ellipsis;white-space:nowrap}
+  .win-open{font-size:12px;font-weight:500;color:var(--blue);text-decoration:none;display:flex;
+    align-items:center;gap:2px;flex:0 0 auto}
+  .win-open .material-symbols-outlined{font-size:13px}
+
+  .ns-claim.selected{box-shadow:0 0 0 2px var(--blue),0 6px 18px rgba(0,0,0,.06)}
 </style>
 </head>
 <body>
 
 <div class="bar">
   <div class="wrap bar-in">
-    <div class="logo">JIT</div>
+    <div class="logo" style="display:flex;align-items:center;gap:9px">
+      <span class="brand-badge"><span class="material-symbols-outlined" style="font-size:15px">terminal</span></span>
+      <span>JIT Console</span>
+    </div>
     <div class="seg small" id="modeSwitch" role="tablist" aria-label="Mode">
       <button role="tab" aria-selected="true" data-mode="demo">Demo</button>
       <button role="tab" aria-selected="false" data-mode="test">Testing</button>
@@ -247,12 +387,31 @@
   <div class="wrap">
     <h1 id="setupH1">—</h1>
     <p class="sub" id="setupSub"></p>
-    <div class="runs">
-      <div>
-        <div class="list" id="actionList"></div>
+
+    <div class="setup-grid">
+      <div class="left">
+        <div class="actions" id="actionList"></div>
         <p class="notice" id="modeNote"></p>
       </div>
-      <pre class="log" id="log"></pre>
+
+      <div class="right">
+        <div class="term">
+          <div class="term-head">
+            <div class="term-dots"><i></i><i></i><i></i></div>
+            <span class="term-title" id="termTitle">$</span>
+            <span class="term-live" id="termLive" hidden>LIVE</span>
+            <div class="term-controls">
+              <button class="term-btn" id="termCopy" type="button"><span class="material-symbols-outlined">content_copy</span>Copy</button>
+              <button class="term-btn" id="termClear" type="button"><span class="material-symbols-outlined">block</span>Clear</button>
+            </div>
+          </div>
+          <pre class="term-body" id="log"></pre>
+          <div class="term-foot">
+            <span><span class="dot" id="termDot"></span><span id="termStatus">idle</span></span>
+            <span>Auto-scroll: ON</span>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -275,7 +434,7 @@
 
       <!-- selected claim detail -->
       <div class="oh" id="objectHead" hidden>Selected claim</div>
-      <div id="objectPanel" hidden></div>
+      <div class="panel" id="objectPanel" hidden></div>
 
       <!-- docker containers -->
       <div class="oh">Docker containers</div>
@@ -301,14 +460,20 @@
       <p class="sub">Both pages come from the cluster's own Ingress: host, scheme and port are read from it, not assumed. Redis and Postgres are containers outside the cluster, reached through a Service with no selector.</p>
       <div class="seg small nsswitch" id="nsSwitch" role="tablist"></div>
       <div class="apps">
-        <div class="app">
-          <div class="chrome"><div class="dots"><i></i><i></i><i></i></div>
-            <div class="url" id="voteUrl"></div><a id="voteOpen" target="_blank" rel="noopener">Open</a></div>
+        <div class="win">
+          <div class="win-bar">
+            <div class="win-dots"><i></i><i></i><i></i></div>
+            <div class="win-addr"><span class="material-symbols-outlined">lock</span><span id="voteUrl"></span></div>
+            <a class="win-open" id="voteOpen" target="_blank" rel="noopener">Open<span class="material-symbols-outlined">open_in_new</span></a>
+          </div>
           <div id="votePane"></div>
         </div>
-        <div class="app">
-          <div class="chrome"><div class="dots"><i></i><i></i><i></i></div>
-            <div class="url" id="resultUrl"></div><a id="resultOpen" target="_blank" rel="noopener">Open</a></div>
+        <div class="win">
+          <div class="win-bar">
+            <div class="win-dots"><i></i><i></i><i></i></div>
+            <div class="win-addr"><span class="material-symbols-outlined">lock</span><span id="resultUrl"></span></div>
+            <a class="win-open" id="resultOpen" target="_blank" rel="noopener">Open<span class="material-symbols-outlined">open_in_new</span></a>
+          </div>
           <div id="resultPane"></div>
         </div>
       </div>
@@ -393,7 +558,7 @@
 /* ─── actions: the S18 allowlist, nothing else ─────────────────────────── */
 var ACTIONS = [
   {mode:'demo', name:'demo-up',      cmd:'make demo-up',            t:'Start the demo',            d:'Cluster, control plane and the app in one namespace.', hint:'~3 min'},
-  {mode:'demo', name:'demo-undeploy', cmd:'make demo-undeploy',          t:'Delete the deployment',   d:'The pods go. The containers keep running and a retention clock starts.'},
+  {mode:'demo', name:'demo-undeploy', cmd:'make demo-undeploy',          t:'Delete the deployment',   d:'Vote, worker and result all go. The containers keep running and a retention clock starts.'},
   {mode:'demo', name:'demo-redeploy', cmd:'make demo-redeploy',       t:'Redeploy inside the window',          d:'The claim goes back to Ready. Same container, same data, nothing reprovisioned.'},
   {mode:'demo', name:'ns-delete-a',  cmd:'make ns-delete NS=voting-a', t:'Delete the namespace',              d:'All three containers destroyed at once. The retention clock is ignored.', danger:true},
   {mode:'demo', name:'destroy',      cmd:'make destroy',            t:'Delete everything',         d:'Cluster, control plane and containers. Use it when the demo is over and you want the laptop back.', hint:'destroy', danger:true},
@@ -458,6 +623,7 @@ async function run(a){
   S.busy = a.name; render();
   $('log').textContent = '';
   logLine('$ ' + a.cmd, 'cmd');
+  setTermStatus(true, a.cmd);
 
   var offset = 0;
 
@@ -491,8 +657,30 @@ async function run(a){
   }
 
   S.busy = null;
+  setTermStatus(false);
   poll(); render();
 }
+/* ─── terminal chrome: title/LIVE pill + copy/clear (visual only, no server state) ── */
+function setTermStatus(running, cmd){
+  var dot = $('termDot'), txt = $('termStatus'), title = $('termTitle'), live = $('termLive');
+  if(dot) dot.classList.toggle('live', !!running);
+  if(txt) txt.textContent = running ? ('running ' + cmd) : 'idle';
+  if(title) title.textContent = running ? cmd : '$';
+  if(live) live.hidden = !running;
+}
+(function(){
+  var copyBtn = document.getElementById('termCopy');
+  var clearBtn = document.getElementById('termClear');
+  if(copyBtn) copyBtn.addEventListener('click', function(){
+    var text = $('log').innerText;
+    if(navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).catch(function(){});
+    }
+  });
+  if(clearBtn) clearBtn.addEventListener('click', function(){
+    $('log').textContent = '';
+  });
+})();
 function lineClass(l){
   if(/\b0 FAIL\b/.test(l)) return 'ok';            // "17 PASS, 0 FAIL" is a good line
   if(/\bFAIL\b|error|Error|refused/.test(l)) return 'err';
@@ -515,25 +703,73 @@ function remaining(iso){
 function renderActions(){
   var host = $('actionList');
   host.textContent = '';
-  ACTIONS.filter(function(a){ return a.mode === S.mode; }).forEach(function(a){
-    var b = document.createElement('button');
-    b.className = 'item' + (S.busy === a.name ? ' running' : '');
-    b.disabled = !!S.busy;
-    b.innerHTML = '<span class="body"><span class="t"></span><span class="d"></span></span>' +
-                  '<span class="tgt"></span>';
-    b.querySelector('.t').textContent = a.t;
-    b.querySelector('.d').textContent = a.d;
-    b.querySelector('.tgt').textContent = a.hint || '';
-    b.title = a.cmd;
-    b.addEventListener('click', function(){ run(a); });
-    host.appendChild(b);
+
+  var list = ACTIONS.filter(function(a){ return a.mode === S.mode; });
+
+  list.forEach(function(a){
+    var running = S.busy === a.name;
+    var isDestroy = a.name === 'destroy';
+
+    var card = document.createElement('div');
+    card.className = 'action-card' + (running ? ' running' : '') + (a.danger ? ' danger' : '');
+
+    var top = document.createElement('div'); top.className = 'action-top';
+    var name = document.createElement('div'); name.className = 'action-name';
+    var title = document.createElement('span'); title.className = 'action-title'; title.textContent = a.t;
+    name.appendChild(title);
+    if(running){
+      var pulse = document.createElement('span'); pulse.className = 'action-pulse';
+      name.appendChild(pulse);
+    }
+
+    var controls = document.createElement('div'); controls.className = 'action-controls';
+    if(running){
+      var streaming = document.createElement('span'); streaming.className = 'action-pill streaming';
+      streaming.textContent = 'Streaming\u2026';
+      controls.appendChild(streaming);
+    } else if(a.danger){
+      var pill = document.createElement('span'); pill.className = 'action-pill destructive';
+      pill.textContent = isDestroy ? 'destroy' : 'destructive';
+      controls.appendChild(pill);
+    } else if(a.hint){
+      var hintPill = document.createElement('span'); hintPill.className = 'action-pill';
+      hintPill.textContent = a.hint;
+      controls.appendChild(hintPill);
+    }
+    var btn = document.createElement('button'); btn.type = 'button';
+    btn.className = 'action-run' + (a.danger ? ' danger-run' : '');
+    btn.textContent = running ? 'Running\u2026' : 'Run';
+    btn.disabled = !!S.busy;
+    btn.addEventListener('click', function(){ run(a); });
+    controls.appendChild(btn);
+
+    top.appendChild(name); top.appendChild(controls);
+
+    var desc = document.createElement('p'); desc.className = 'action-desc'; desc.textContent = a.d;
+
+    var foot = document.createElement('div'); foot.className = 'action-foot';
+    var cmd = document.createElement('span'); cmd.className = 'action-cmd'; cmd.textContent = '$ ' + a.cmd;
+    foot.appendChild(cmd);
+    if(running){
+      var tag = document.createElement('span'); tag.className = 'action-tag'; tag.textContent = 'Active target';
+      foot.appendChild(tag);
+    }
+
+    card.appendChild(top); card.appendChild(desc); card.appendChild(foot);
+    host.appendChild(card);
   });
 
   $('modeNote').textContent = S.mode === 'demo'
-    ? 'Demo runs one namespace, voting-a. Fewer containers, faster to start, the same targets underneath.'
+    ? ''
     : 'Testing runs both namespaces. voting-b exists so J8 can prove a hard delete is bounded: its three containers go while voting-a keeps running.';
 }
 
+function moduleIcon(module){
+  if(/redis/i.test(module)) return 'memory';
+  if(/postgres|db/i.test(module)) return 'database';
+  if(/pgadmin/i.test(module)) return 'terminal';
+  return 'dns';
+}
 function claimSentence(c, ns){
   var n = (c.referencedBy || []).length;
   if(c.phase === 'Ready' && n)
@@ -590,10 +826,20 @@ function renderNamespaces(){
         var cell = document.createElement('div'); cell.className = 'ns-claim';
         cell.dataset.ns = n.name; cell.dataset.mod = c.module;
 
-        var cn = document.createElement('div'); cn.className = 'claim-name'; cn.textContent = c.module;
+        var cn = document.createElement('div'); cn.className = 'claim-name';
+        cn.innerHTML = '<span class="material-symbols-outlined" style="font-size:14px;vertical-align:-2px;color:var(--ink-3);margin-right:5px">' +
+          moduleIcon(c.module) + '</span>' + esc(c.module);
+
+        var top = document.createElement('div'); top.className = 'claim-top';
+        var tag = document.createElement('span');
+        tag.className = 'tag ' + (c.phase === 'Ready' ? 'ready' : c.phase === 'Orphaned' ? 'orphaned' : c.phase === 'Failed' ? 'failed' : 'pending');
+        tag.textContent = c.phase;
+        tag.style.marginTop = '0';
+        top.appendChild(cn); top.appendChild(tag);
+
         var ca = document.createElement('div'); ca.className = 'claim-addr'; ca.textContent = c.address || '—';
         var cd = document.createElement('div'); cd.className = 'claim-desc'; cd.innerHTML = claimSentence(c, n);
-        cell.appendChild(cn); cell.appendChild(ca); cell.appendChild(cd);
+        cell.appendChild(top); cell.appendChild(ca); cell.appendChild(cd);
 
         if(c.phase === 'Orphaned'){
           var r = remaining(c.expiresAt);
@@ -604,13 +850,21 @@ function renderNamespaces(){
           }
         }
 
-        var tag = document.createElement('span');
-        tag.className = 'tag ' + (c.phase === 'Ready' ? 'ready' : c.phase === 'Orphaned' ? 'orphaned' : c.phase === 'Failed' ? 'failed' : 'pending');
-        tag.textContent = c.phase;
-        cell.appendChild(tag);
+        var foot = document.createElement('div'); foot.className = 'claim-foot';
+        var footLabel = (c.referencedBy || []).length
+          ? 'Active link' : c.phase === 'Orphaned' ? 'Nothing referencing it' : 'Idle listener';
+        foot.innerHTML = '<span></span><i></i>';
+        foot.querySelector('span').textContent = footLabel;
+        foot.querySelector('i').style.background = c.phase === 'Ready' ? 'var(--green)' :
+          c.phase === 'Orphaned' ? 'var(--amber)' : c.phase === 'Failed' ? 'var(--red)' : 'var(--ink-3)';
+        cell.appendChild(foot);
 
         var key = n.name + '/' + c.module;
-        if(S.picked === key) cell.classList.add('selected');
+        if(S.picked === key){
+          cell.classList.add('selected');
+          foot.querySelector('span').textContent = 'Selected claim';
+          foot.querySelector('i').style.background = 'var(--blue)';
+        }
         cell.addEventListener('click', function(){
           S.picked = (S.picked === key) ? null : key;
           showClaim(n.name, c.module);
@@ -674,7 +928,6 @@ async function showClaim(ns, module){
   }
 
   S.yamlRaw = yaml;
-  S.yamlFull = false;
   panel.innerHTML = claimPanel(ns, module, claim, ct, yaml, failed);
   paintYaml();
   panel.querySelectorAll('.block').forEach(function(d){
@@ -688,7 +941,7 @@ function claimPanel(ns, module, claim, ct, yaml, failed){
   var html = '';
 
   if(claim && ct){
-    html += '<p class="matched">Matched by name, <b>' + esc(ct.name) + '</b>' +
+    html += '<p class="matched"><span class="material-symbols-outlined">check_circle</span>Matched by name, <b>' + esc(ct.name) + '</b>' +
       (claim.address && ct.address && claim.address === ct.address
         ? ', and the address agrees.' : '.') + '</p>';
   } else if(claim && !ct){
@@ -697,24 +950,31 @@ function claimPanel(ns, module, claim, ct, yaml, failed){
       '-</b>. Either it was removed outside the runner, or it was never created.</p>';
   }
 
+  html += '<div class="blocks">';
   if(ct){
     html += '<details class="block" open><summary>' +
+      '<span class="material-symbols-outlined">inventory_2</span>' +
       '<span class="where">Docker</span>' +
       '<span class="what">' + esc(ct.name) + '</span>' +
       '<span class="after">' + (ct.address ? esc(ct.address) : '') + '</span>' +
+      '<span class="chev material-symbols-outlined chev-more">expand_more</span>' +
+      '<span class="chev material-symbols-outlined chev-less">expand_less</span>' +
       '</summary><div class="body"><pre class="yaml">' + containerYaml(ct) + '</pre></div></details>';
   }
 
-  html += '<details class="block"><summary>' +
+  html += '<details class="block dark" open><summary>' +
+    '<span class="material-symbols-outlined">layers</span>' +
     '<span class="where">Kubernetes</span>' +
     '<span class="what">InfraClaim/' + esc(ns + '-' + module) + '</span>' +
-    '<span class="after">' + esc(ns) + '</span>' +
+    '<span class="after">' + esc(ns) + '</span>';
+  html += '<span class="chev material-symbols-outlined chev-more">expand_more</span>' +
+    '<span class="chev material-symbols-outlined chev-less">expand_less</span>' +
     '</summary><div class="body">';
   html += failed
     ? '<p class="tiny" style="margin:0">' + esc(failed) + '</p>'
-    : '<pre class="yaml" id="claimYaml"></pre>' +
-      '<button class="yamltoggle" id="yamlToggle"></button>';
+    : '<pre class="yaml-dark" id="claimYaml"></pre>';
   html += '</div></details>';
+  html += '</div>';
   return html;
 }
 
@@ -735,8 +995,11 @@ function containerYaml(ct){
   return rows.map(function(r){
     var pad = new Array(width - r[0].length + 1).join(' ');
     var quiet = /^(none|not reported)/.test(r[1]);
-    return '<b>' + esc(r[0]) + '</b>:' + pad + ' ' +
-           (quiet ? '<span class="off">' + esc(r[1]) + '</span>' : esc(r[1]));
+    var value = esc(r[1]);
+    if(quiet) value = '<span class="off">' + value + '</span>';
+    else if(r[0] === 'image') value = '<span class="v-img">' + value + '</span>';
+    else if(r[0] === 'status' && r[1] === 'running') value = '<span class="v-ok">' + value + '</span>';
+    return '<b>' + esc(r[0]) + '</b>:' + pad + ' ' + value;
   }).join('\n');
 }
 
@@ -757,19 +1020,9 @@ function trimYaml(text){
 }
 
 function paintYaml(){
-  var pre = $('claimYaml'), btn = $('yamlToggle');
+  var pre = $('claimYaml');
   if(!pre) return;
-  var full = S.yamlFull;
-  pre.innerHTML = highlightClaim(S.yamlRaw && !full ? trimYaml(S.yamlRaw) : (S.yamlRaw || ''));
-  if(btn){
-    var hidden = (S.yamlRaw || '').split('\n').length -
-                 trimYaml(S.yamlRaw || '').split('\n').length;
-    btn.textContent = full
-      ? 'Hide the bookkeeping'
-      : 'Show everything, including ' + hidden + ' lines of Kopf bookkeeping';
-    btn.hidden = hidden <= 0;
-    btn.onclick = function(){ S.yamlFull = !S.yamlFull; paintYaml(); };
-  }
+  pre.innerHTML = highlightClaim(trimYaml(S.yamlRaw || ''));
 }
 
 function fmtWhen(iso){
@@ -777,11 +1030,28 @@ function fmtWhen(iso){
   return isNaN(d) ? String(iso) : d.toTimeString().slice(0, 8);
 }
 
-/* the two fields worth looking at, marked so they are findable in 60 lines of YAML */
+var PHASE_CLASS = {Ready:'yp-ready', Orphaned:'yp-orphaned', Pending:'yp-pending', Failed:'yp-failed'};
+
+/* line-based, indent-aware: top-level keys get one color, nested keys another,
+   quoted string values a third, and the phase's own value is colored by what
+   it actually says - all straight from the YAML `make claim` returned, nothing invented */
 function highlightClaim(text){
-  return esc(text).replace(
-    /^(\s*)(ownerReferences|finalizers|phase|expiresAt|referencedBy|module|moduleVersion|softDeleteTTL|allocatedIP):/gm,
-    '$1<b>$2</b>:');
+  return text.split('\n').map(function(line){
+    var m = /^(\s*)(-\s+)?([A-Za-z0-9_.\/-]+):(\s?)(.*)$/.exec(line);
+    if(!m) return esc(line);
+    var indent = m[1], dash = m[2] || '', key = m[3], sep = m[4], rest = m[5];
+    var keyClass = indent.length === 0 ? 'yk' : 'nk';
+    var out = esc(indent) + esc(dash) + '<span class="' + keyClass + '">' + esc(key) + '</span>:' + esc(sep);
+    if(!rest) return out;
+    if(key === 'phase' && PHASE_CLASS[rest.trim()]){
+      out += '<span class="' + PHASE_CLASS[rest.trim()] + '">' + esc(rest) + '</span>';
+    } else if(/^"[^"]*"$/.test(rest.trim())){
+      out += '<span class="ys">' + esc(rest) + '</span>';
+    } else {
+      out += esc(rest);
+    }
+    return out;
+  }).join('\n');
 }
 
 /* what changed while this page has been open - observed, not stored anywhere */
@@ -814,11 +1084,16 @@ function renderFeed(){
   }
   S.feed.forEach(function(e){
     var d = document.createElement('div');
+    var left = document.createElement('div'); left.className = 'left';
     var t = document.createElement('span'); t.className = 't';
     t.textContent = e.at.toTimeString().slice(0,8);
     var w = document.createElement('span');
-    w.innerHTML = '<b>' + e.what + '</b> ' + e.from + ' \u2192 ' + e.to;
-    d.appendChild(t); d.appendChild(w);
+    w.innerHTML = '<b>' + esc(e.what) + '</b> ' + esc(e.from) + ' \u2192 ' + esc(e.to);
+    left.appendChild(t); left.appendChild(w);
+    var dot = document.createElement('span');
+    dot.className = 'fdot ' + (e.to === 'Ready' ? 'ready' : e.to === 'Orphaned' || e.to === 'Pending' ? 'orphaned' :
+      e.to === 'Failed' || e.to === 'gone' ? 'failed' : 'other');
+    d.appendChild(left); d.appendChild(dot);
     host.appendChild(d);
   });
 }
@@ -878,19 +1153,24 @@ function renderDockerTable(){
     // claim
     var tdClaim = document.createElement('td');
     if(owner){
+      var ownerKey = owner[0] + '/' + owner[1];
       var a = document.createElement('a'); a.className = 'clink';
-      a.textContent = owner[0] + '/' + owner[1];
-      if(owner[2] === 'Orphaned'){ a.style.color = 'var(--amber)'; a.textContent += ' · Orphaned'; }
+      if(owner[2] === 'Orphaned'){
+        a.classList.add('orphan-pill');
+        a.innerHTML = '<span>' + esc(ownerKey) + '</span><span class="tiny-tag">Orphaned</span>';
+      } else {
+        a.textContent = ownerKey;
+      }
       a.addEventListener('click', function(e){
         e.stopPropagation();
-        S.picked = owner[0] + '/' + owner[1];
+        S.picked = ownerKey;
         showClaim(owner[0], owner[1]);
         $('objectHead').scrollIntoView({behavior:'smooth', block:'start'});
       });
       tdClaim.appendChild(a);
-      tr.className = 'docker-row';
+      tr.className = 'docker-row' + (S.picked === ownerKey ? ' row-selected' : '');
       tr.addEventListener('click', function(){
-        S.picked = owner[0] + '/' + owner[1];
+        S.picked = ownerKey;
         showClaim(owner[0], owner[1]);
         $('objectHead').scrollIntoView({behavior:'smooth', block:'start'});
       });

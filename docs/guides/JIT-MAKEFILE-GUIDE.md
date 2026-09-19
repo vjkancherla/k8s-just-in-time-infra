@@ -81,7 +81,7 @@ make destroy          # the plane, then the cluster and the secret file
 | `make verify` | `app/scripts/verify.sh` | The app's R1–R17 in `NS` (default `voting-a`) → `app/.workflow/verify.md` |
 | `make demo-up` | `scripts/demo-up.sh voting-a` | Cold path for one namespace: down, deploy, jit-up, then app deploy + verify |
 | `make test-up` | `scripts/demo-up.sh voting-a voting-b` | The same for both namespaces |
-| `make demo-undeploy` | `kubectl delete deployment` | Delete the vote Deployment in `DEMO_NS`. The containers keep running on a clock |
+| `make demo-undeploy` | `kubectl delete deployment` | Delete all three app Deployments (vote, worker, result) in `DEMO_NS`, so every claim orphans. The containers keep running on a clock |
 | `make demo-redeploy` | `kubectl apply -k` | Re-apply the overlay. The claim returns to Ready with the same data |
 | `make ns-delete NS=…` | `kubectl delete namespace` | Destroy `NS` now, ignoring the clock. Refuses anything outside `TENANTS` |
 | `make destroy` | `jit-down` then `app make destroy` | Everything: the plane, then the k3d cluster and the generated secret |

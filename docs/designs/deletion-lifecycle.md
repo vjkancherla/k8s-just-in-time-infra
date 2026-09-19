@@ -236,9 +236,11 @@ every scaling event. The JIT infra does not destroy the database because of it.
 
 2. **Controller detects the Deployment is gone.** On the next resync tick (≤30s), the
    controller computes `referencedBy` from live Deployments. A claim with no references
-   left is orphaned; one that still has a reference keeps its lease and arms no clock —
-   after `make demo-undeploy` deletes only `vote`, `redis` and `postgres` stay `Ready`
-   because `worker` (and `result`) still name them, and only `pgadmin` orphans.
+   left is orphaned; one that still has a reference keeps its lease and arms no clock.
+   `make demo-undeploy` deletes all three Deployments the overlay starts — `vote`, `worker`
+   and `result` — so every claim loses its last referrer at once and all three orphan
+   together. Deleting `vote` alone would leave `redis` and `postgres` `Ready`, because
+   `worker` (and `result`) still name them.
 
 3. **Controller marks the claim `Orphaned`.** Sets `expiresAt = now + TTL`. The TTL
    comes from the annotation:

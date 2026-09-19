@@ -1,18 +1,135 @@
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="refresh" content="2">
-    <title>Results</title>
-  </head>
-  <body>
-    <h1>Results</h1>
-    <table border="1">
-      <tr><th>Option</th><th>Count</th><th>Percentage</th></tr>
-      {% for r in results %}
-        <tr><td>{{ r.option }}</td><td>{{ r.count }}</td><td>{{ r.percent }}%</td></tr>
-      {% endfor %}
-    </table>
-    <p>Total votes: {{ total }}</p>
-  </body>
-</html>
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><meta http-equiv="refresh" content="5"/><meta content="web_standard" name="shell-type"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&amp;family=JetBrains+Mono:wght@100..900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base{html,body{margin:0;padding:0;}body{overscroll-behavior:none;}main>:first-child{margin-top:0!important;}main>:last-child{margin-bottom:0!important;}}::-webkit-scrollbar{display:none;}</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config={darkMode:"class",theme:{extend:{"colors":{"secondary":"#5e5e63","surface-tint":"#005cbb","primary-fixed-dim":"#abc7ff","inverse-on-surface":"#f3f0f2","on-error-container":"#93000a","inverse-primary":"#abc7ff","surface-bright":"#fcf8fb","on-primary-container":"#fcfbff","error-container":"#ffdad6","on-primary":"#ffffff","on-tertiary-fixed":"#002107","on-secondary-container":"#626267","on-primary-fixed-variant":"#00458f","inverse-surface":"#303032","on-secondary-fixed-variant":"#46464b","secondary-fixed":"#e3e2e7","outline":"#717785","on-tertiary-container":"#f1ffec","surface-container":"#f0edef","primary-container":"#0071e3","secondary-container":"#e0dfe4","on-secondary":"#ffffff","surface":"#fcf8fb","on-secondary-fixed":"#1a1b1f","tertiary-container":"#008633","primary":"#0059b5","outline-variant":"#c1c6d6","primary-fixed":"#d7e2ff","surface-container-low":"#f6f3f5","on-surface-variant":"#414753","on-error":"#ffffff","tertiary-fixed":"#72fe88","background":"#fcf8fb","secondary-fixed-dim":"#c7c6cb","surface-container-highest":"#e4e2e4","surface-variant":"#e4e2e4","tertiary-fixed-dim":"#53e16f","surface-dim":"#dcd9dc","on-primary-fixed":"#001b3f","tertiary":"#006a26","surface-container-high":"#eae7ea","error":"#ba1a1a","surface-container-lowest":"#ffffff","on-tertiary-fixed-variant":"#00531c","on-surface":"#1b1b1d","on-tertiary":"#ffffff","on-background":"#1b1b1d"},"borderRadius":{"DEFAULT":"0.25rem","lg":"0.5rem","xl":"0.75rem","full":"9999px"},"spacing":{"margin":"1.5rem","gutter-lg":"1.5rem","space-xs":"0.25rem","space-md":"0.75rem","space-xl":"2rem","margin-lg":"2.5rem","space-sm":"0.5rem","space-lg":"1.25rem","gutter":"1rem"},"fontFamily":{"display":["Inter"],"body-sm":["Inter"],"headline-sm":["Inter"],"body-lg":["Inter"],"label-md":["JetBrains Mono"],"headline-lg-mobile":["Inter"],"headline-md":["Inter"],"body-md":["Inter"],"headline-lg":["Inter"],"label-sm":["JetBrains Mono"]},"fontSize":{"display":["40px",{"lineHeight":"48px","letterSpacing":"-0.022em","fontWeight":"600"}],"body-sm":["12px",{"lineHeight":"16px","letterSpacing":"-0.002em","fontWeight":"400"}],"headline-sm":["15px",{"lineHeight":"20px","letterSpacing":"-0.015em","fontWeight":"600"}],"body-lg":["15px",{"lineHeight":"22px","letterSpacing":"-0.011em","fontWeight":"400"}],"label-md":["12px",{"lineHeight":"16px","letterSpacing":"-0.010em","fontWeight":"500"}],"headline-lg-mobile":["24px",{"lineHeight":"30px","letterSpacing":"-0.019em","fontWeight":"600"}],"headline-md":["20px",{"lineHeight":"25px","letterSpacing":"-0.017em","fontWeight":"600"}],"body-md":["13px",{"lineHeight":"18px","letterSpacing":"-0.006em","fontWeight":"400"}],"headline-lg":["28px",{"lineHeight":"34px","letterSpacing":"-0.020em","fontWeight":"600"}],"label-sm":["11px",{"lineHeight":"14px","letterSpacing":"0.000em","fontWeight":"400"}]}}}}</script></head><body class="bg-surface font-body-md text-on-surface antialiased"><main class="w-full bg-surface max-w-7xl mx-auto px-margin min-h-screen"><div class="flex flex-col w-full">
+<!-- Subtle Ambient Glow Overlay (strictly contained) -->
+<div class="relative w-full max-w-4xl mx-auto px-margin py-space-xl flex flex-col items-center">
+<div class="absolute -top-12 left-1/2 -translate-x-1/2 w-96 h-64 bg-gradient-to-b from-primary-fixed-dim/20 via-surface-tint/5 to-transparent rounded-full blur-3xl pointer-events-none"></div>
+<!-- Top Status Pill: Live State -->
+<div class="relative flex items-center gap-space-xs bg-surface-container-lowest shadow-sm rounded-full px-space-md py-1 mb-space-lg">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-tertiary opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-tertiary"></span>
+</span>
+</div>
+<!-- Screen Title & Sub-caption -->
+<div class="text-center mb-space-xl">
+<h1 class="font-display text-display text-on-surface tracking-tight mb-space-xs">Live Results</h1>
+<p class="font-body-md text-body-md text-secondary">Real-time tally of community preferences across {{ total }} recorded ballots.</p>
+</div>
+<!-- Cards Split Canvas (Cats vs Dogs) -->
+<div class="w-full grid grid-cols-1 md:grid-cols-2 gap-space-lg mb-space-xl">
+<!-- CATS CARD -->
+<div class="relative bg-surface-container-lowest rounded-xl p-space-lg shadow-sm flex flex-col justify-between transition-all duration-300 hover:shadow-md">
+{% if results[0].count > results[1].count %}
+<!-- Leading Pill Badge -->
+<div class="absolute -top-3 right-6 bg-tertiary-container text-on-tertiary-container text-label-sm font-label-md px- space-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span>Leading</span>
+</div>
+{% endif %}
+<div>
+<!-- Top Row: Icon & Tag -->
+<div class="flex items-center justify-between mb-space-lg">
+<div class="w-12 h-12 rounded-xl bg-surface-container-low flex items-center justify-center text-secondary">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 8 L8.2 3.2 L10 8"></path><path d="M17.5 8 L15.8 3.2 L14 8"></path><circle cx="12" cy="13.2" r="6.8"></circle><circle cx="9.3" cy="12.6" r="0.75" fill="currentColor" stroke="none"></circle><circle cx="14.7" cy="12.6" r="0.75" fill="currentColor" stroke="none"></circle><path d="M11.2 15 L12.8 15 L12 16.3 Z" fill="currentColor" stroke="none"></path><path d="M5.5 15 L2.3 14.2 M5.3 16.3 L2 16.3 M5.5 17.6 L2.3 18.4"></path><path d="M18.5 15 L21.7 14.2 M18.7 16.3 L22 16.3 M18.5 17.6 L21.7 18.4"></path></svg>
+</div>
+<span class="font-label-sm text-label-sm text-secondary bg-surface-container-low px-space-sm py-0.5 rounded-full">{{ results[0].count }} votes</span>
+</div>
+<!-- Title and Big Numeric Percentage -->
+<div class="mb-space-lg">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-1">Cats</h2>
+<div class="flex items-baseline gap-1">
+<span class="font-display text-[56px] leading-none text-on-surface font-semibold tracking-tight" id="cat-percent">{{ results[0].percent }}%</span>
+</div>
+</div>
+</div>
+<!-- Progress Track -->
+<div class="w-full">
+<div class="w-full h-2.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-secondary transition-all duration-700 ease-out rounded-full" style="width: {{ results[0].percent }}%;"></div>
+</div>
+<div class="flex justify-between items-center mt-space-sm">
+<span class="font-label-sm text-label-sm text-secondary">{% if results[0].percent > 50 %}Clear Majority{% else %}Share{% endif %}</span>
+<span class="font-label-sm text-label-sm text-secondary">{{ results[0].count }} of {{ total }}</span>
+</div>
+</div>
+</div>
+<!-- DOGS CARD -->
+<div class="relative bg-surface-container-lowest rounded-xl p-space-lg shadow-md flex flex-col justify-between transition-all duration-300 hover:shadow-lg">
+{% if results[1].count > results[0].count %}
+<!-- Leading Pill Badge -->
+<div class="absolute -top-3 right-6 bg-tertiary-container text-on-tertiary-container text-label-sm font-label-md px- space-sm px-3 py-1 rounded-full shadow-sm flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">trending_up</span>
+<span>Leading</span>
+</div>
+{% endif %}
+<div>
+<!-- Top Row: Icon & Tag -->
+<div class="flex items-center justify-between mb-space-lg">
+<div class="w-12 h-12 rounded-xl bg-primary-fixed/30 flex items-center justify-center text-primary-container">
+<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 9.5 C4 9.5 3 13.5 4.5 17 C5.4 19 7 19.3 7.6 17.8 C8.1 16.5 8 12.5 6.5 9.5 Z"></path><path d="M17.5 9.5 C20 9.5 21 13.5 19.5 17 C18.6 19 17 19.3 16.4 17.8 C15.9 16.5 16 12.5 17.5 9.5 Z"></path><circle cx="12" cy="13.5" r="6.3"></circle><circle cx="9.6" cy="12.8" r="0.75" fill="currentColor" stroke="none"></circle><circle cx="14.4" cy="12.8" r="0.75" fill="currentColor" stroke="none"></circle><ellipse cx="12" cy="16.1" rx="1.5" ry="1" fill="currentColor" stroke="none"></ellipse></svg>
+</div>
+<span class="font-label-sm text-label-sm text-primary-container bg-primary-fixed/40 px-space-sm py-0.5 rounded-full font-medium">{{ results[1].count }} votes</span>
+</div>
+<!-- Title and Big Numeric Percentage -->
+<div class="mb-space-lg">
+<h2 class="font-headline-md text-headline-md text-on-surface mb-1">Dogs</h2>
+<div class="flex items-baseline gap-1">
+<span class="font-display text-[56px] leading-none text-primary-container font-semibold tracking-tight" id="dog-percent">{{ results[1].percent }}%</span>
+</div>
+</div>
+</div>
+<!-- Progress Track -->
+<div class="w-full">
+<div class="w-full h-2.5 bg-surface-container rounded-full overflow-hidden">
+<div class="h-full bg-primary-container transition-all duration-700 ease-out rounded-full" style="width: {{ results[1].percent }}%;"></div>
+</div>
+<div class="flex justify-between items-center mt-space-sm">
+<span class="font-label-sm text-label-sm text-secondary font-medium">{% if results[1].percent > 50 %}Clear Majority{% else %}Share{% endif %}</span>
+<span class="font-label-sm text-label-sm text-on-surface font-medium">{{ results[1].count }} of {{ total }}</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Comparative Visual Ratio Ribbon -->
+<div class="w-full bg-surface-container-lowest rounded-xl p-space-md shadow-sm mb-space-xl">
+<div class="flex items-center justify-between text-body-sm text-secondary mb-space-xs font-body-sm">
+<span class="flex items-center gap-1.5 font-medium text-on-surface">
+<span class="w-2 h-2 rounded-full bg-secondary inline-block"></span> Cats ({{ results[0].percent }}%)
+        </span>
+<span class="font-label-sm text-label-sm text-secondary">Distribution</span>
+<span class="flex items-center gap-1.5 font-medium text-on-surface">
+          Dogs ({{ results[1].percent }}%) <span class="w-2 h-2 rounded-full bg-primary-container inline-block"></span>
+</span>
+</div>
+<div class="w-full h-2 flex rounded-full overflow-hidden bg-surface-container">
+<div class="bg-secondary h-full" style="width: {{ results[0].percent }}%"></div>
+<div class="bg-primary-container h-full" style="width: {{ results[1].percent }}%"></div>
+</div>
+</div>
+<!-- Metadata Footprint & Action Row -->
+<div class="flex items-center justify-center w-full max-w-2xl px-space-md pt-space-xs gap-space-md">
+<!-- Total Votes Pill -->
+<div class="flex items-center gap-space-sm bg-surface-container-low px-space-md py-1.5 rounded-full text-secondary font-label-md text-label-md">
+<span class="material-symbols-outlined text-[16px] text-secondary">ballot</span>
+<span>Total Votes: <strong class="text-on-surface font-semibold">{{ total }}</strong></span>
+</div>
+</div>
+</div>
+<script>
+    // Emulate smooth 2-second background data sync poll seamlessly without harsh layout redraw
+    let refreshCycle = 0;
+    const updateTimeElement = document.querySelector('span.text-label-sm.text-secondary.tracking-wide');
+    
+    setInterval(() => {
+      refreshCycle++;
+      if (updateTimeElement) {
+        updateTimeElement.textContent = 'Live \u00B7 Updated just now';
+      }
+    }, 2000);
+  </script>
+</div></main><footer class="w-full bg-surface-container-low mt-space-xl"><div class="max-w-7xl mx-auto px-margin py-space-lg flex items-center justify-center"><div class="font-label-sm text-label-sm text-secondary">© 2025</div></div></footer>
+</body></html>

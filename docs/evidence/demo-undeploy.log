@@ -4,3 +4,7 @@ deployment.apps "voting-app-vote" deleted from voting-a namespace
 deployment.apps "voting-app-vote" deleted from voting-a namespace
 deployment.apps "voting-app-vote" deleted from voting-a namespace
 deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-worker" deleted from voting-a namespace
+deployment.apps "voting-app-result" deleted from voting-a namespace
