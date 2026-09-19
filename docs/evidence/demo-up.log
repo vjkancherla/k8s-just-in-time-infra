@@ -12100,3 +12100,1486 @@ R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds P
 ===== 17 PASS, 0 FAIL =====
 ===== 17 PASS, 0 FAIL =====
 PASS: demo up - voting-a
+== 1/6  cd app && make destroy   (the cold path: the app must be created after jit-up)
+Deleting Kubernetes resources from 'voting-app' using ./kustomize/overlays/voting-a ...
+secret "voting-app-secret-key" deleted from voting-a namespace
+service "voting-app-result" deleted from voting-a namespace
+service "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-result" deleted from voting-a namespace
+deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-worker" deleted from voting-a namespace
+ingress.networking.k8s.io "voting-app-ingress" deleted from voting-a namespace
+
+Remaining voting-app workloads (if any):
+No resources found in default namespace.
+
+Deleting k3d cluster 'voting-app' ...
+[36mINFO[0m[0000] Deleting cluster 'voting-app'                
+[36mINFO[0m[0001] Deleting 1 attached volumes...               
+[36mINFO[0m[0001] Removing cluster details from default kubeconfig... 
+[36mINFO[0m[0001] Removing standalone kubeconfig file (if there is one)... 
+[36mINFO[0m[0001] Successfully deleted cluster voting-app!     
+
+Cleanup complete.
+== 2/6  make jit-down   (the containers and the volumes they own outlive the cluster)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed leftover container voting-a-pgadmin-pgadmin
+removed leftover container voting-a-redis-redis
+removed leftover container voting-a-postgres-postgres
+removed leftover volume voting-a-postgres-postgres-data
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+== 3/6  cd app && make deploy   (creates the cluster; stops by design until the CRD exists)
+[36mINFO[0m[0000] portmapping '8081:80' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] portmapping '8082:443' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] Prep: Network                                
+[36mINFO[0m[0000] Re-using existing network 'k3d-voting-app' (c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390) 
+[36mINFO[0m[0000] Created image volume k3d-voting-app-images   
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0001] Creating LoadBalancer 'k3d-voting-app-serverlb' 
+[36mINFO[0m[0001] Using the k3d-tools node to gather environment information 
+[36mINFO[0m[0001] HostIP: using network gateway 172.19.0.1 address 
+[36mINFO[0m[0001] Starting cluster 'voting-app'                
+[36mINFO[0m[0001] Starting servers...                          
+[36mINFO[0m[0001] Starting node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0006] Starting agents...                           
+[36mINFO[0m[0006] Starting node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0008] Starting helpers...                          
+[36mINFO[0m[0008] Starting node 'k3d-voting-app-serverlb'      
+[36mINFO[0m[0015] Injecting records for hostAliases (incl. host.k3d.internal) and for 4 network members into CoreDNS configmap... 
+[36mINFO[0m[0017] Cluster 'voting-app' created successfully!   
+[36mINFO[0m[0017] You can now use it like this:                
+kubectl cluster-info
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 ...
+
+#3 [auth] library/python:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.9s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 132B done
+#6 DONE 0.0s
+
+#7 [2/6] WORKDIR /app
+#7 CACHED
+
+#8 [3/6] COPY requirements.txt ./
+#8 CACHED
+
+#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#9 CACHED
+
+#10 [5/6] COPY app.py ./
+#10 CACHED
+
+#11 [6/6] COPY templates/ ./templates/
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 writing image sha256:fc39a2714d9c41144d744175a243db149d924133b647b7f1579eb89c0121d376 done
+#12 naming to docker.io/library/vote:latest done
+#12 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231130.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231130.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0004] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0005] Removing k3d-tools node...                   
+[36mINFO[0m[0005] Successfully imported image(s)               
+[36mINFO[0m[0005] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [2/5] WORKDIR /app
+#6 CACHED
+
+#7 [3/5] COPY requirements.txt ./
+#7 CACHED
+
+#8 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231136.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231136.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [3/6] COPY requirements.txt ./
+#6 CACHED
+
+#7 [2/6] WORKDIR /app
+#7 CACHED
+
+#8 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#8 CACHED
+
+#9 [5/6] COPY app.py ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231141.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231141.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+error: the InfraClaim CRD is not installed - the JIT stack must be up first.
+       From the repo root, run 'make jit-up' (MinIO, runner, CRD, controller), then
+       re-run this. On a cold host this script is also what creates the cluster, so
+       it stops here by design and the second run is the one that applies the app.
+make[1]: *** [deploy] Error 1
+   deploy stopped before applying the app - expected while the CRD does not exist yet
+== 4/6  make jit-up
+importing jit-controller:latest into cluster 'voting-app'...
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0002] Importing images into nodes...               
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231146.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231146.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0005] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0006] Removing k3d-tools node...                   
+[36mINFO[0m[0006] Successfully imported image(s)               
+[36mINFO[0m[0006] Successfully imported 1 image(s) into 1 cluster(s) 
+OK: bucket 'jit-state' created
+MinIO up at http://127.0.0.1:9000 (console http://localhost:9001); bucket jit-state ready
+Building runner image...
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 714B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 ...
+
+#3 [auth] library/debian:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 1.8s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 64B done
+#6 DONE 0.0s
+
+#7 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
+#7 CACHED
+
+#8 [2/7] WORKDIR /opt/jit-runner
+#8 CACHED
+
+#9 [3/7] RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
+#9 CACHED
+
+#10 [5/7] COPY requirements.txt .
+#10 CACHED
+
+#11 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#11 CACHED
+
+#12 [7/7] COPY main.py .
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 writing image sha256:292d92a8c34b0f66cfa7d26aa6a06b4ea4d1e93cd131861c9c42d4f5239301ce done
+#13 naming to docker.io/library/jit-runner:latest done
+#13 DONE 0.0s
+Image built.
+Stopping runner...
+Runner stopped.
+Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
+1128a6f80e57f60ddcee8ea9d1667b2787bcfd16b5e344d39d4598edf19caefc
+Runner started at 172.19.0.10.
+CRD infraclaims.jit.io established
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+== 5/6  the namespaces (the overlays set one; they do not create one)
+namespace/voting-a created
+== 6/6  deploy and verify the app, per namespace
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 132B done
+#5 DONE 0.0s
+
+#6 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#6 CACHED
+
+#7 [2/6] WORKDIR /app
+#7 CACHED
+
+#8 [3/6] COPY requirements.txt ./
+#8 CACHED
+
+#9 [5/6] COPY app.py ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:fc39a2714d9c41144d744175a243db149d924133b647b7f1579eb89c0121d376 done
+#11 naming to docker.io/library/vote:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231202.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231202.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [2/5] WORKDIR /app
+#6 CACHED
+
+#7 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [3/5] COPY requirements.txt ./
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231207.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231207.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [2/6] WORKDIR /app
+#6 CACHED
+
+#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [3/6] COPY requirements.txt ./
+#8 CACHED
+
+#9 [5/6] COPY app.py ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231212.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919231212.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+secret/voting-app-secret-key created
+service/voting-app-result created
+service/voting-app-vote created
+deployment.apps/voting-app-result created
+deployment.apps/voting-app-vote created
+deployment.apps/voting-app-worker created
+ingress.networking.k8s.io/voting-app-ingress created
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-vote" successfully rolled out
+Waiting for deployment "voting-app-worker" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-worker" successfully rolled out
+deployment "voting-app-result" successfully rolled out
+Deploy complete.
+  vote:   https://vote.localhost:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)
+  result: https://result.localhost:8082/
+R1   PASS     200 with exactly two options: Cats / Dogs
+R2   PASS     POST /vote -> 200, redis LLEN 0 -> 1
+R3   PASS     tally unchanged after re-vote (2)
+R4   PASS     one row for verify-r4 after replay
+R5   PASS     percentages + both option labels present
+R6   PASS     vote appeared in 0s (limit 5s)
+R7   PASS     votes table has voter_id, choice, updated_at
+R8   PASS     queued vote (1) drained to postgres after restart
+R9   PASS     tally preserved across docker restart (5)
+R10  PASS     3 liveness + 3 readiness probes
+R11  PASS     3 containers with cpu/mem requests + limits
+R12  PASS     kustomize base + registry image override
+R13  PASS     vote=200 result=200
+R14  PASS     0 NodePort services
+R15  PASS     arm64, no ImagePullBackOff (images imported)
+R16  PASS     vote/result/worker/redis/postgres all healthy
+R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+
+===== 17 PASS, 0 FAIL =====
+===== 17 PASS, 0 FAIL =====
+PASS: demo up - voting-a
+== 1/6  cd app && make destroy   (the cold path: the app must be created after jit-up)
+Deleting Kubernetes resources from 'voting-app' using ./kustomize/overlays/voting-a ...
+E0919 23:27:59.290085   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.290379   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.291473   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.291824   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.293346   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.293780   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:27:59.294647   74412 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+unable to recognize "./kustomize/overlays/voting-a": Get "https://127.0.0.1:6443/api?timeout=32s": dial tcp 127.0.0.1:6443: connect: connection refused
+
+Remaining voting-app workloads (if any):
+E0919 23:28:02.349584   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:28:02.349813   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:28:02.351129   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:28:02.351270   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:28:02.352517   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+E0919 23:28:02.352677   74461 memcache.go:265] "Unhandled Error" err="couldn't get current server API group list: Get \"https://127.0.0.1:6443/api?timeout=32s\": dial tcp 127.0.0.1:6443: connect: connection refused"
+The connection to the server 127.0.0.1:6443 was refused - did you specify the right host or port?
+  (none visible / cluster not reachable)
+
+No k3d cluster named 'voting-app' found; skipping cluster delete.
+
+Cleanup complete.
+== 2/6  make jit-down   (the containers and the volumes they own outlive the cluster)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+== 3/6  cd app && make deploy   (creates the cluster; stops by design until the CRD exists)
+[36mINFO[0m[0000] portmapping '8081:80' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] portmapping '8082:443' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] Prep: Network                                
+[36mINFO[0m[0000] Re-using existing network 'k3d-voting-app' (c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390) 
+[36mINFO[0m[0000] Created image volume k3d-voting-app-images   
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0001] Creating LoadBalancer 'k3d-voting-app-serverlb' 
+[36mINFO[0m[0001] Using the k3d-tools node to gather environment information 
+[36mINFO[0m[0001] HostIP: using network gateway 172.19.0.1 address 
+[36mINFO[0m[0001] Starting cluster 'voting-app'                
+[36mINFO[0m[0001] Starting servers...                          
+[36mINFO[0m[0001] Starting node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0006] Starting agents...                           
+[36mINFO[0m[0006] Starting node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0008] Starting helpers...                          
+[36mINFO[0m[0008] Starting node 'k3d-voting-app-serverlb'      
+[36mINFO[0m[0015] Injecting records for hostAliases (incl. host.k3d.internal) and for 4 network members into CoreDNS configmap... 
+[36mINFO[0m[0017] Cluster 'voting-app' created successfully!   
+[36mINFO[0m[0017] You can now use it like this:                
+kubectl cluster-info
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [auth] library/python:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/python:3.12-slim
+#3 DONE 0.6s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 132B 0.0s done
+#6 DONE 0.0s
+
+#7 [3/6] COPY requirements.txt ./
+#7 CACHED
+
+#8 [2/6] WORKDIR /app
+#8 CACHED
+
+#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#9 CACHED
+
+#10 [5/6] COPY app.py ./
+#10 CACHED
+
+#11 [6/6] COPY templates/ ./templates/
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 writing image sha256:d44526a582584e6cc5ead1b0c09c331ec14afdf0ef5a4ddbfd76aa0c8d2e801a done
+#12 naming to docker.io/library/vote:latest done
+#12 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232821.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232821.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [3/5] COPY requirements.txt ./
+#6 CACHED
+
+#7 [2/5] WORKDIR /app
+#7 CACHED
+
+#8 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232826.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232826.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [3/6] COPY requirements.txt ./
+#6 CACHED
+
+#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [5/6] COPY app.py ./
+#8 CACHED
+
+#9 [2/6] WORKDIR /app
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232831.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232831.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+error: the InfraClaim CRD is not installed - the JIT stack must be up first.
+       From the repo root, run 'make jit-up' (MinIO, runner, CRD, controller), then
+       re-run this. On a cold host this script is also what creates the cluster, so
+       it stops here by design and the second run is the one that applies the app.
+make[1]: *** [deploy] Error 1
+   deploy stopped before applying the app - expected while the CRD does not exist yet
+== 4/6  make jit-up
+importing jit-controller:latest into cluster 'voting-app'...
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0002] Importing images into nodes...               
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232836.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232836.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0006] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0007] Removing k3d-tools node...                   
+[36mINFO[0m[0007] Successfully imported image(s)               
+[36mINFO[0m[0007] Successfully imported 1 image(s) into 1 cluster(s) 
+OK: bucket 'jit-state' created
+MinIO up at http://127.0.0.1:9000 (console http://localhost:9001); bucket jit-state ready
+Building runner image...
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 714B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 ...
+
+#3 [auth] library/debian:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 6.1s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 64B done
+#6 DONE 0.0s
+
+#7 [5/7] COPY requirements.txt .
+#7 CACHED
+
+#8 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#8 CACHED
+
+#9 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
+#9 CACHED
+
+#10 [2/7] WORKDIR /opt/jit-runner
+#10 CACHED
+
+#11 [3/7] RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
+#11 CACHED
+
+#12 [7/7] COPY main.py .
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 writing image sha256:292d92a8c34b0f66cfa7d26aa6a06b4ea4d1e93cd131861c9c42d4f5239301ce done
+#13 naming to docker.io/library/jit-runner:latest done
+#13 DONE 0.0s
+Image built.
+Stopping runner...
+Runner stopped.
+Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
+64746f0a7bfd443ffd97507ca0b320c531fd5c34e658812ec054c1e5490e7179
+Runner started at 172.19.0.10.
+CRD infraclaims.jit.io established
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+== 5/6  the namespaces (the overlays set one; they do not create one)
+namespace/voting-a created
+== 6/6  deploy and verify the app, per namespace
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.5s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 132B done
+#5 DONE 0.0s
+
+#6 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#6 CACHED
+
+#7 [5/6] COPY app.py ./
+#7 CACHED
+
+#8 [2/6] WORKDIR /app
+#8 CACHED
+
+#9 [3/6] COPY requirements.txt ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:d44526a582584e6cc5ead1b0c09c331ec14afdf0ef5a4ddbfd76aa0c8d2e801a done
+#11 naming to docker.io/library/vote:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232926.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232926.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0004] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0005] Removing k3d-tools node...                   
+[36mINFO[0m[0005] Successfully imported image(s)               
+[36mINFO[0m[0005] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.4s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [2/5] WORKDIR /app
+#6 CACHED
+
+#7 [3/5] COPY requirements.txt ./
+#7 CACHED
+
+#8 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232932.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232932.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.5s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [2/6] WORKDIR /app
+#6 CACHED
+
+#7 [3/6] COPY requirements.txt ./
+#7 CACHED
+
+#8 [5/6] COPY app.py ./
+#8 CACHED
+
+#9 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232937.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919232937.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+secret/voting-app-secret-key created
+service/voting-app-result created
+service/voting-app-vote created
+deployment.apps/voting-app-result created
+deployment.apps/voting-app-vote created
+deployment.apps/voting-app-worker created
+ingress.networking.k8s.io/voting-app-ingress created
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-vote" successfully rolled out
+Waiting for deployment "voting-app-worker" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-worker" successfully rolled out
+deployment "voting-app-result" successfully rolled out
+Deploy complete.
+  vote:   https://vote.localhost:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)
+  result: https://result.localhost:8082/
+R1   PASS     200 with exactly two options: Cats / Dogs
+R2   PASS     POST /vote -> 200, redis LLEN 0 -> 1
+R3   FAIL     tally 2 -> 3
+R4   PASS     one row for verify-r4 after replay
+R5   PASS     percentages + both option labels present
+R6   PASS     vote appeared in 0s (limit 5s)
+R7   PASS     votes table has voter_id, choice, updated_at
+R8   PASS     queued vote (1) drained to postgres after restart
+R9   PASS     tally preserved across docker restart (6)
+R10  PASS     3 liveness + 3 readiness probes
+R11  PASS     3 containers with cpu/mem requests + limits
+R12  PASS     kustomize base + registry image override
+R13  PASS     vote=200 result=200
+R14  PASS     0 NodePort services
+R15  PASS     arm64, no ImagePullBackOff (images imported)
+R16  PASS     vote/result/worker/redis/postgres all healthy
+R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+
+===== 16 PASS, 1 FAIL =====
+===== 16 PASS, 1 FAIL =====
+FAIL: the R-checks did not all pass - see app/.workflow/verify.md
+make[1]: *** [verify] Error 1
+== 1/6  cd app && make destroy   (the cold path: the app must be created after jit-up)
+Deleting Kubernetes resources from 'voting-app' using ./kustomize/overlays/voting-a ...
+secret "voting-app-secret-key" deleted from voting-a namespace
+service "voting-app-result" deleted from voting-a namespace
+service "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-result" deleted from voting-a namespace
+deployment.apps "voting-app-vote" deleted from voting-a namespace
+deployment.apps "voting-app-worker" deleted from voting-a namespace
+ingress.networking.k8s.io "voting-app-ingress" deleted from voting-a namespace
+
+Remaining voting-app workloads (if any):
+No resources found in default namespace.
+
+Deleting k3d cluster 'voting-app' ...
+[36mINFO[0m[0000] Deleting cluster 'voting-app'                
+[36mINFO[0m[0001] Deleting 1 attached volumes...               
+[36mINFO[0m[0001] Removing cluster details from default kubeconfig... 
+[36mINFO[0m[0001] Removing standalone kubeconfig file (if there is one)... 
+[36mINFO[0m[0001] Successfully deleted cluster voting-app!     
+
+Cleanup complete.
+== 2/6  make jit-down   (the containers and the volumes they own outlive the cluster)
+no InfraClaims to remove
+InfraClaims gone; the infra they owned is destroyed
+removed leftover container voting-a-pgadmin-pgadmin
+removed leftover container voting-a-postgres-postgres
+removed leftover volume voting-a-postgres-postgres-data
+removed leftover container voting-a-redis-redis
+removed the controller
+Stopping runner...
+Runner stopped.
+removed the runner and MinIO
+removed the IPAM ledger
+PASS: jit stack down (the InfraClaim CRD is left in place and make jit-up re-applies it; the IPAM ledger is cleared)
+== 3/6  cd app && make deploy   (creates the cluster; stops by design until the CRD exists)
+[36mINFO[0m[0000] portmapping '8081:80' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] portmapping '8082:443' targets the loadbalancer: defaulting to [servers:*:proxy agents:*:proxy] 
+[36mINFO[0m[0000] Prep: Network                                
+[36mINFO[0m[0000] Re-using existing network 'k3d-voting-app' (c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390) 
+[36mINFO[0m[0000] Created image volume k3d-voting-app-images   
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0001] Creating node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0001] Creating LoadBalancer 'k3d-voting-app-serverlb' 
+[36mINFO[0m[0001] Using the k3d-tools node to gather environment information 
+[36mINFO[0m[0001] HostIP: using network gateway 172.19.0.1 address 
+[36mINFO[0m[0001] Starting cluster 'voting-app'                
+[36mINFO[0m[0001] Starting servers...                          
+[36mINFO[0m[0001] Starting node 'k3d-voting-app-server-0'      
+[36mINFO[0m[0006] Starting agents...                           
+[36mINFO[0m[0006] Starting node 'k3d-voting-app-agent-0'       
+[36mINFO[0m[0019] Starting helpers...                          
+[36mINFO[0m[0019] Starting node 'k3d-voting-app-serverlb'      
+[36mINFO[0m[0025] Injecting records for hostAliases (incl. host.k3d.internal) and for 4 network members into CoreDNS configmap... 
+[36mINFO[0m[0027] Cluster 'voting-app' created successfully!   
+[36mINFO[0m[0027] You can now use it like this:                
+kubectl cluster-info
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 ...
+
+#3 [auth] library/python:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.7s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 132B done
+#6 DONE 0.0s
+
+#7 [3/6] COPY requirements.txt ./
+#7 CACHED
+
+#8 [5/6] COPY app.py ./
+#8 CACHED
+
+#9 [2/6] WORKDIR /app
+#9 CACHED
+
+#10 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#10 CACHED
+
+#11 [6/6] COPY templates/ ./templates/
+#11 CACHED
+
+#12 exporting to image
+#12 exporting layers done
+#12 writing image sha256:d44526a582584e6cc5ead1b0c09c331ec14afdf0ef5a4ddbfd76aa0c8d2e801a done
+#12 naming to docker.io/library/vote:latest done
+#12 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234700.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234700.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.6s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [3/5] COPY requirements.txt ./
+#6 CACHED
+
+#7 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [2/5] WORKDIR /app
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234706.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234706.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.3s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#6 CACHED
+
+#7 [5/6] COPY app.py ./
+#7 CACHED
+
+#8 [2/6] WORKDIR /app
+#8 CACHED
+
+#9 [3/6] COPY requirements.txt ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234711.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234711.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+error: the InfraClaim CRD is not installed - the JIT stack must be up first.
+       From the repo root, run 'make jit-up' (MinIO, runner, CRD, controller), then
+       re-run this. On a cold host this script is also what creates the cluster, so
+       it stops here by design and the second run is the one that applies the app.
+make[1]: *** [deploy] Error 1
+   deploy stopped before applying the app - expected while the CRD does not exist yet
+== 4/6  make jit-up
+importing jit-controller:latest into cluster 'voting-app'...
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0002] Importing images into nodes...               
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234715.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0002] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234715.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0005] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0006] Removing k3d-tools node...                   
+[36mINFO[0m[0006] Successfully imported image(s)               
+[36mINFO[0m[0006] Successfully imported 1 image(s) into 1 cluster(s) 
+OK: bucket 'jit-state' created
+MinIO up at http://127.0.0.1:9000 (console http://localhost:9001); bucket jit-state ready
+Building runner image...
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 714B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 ...
+
+#3 [auth] library/debian:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/debian:bookworm-slim
+#2 DONE 1.3s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 2B done
+#4 DONE 0.0s
+
+#5 [1/7] FROM docker.io/library/debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251
+#5 DONE 0.0s
+
+#6 [internal] load build context
+#6 transferring context: 64B done
+#6 DONE 0.0s
+
+#7 [3/7] RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [4/7] RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip &&     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip &&     chmod +x /usr/local/bin/tofu
+#8 CACHED
+
+#9 [6/7] RUN python3 -m venv /opt/venv &&     /opt/venv/bin/pip install --upgrade pip &&     /opt/venv/bin/pip install -r requirements.txt
+#9 CACHED
+
+#10 [2/7] WORKDIR /opt/jit-runner
+#10 CACHED
+
+#11 [5/7] COPY requirements.txt .
+#11 CACHED
+
+#12 [7/7] COPY main.py .
+#12 CACHED
+
+#13 exporting to image
+#13 exporting layers done
+#13 writing image sha256:292d92a8c34b0f66cfa7d26aa6a06b4ea4d1e93cd131861c9c42d4f5239301ce done
+#13 naming to docker.io/library/jit-runner:latest done
+#13 DONE 0.0s
+Image built.
+Stopping runner...
+Runner stopped.
+Starting runner at 172.19.0.10 (shared dir /Users/vkancherla/.jit-host-share)...
+9771eb3f672f2bf9c6ba9b09ac19f2593bfc574a5788db9466545dd2031eaa7b
+Runner started at 172.19.0.10.
+CRD infraclaims.jit.io established
+Waiting for deployment "jit-controller" rollout to finish: 0 of 1 updated replicas are available...
+deployment "jit-controller" successfully rolled out
+controller Ready; watching: 
+PASS: jit stack up - MinIO, runner running, CRD, controller
+== 5/6  the namespaces (the overlays set one; they do not create one)
+namespace/voting-a created
+== 6/7  deploy and verify the app, per namespace
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 132B done
+#5 DONE 0.0s
+
+#6 [3/6] COPY requirements.txt ./
+#6 CACHED
+
+#7 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [5/6] COPY app.py ./
+#8 CACHED
+
+#9 [2/6] WORKDIR /app
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:d44526a582584e6cc5ead1b0c09c331ec14afdf0ef5a4ddbfd76aa0c8d2e801a done
+#11 naming to docker.io/library/vote:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234733.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234733.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 329B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/5] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 63B done
+#5 DONE 0.0s
+
+#6 [2/5] WORKDIR /app
+#6 CACHED
+
+#7 [4/5] RUN pip install --no-cache-dir -r requirements.txt
+#7 CACHED
+
+#8 [3/5] COPY requirements.txt ./
+#8 CACHED
+
+#9 [5/5] COPY app.py ./
+#9 CACHED
+
+#10 exporting to image
+#10 exporting layers done
+#10 writing image sha256:b2ae76082fe70107a1f3a3c20e63926fe75c57a14fe5d9583480078cd58e4422 done
+#10 naming to docker.io/library/worker:latest done
+#10 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234737.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234737.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+#0 building with "rancher-desktop" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 DONE 0.0s
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 354B done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/python:3.12-slim
+#2 DONE 0.2s
+
+#3 [internal] load .dockerignore
+#3 transferring context: 2B done
+#3 DONE 0.0s
+
+#4 [1/6] FROM docker.io/library/python:3.12-slim@sha256:2f17fc044b579bab302c2e8054d3a686e2cb9a83de48e70534b94cd8ebbe06a9
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 133B done
+#5 DONE 0.0s
+
+#6 [3/6] COPY requirements.txt ./
+#6 CACHED
+
+#7 [2/6] WORKDIR /app
+#7 CACHED
+
+#8 [4/6] RUN pip install --no-cache-dir -r requirements.txt
+#8 CACHED
+
+#9 [5/6] COPY app.py ./
+#9 CACHED
+
+#10 [6/6] COPY templates/ ./templates/
+#10 CACHED
+
+#11 exporting to image
+#11 exporting layers done
+#11 writing image sha256:4eee52f3c7e934b58d2b96aaf10ad5b9c4ef535d98d08fbaf09c88d9d1754882 done
+#11 naming to docker.io/library/result:latest done
+#11 DONE 0.0s
+[36mINFO[0m[0000] Importing image(s) into cluster 'voting-app' 
+[36mINFO[0m[0000] Starting new tools node...                   
+[36mINFO[0m[0000] Starting node 'k3d-voting-app-tools'         
+[36mINFO[0m[0000] Saving 1 image(s) from runtime...            
+[36mINFO[0m[0001] Importing images into nodes...               
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234742.tar' into node 'k3d-voting-app-server-0'... 
+[36mINFO[0m[0001] Importing images from tarball '/k3d/images/k3d-voting-app-images-20260919234742.tar' into node 'k3d-voting-app-agent-0'... 
+[36mINFO[0m[0003] Removing the tarball(s) from image volume... 
+[36mINFO[0m[0004] Removing k3d-tools node...                   
+[36mINFO[0m[0004] Successfully imported image(s)               
+[36mINFO[0m[0004] Successfully imported 1 image(s) into 1 cluster(s) 
+Imported vote worker result into k3d cluster 'voting-app'.
+secret/voting-app-secret-key created
+service/voting-app-result created
+service/voting-app-vote created
+deployment.apps/voting-app-result created
+deployment.apps/voting-app-vote created
+deployment.apps/voting-app-worker created
+ingress.networking.k8s.io/voting-app-ingress created
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-vote" successfully rolled out
+Waiting for deployment "voting-app-worker" rollout to finish: 0 of 1 updated replicas are available...
+deployment "voting-app-worker" successfully rolled out
+deployment "voting-app-result" successfully rolled out
+Deploy complete.
+  vote:   https://vote.localhost:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)
+  result: https://result.localhost:8082/
+R1   PASS     200 with exactly two options: Cats / Dogs
+R2   PASS     POST /vote -> 200, redis LLEN 0 -> 1
+R3   PASS     tally unchanged after re-vote (2)
+R4   PASS     one row for verify-r4 after replay
+R5   PASS     percentages + both option labels present
+R6   PASS     vote appeared in 0s (limit 5s)
+R7   PASS     votes table has voter_id, choice, updated_at
+R8   PASS     queued vote (1) drained to postgres after restart
+R9   PASS     tally preserved across docker restart (5)
+R10  PASS     3 liveness + 3 readiness probes
+R11  PASS     3 containers with cpu/mem requests + limits
+R12  PASS     kustomize base + registry image override
+R13  PASS     vote=200 result=200
+R14  PASS     0 NodePort services
+R15  PASS     arm64, no ImagePullBackOff (images imported)
+R16  PASS     vote/result/worker/redis/postgres all healthy
+R17  PASS     no literal password; the JIT outputs Secret 'jit-postgres' holds POSTGRES_PASSWORD
+
+===== 17 PASS, 0 FAIL =====
+===== 17 PASS, 0 FAIL =====
+   enabling demo mode for voting-a
+deployment.apps/voting-app-vote env updated
+Waiting for deployment "voting-app-vote" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment spec update to be observed...
+Waiting for deployment "voting-app-vote" rollout to finish: 1 old replicas are pending termination...
+Waiting for deployment "voting-app-vote" rollout to finish: 1 old replicas are pending termination...
+deployment "voting-app-vote" successfully rolled out
+== 7/7  demo mode enabled - voting-a
+PASS: demo up - voting-a
