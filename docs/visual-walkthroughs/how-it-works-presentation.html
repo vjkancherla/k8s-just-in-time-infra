@@ -26,7 +26,8 @@
   .slide.on{display:flex;opacity:1;transform:none}
   .inner{width:100%;max-width:1080px;margin:0 auto}
 
-  .eyebrow{font-size:clamp(12px,1.3vw,15px);font-weight:500;color:var(--ink-3);
+  .eyebrow{font-size:clamp(12px,1.3vw,15px);font-weight:700;color:var(--ink-2);
+    text-transform:uppercase;letter-spacing:.06em;
     margin-bottom:clamp(16px,2.4vh,26px)}
   h1{font-size:clamp(38px,6.4vw,82px);font-weight:600;letter-spacing:-.03em;line-height:1.04;margin:0}
   h2{font-size:clamp(28px,4.4vw,54px);font-weight:600;letter-spacing:-.025em;line-height:1.08;margin:0}
@@ -59,6 +60,12 @@
   .rows{margin-top:clamp(22px,4vh,46px);display:flex;flex-direction:column;gap:clamp(12px,2vh,22px)}
   .row{display:flex;gap:18px;align-items:baseline;font-size:clamp(16px,1.9vw,23px);color:var(--ink-2)}
   .row b{color:var(--ink);font-weight:500;min-width:clamp(90px,11vw,170px);display:inline-block}
+
+  .codegrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:clamp(10px,1.4vw,18px);
+    margin-top:clamp(18px,3vh,32px)}
+  .codegrid pre.code{margin:0;max-width:none;font-size:clamp(11px,1.15vw,14px);
+    padding:clamp(14px,2vh,20px) clamp(14px,1.6vw,22px);line-height:1.55}
+  @media(max-width:860px){.codegrid{grid-template-columns:1fr}}
 
   pre.code{font-family:var(--mono);font-size:clamp(12px,1.45vw,18px);line-height:1.65;
     background:#fff;border-radius:16px;padding:clamp(18px,3vh,30px) clamp(20px,3vw,34px);
@@ -221,6 +228,64 @@
   .step.last{background:#1d1d1f}
   .step.last .t{color:#fff}
   .step.last .s{color:rgba(255,255,255,.66)}
+
+  /* 8-hop flow grid */
+  .hops{display:grid;grid-template-columns:repeat(4,1fr);gap:clamp(8px,1.2vw,16px);
+    margin-top:clamp(20px,3.5vh,40px);position:relative}
+  .hop{background:#fff;border-radius:14px;padding:clamp(12px,1.8vh,18px) clamp(12px,1.4vw,18px);
+    box-shadow:0 1px 2px rgba(0,0,0,.05),0 8px 20px rgba(0,0,0,.05);
+    border:1px solid var(--hair);display:flex;flex-direction:column;gap:6px;
+    position:relative;transition:transform .15s,box-shadow .15s}
+  .hop:hover{transform:translateY(-2px);box-shadow:0 2px 4px rgba(0,0,0,.06),0 12px 28px rgba(0,0,0,.07)}
+  .hop-header{display:flex;align-items:center;justify-content:space-between}
+  .hop-num{width:clamp(20px,2.2vw,26px);height:clamp(20px,2.2vw,26px);border-radius:50%;
+    background:var(--blue);color:#fff;font-family:var(--mono);font-size:clamp(10px,1vw,12px);
+    font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+  .hop-badge{font-family:var(--mono);font-size:clamp(8px,.8vw,10px);color:var(--blue);
+    background:var(--blue-bg,rgba(0,113,227,.08));padding:2px 6px;border-radius:6px;
+    font-weight:500;white-space:nowrap}
+  .hop-title{font-size:clamp(12px,1.3vw,15px);font-weight:600;letter-spacing:-.01em;line-height:1.25}
+  .hop-code{font-family:var(--mono);font-size:clamp(9px,.9vw,11px);color:var(--ink-2);
+    background:var(--bg);padding:2px 5px;border-radius:4px;width:fit-content;
+    border:1px solid var(--hair)}
+  .hop-desc{font-size:clamp(10px,1vw,12px);color:var(--ink-2);line-height:1.4}
+  .hop-status{margin-top:auto;padding-top:6px;border-top:1px solid var(--hair);
+    font-size:clamp(9px,.85vw,10px);color:var(--ink-3);display:flex;
+    justify-content:space-between;align-items:center;gap:6px}
+  .hop-status b{font-weight:500;color:var(--green)}
+  .hop.go{background:var(--green);border-color:var(--green)}
+  .hop.go .hop-num{background:rgba(255,255,255,.2)}
+  .hop.go .hop-badge{background:rgba(255,255,255,.15);color:rgba(255,255,255,.9)}
+  .hop.go .hop-title{color:#fff}
+  .hop.go .hop-code{background:rgba(255,255,255,.12);color:rgba(255,255,255,.85);border-color:rgba(255,255,255,.2)}
+  .hop.go .hop-desc{color:rgba(255,255,255,.75)}
+  .hop.go .hop-status{border-top-color:rgba(255,255,255,.15);color:rgba(255,255,255,.6)}
+  .hop.go .hop-status b{color:#fff}
+  .hop.go .hop-arrow-i{color:rgba(255,255,255,.5)}
+
+  /* flow arrows */
+  .hop{overflow:visible}
+  .hop-arrow{position:absolute;top:50%;right:-12px;width:16px;height:16px;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:50%;background:#fff;border:1px solid var(--hair);
+    box-shadow:0 1px 3px rgba(0,0,0,.08);transform:translateY(-50%);
+    z-index:5;pointer-events:none}
+  .hop-arrow-i{width:clamp(10px,1vw,12px);height:clamp(10px,1vw,12px);
+    stroke:var(--green);stroke-width:2;fill:none}
+  .hop.go .hop-arrow{background:rgba(255,255,255,.2);border-color:rgba(255,255,255,.3);
+    box-shadow:none}
+
+  .slide.on .hop{animation:rise .5s cubic-bezier(.2,.7,.3,1) both}
+  .slide.on .hop:nth-of-type(1){animation-delay:.12s}
+  .slide.on .hop:nth-of-type(2){animation-delay:.20s}
+  .slide.on .hop:nth-of-type(3){animation-delay:.28s}
+  .slide.on .hop:nth-of-type(4){animation-delay:.36s}
+  .slide.on .hop:nth-of-type(5){animation-delay:.48s}
+  .slide.on .hop:nth-of-type(6){animation-delay:.56s}
+  .slide.on .hop:nth-of-type(7){animation-delay:.64s}
+  .slide.on .hop:nth-of-type(8){animation-delay:.72s}
+  @media(max-width:860px){.hops{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:520px){.hops{grid-template-columns:1fr}.hop-arrow{display:none}}
   .step.last .n{color:rgba(255,255,255,.45)}
   @media(max-width:760px){.chain{flex-direction:column}}
 
@@ -254,7 +319,7 @@
   <div class="inner">
     <div class="eyebrow">The premise</div>
     <h2>Infrastructure should be requested by the app, not by a person.</h2>
-    <p class="lede wide">Self-service made provisioning infrastructure fast. Nothing connects
+    <p class="lede wide">Self-service Catalogues made provisioning infrastructure fast. However, nothing connects
     a provisioning request to the application workload that needed it, so deleting the workload
     leaves the infrastructure running.</p>
   </div>
@@ -263,59 +328,109 @@
 <!-- 3 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">What a tenant writes</div>
-    <h2>Three lines of annotation.</h2>
+    <div class="eyebrow">Our Demo App</div>
+    <h2>An app asks for infrastructure in annotations.</h2>
+    <p class="lede wide">For example: our demo voting app asks for infrastructure using the following annotations.</p>
+    <p class="kicker">Infrastructure should be requested by the app, not by a person.</p>
+    <div class="codegrid">
 <pre class="code"><span class="k">kind:</span> Deployment
 <span class="k">metadata:</span>
   <span class="k">name:</span> vote
   <span class="k">annotations:</span>
-    <span class="v">jit.infra/redis:</span>    '{"maxmemory":"128mb"}'
-    <span class="v">jit.infra/postgres:</span> '{"db":"voting"}'
-    <span class="v">jit.infra/pgadmin:</span>  '{}'</pre>
-    <p class="lede wide">No Terraform, no CRD to learn, no catalogue to browse. The tenant writes
-    what the app needs as part of the Deployment, so it is versioned, reviewed and deleted with it.</p>
+    <span class="v">jit.infra/redis:</span>   '{}'
+    <span class="v">jit.infra/pgadmin:</span> '{}'</pre>
+<pre class="code"><span class="k">kind:</span> Deployment
+<span class="k">metadata:</span>
+  <span class="k">name:</span> worker
+  <span class="k">annotations:</span>
+    <span class="v">jit.infra/redis:</span>    '{}'
+    <span class="v">jit.infra/postgres:</span> '{}'</pre>
+<pre class="code"><span class="k">kind:</span> Deployment
+<span class="k">metadata:</span>
+  <span class="k">name:</span> result
+  <span class="k">annotations:</span>
+    <span class="v">jit.infra/postgres:</span> '{}'</pre>
+    </div>
   </div>
 </section>
 
 <!-- 4 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">After you apply</div>
-    <h2>Five things happen. You do none of them.</h2>
-    <div class="chainwrap">
-      <div class="rule"></div>
-      <div class="spark"></div>
-      <div class="chain">
-        <div class="step">
-          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h10M4 18h7"/></svg></span>
-          <span class="n">01</span>
-          <span class="t">The annotation is read</span>
-          <span class="s">A controller in the cluster is watching for it.</span>
-        </div>
-        <div class="step">
-          <span class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
-          <span class="n">02</span>
-          <span class="t">Terraform runs</span>
-          <span class="s">Outside the cluster, by a service the controller calls over HTTP.</span>
-        </div>
-        <div class="step">
-          <span class="glyph"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="6" rx="7" ry="3"/><path d="M5 6v12c0 1.7 3.1 3 7 3s7-1.3 7-3V6M5 12c0 1.7 3.1 3 7 3s7-1.3 7-3"/></svg></span>
-          <span class="n">03</span>
-          <span class="t">The database exists</span>
-          <span class="s">A real one, with its own address and a generated password.</span>
-        </div>
-        <div class="step">
-          <span class="glyph"><svg viewBox="0 0 24 24"><rect x="3" y="10" width="18" height="11" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/></svg></span>
-          <span class="n">04</span>
-          <span class="t">The app is wired to it</span>
-          <span class="s">A Secret with the credentials, and a Service so the name resolves.</span>
-        </div>
-        <div class="step last">
-          <span class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 8.5l6 3.5-6 3.5z"/></svg></span>
-          <span class="n">05</span>
-          <span class="t">The pod starts</span>
-          <span class="s">Not before. Nothing polls, nothing waits, nothing times out.</span>
-        </div>
+    <div class="eyebrow">Under the hood</div>
+    <h2>Eight deterministic hops.</h2>
+    <p class="kicker">For a deep dive of this pipeline, see <a href="https://htmlpreview.github.io/?https://github.com/vjkancherla/k8s-just-in-time-infra/blob/main/docs/visual-walkthroughs/annotation-to-state.html" target="_blank" rel="noopener" style="color:var(--blue);text-decoration:underline">annotation-to-state walkthrough</a>.</p>
+    <div class="hops">
+      <!-- Hop 1: Tenant Annotation (Tenant Boundary) -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">1</span><span class="hop-badge">Tenant Scope</span></div>
+        <div class="hop-title">Tenant Annotation</div>
+        <code class="hop-code">jit.infra/{module}</code>
+        <p class="hop-desc">Target specification declared on the tenant Deployment manifest specifying dependency constraints.</p>
+        <div class="hop-status"><span>deployment.yaml</span><b>Entrypoint</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 2: Ingestion & Parsing -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">2</span><span class="hop-badge">JIT Engine</span></div>
+        <div class="hop-title">Ingestion &amp; Parsing</div>
+        <code class="hop-code">parse_annotations()</code>
+        <p class="hop-desc">Kubernetes controller reconciler ingests metadata, validates schema against policies, and extracts target module intent.</p>
+        <div class="hop-status"><span>Controller Reconciler</span><b>Validation OK</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 3: InfraClaim CRD -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">3</span><span class="hop-badge">CRD Layer</span></div>
+        <div class="hop-title">InfraClaim CRD</div>
+        <code class="hop-code">{ns}-{module}</code>
+        <p class="hop-desc">Custom resource synthesized and created by the controller with strict namespace ownership and deletion finalizer for graceful teardown.</p>
+        <div class="hop-status"><span>InfraClaim.jit.infra</span><b>Finalizer Bound</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 4: JITRunner -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">4</span><span class="hop-badge">HTTP Daemon</span></div>
+        <div class="hop-title">JITRunner</div>
+        <code class="hop-code">POST /v1/runs</code>
+        <p class="hop-desc">Core infrastructure provisioner daemon running as an HTTP service on Docker. Listens to requests dispatched from the controller, then executes OpenTofu to provision infrastructure resources via Terraform modules.</p>
+        <div class="hop-status"><span>jit-runner:8080</span><b>Docker &bull; OpenTofu</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 5: OpenTofu Execution -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">5</span><span class="hop-badge">OpenTofu Engine</span></div>
+        <div class="hop-title">OpenTofu Execution</div>
+        <code class="hop-code">tofu apply -auto-approve</code>
+        <p class="hop-desc">Runner spawns an ephemeral workspace, attaches remote state, and creates the containerized resource.</p>
+        <div class="hop-status"><span>Docker Sandbox</span><b>Synthesis Done</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 6: MinIO State Storage -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">6</span><span class="hop-badge">JIT Engine</span></div>
+        <div class="hop-title">MinIO State Storage</div>
+        <code class="hop-code">ns/{ns}/{mod}.tfstate</code>
+        <p class="hop-desc">Kubernetes controller reconciler ingests metadata, validates schema against policies, and extracts target module intent.</p>
+        <div class="hop-status"><span>minio.jit-system</span><b>State Locked</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 7: Outputs Ingestion -->
+      <div class="hop">
+        <div class="hop-header"><span class="hop-num">7</span><span class="hop-badge">Controller Loop</span></div>
+        <div class="hop-title">Outputs Ingestion</div>
+        <code class="hop-code">tofu output -json</code>
+        <p class="hop-desc">Custom resource synthesized and created by the controller with strict namespace ownership and deletion finalizer for graceful teardown.</p>
+        <div class="hop-status"><span>In-Memory JSON Map</span><b>Schema Matched</b></div>
+        <div class="hop-arrow"><svg class="hop-arrow-i" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      </div>
+      <!-- Hop 8: Secret, Service & Pod Ready (Tenant Boundary) -->
+      <div class="hop go">
+        <div class="hop-header"><span class="hop-num">8</span><span class="hop-badge">Tenant Scope</span></div>
+        <div class="hop-title">Secret, Service &amp; Pod Ready</div>
+        <code class="hop-code">jit-{module}</code>
+        <p class="hop-desc">Creates Secret, headless Service, and EndpointSlice. Unblocks application tenant Pod readiness gate; app immediately starts serving traffic.</p>
+        <div class="hop-status"><span>Status: Pod ReadinessGate = True</span><b>Active &amp; Ready</b></div>
       </div>
     </div>
   </div>
@@ -325,7 +440,7 @@
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">The split</div>
-    <h2>Two services. Only one of them can create the infrastructure.</h2>
+    <h2>A controller on K8s. A provisioner on Docker.</h2>
     <div class="split">
       <div class="half">
         <span class="glyph"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1"/></svg></span>
@@ -343,7 +458,7 @@
 
       <div class="half">
         <span class="glyph"><svg viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9L12 3zM12 12l8-4.5M12 12v9M12 12L4 7.5"/></svg></span>
-        <h3>The runner builds</h3>
+        <h3>The runner / provisioner builds</h3>
         <p>Takes the call, runs a versioned Terraform module against the Docker daemon here or
         a cloud API in production, and reports back what it made.</p>
         <div class="cant">Knows nothing about namespaces, apps or expiry.</div>
@@ -355,7 +470,7 @@
 <!-- 6 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
-    <div class="eyebrow">One thing we did not build</div>
+    <div class="eyebrow">No polling</div>
     <h2>The pod waits, without anything waiting.</h2>
     <div class="states">
       <div class="state">
@@ -385,19 +500,43 @@
 <!-- 7 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
+    <div class="eyebrow">What the app actually sees</div>
+    <h2>A Secret, automatically created by the controller.</h2>
+    <div class="split">
+      <div class="half">
+        <h3>vote / worker</h3>
+        <p style="font-family:var(--mono);font-size:clamp(15px,1.65vw,20px);color:var(--blue);margin:0 0 8px">REDIS_URL <span style="font-size:.72em;color:var(--ink-2);font-family:var(--sans);font-weight:500">+ credentials</span></p>
+        <p>From Secret <code>jit-redis</code>, key <code>service_url</code>. The Service
+        has no selector; an EndpointSlice points at the container IP.</p>
+      </div>
+      <div class="half">
+        <h3>worker / result</h3>
+        <p style="font-family:var(--mono);font-size:clamp(15px,1.65vw,20px);color:var(--blue);margin:0 0 8px">DATABASE_URL <span style="font-size:.72em;color:var(--ink-2);font-family:var(--sans);font-weight:500">+ credentials</span></p>
+        <p>From Secret <code>jit-postgres</code>. No hostname, port, user or password in
+        the manifests or the code.</p>
+      </div>
+    </div>
+    <p class="lede wide">The app never hears about Docker, Terraform, or IPAM. That is the
+    point of the split.</p>
+  </div>
+</section>
+
+<!-- 8 ---------------------------------------------------------------- -->
+<section class="slide">
+  <div class="inner">
     <div class="eyebrow">The centrepiece</div>
     <h2>Cleanup has two speeds.</h2>
     <div class="cards">
       <div class="card">
         <span class="tag soft">soft delete</span>
         <h3>Delete the app, and a clock starts</h3>
-        <p>The container keeps running. Redeploy inside the window and the clock is cleared:
+        <p>The infrastructure keeps running. Redeploy inside the window and the clock is cleared:
         the database never went anywhere. Let it run out and it is destroyed, data and all.</p>
       </div>
       <div class="card">
         <span class="tag hard">hard delete</span>
         <h3>Delete the namespace, and it is gone</h3>
-        <p>The clock is ignored. Deleting a whole environment is a deliberate act in a way that
+        <p>The clock is ignored. Deleting the entire infrastructure is a deliberate act in a way that
         deleting a Deployment is not.</p>
       </div>
     </div>
@@ -405,13 +544,24 @@
   </div>
 </section>
 
-<!-- 8 ---------------------------------------------------------------- -->
+<!-- 9 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">What the controller keeps</div>
     <h2>The claim. Everything so far is a field on it.</h2>
 
     <div class="withside">
+<div class="code-col">
+<pre class="code"><span class="k">kind:</span> InfraClaim
+<span class="k">metadata:</span>
+  <span class="k">name:</span> voting-a-postgres
+  <span class="v">ownerReferences:</span> [ Namespace/voting-a ]
+  <span class="v">finalizers:</span>      [ jit.infra/destroy ]
+<span class="k">status:</span>
+  <span class="k">phase:</span>        Active
+  <span class="v">referencedBy:</span> [ worker, result ]
+  <span class="v">expiresAt:</span>    <span style="color:var(--ink-3)">—</span></pre>
+<p style="font-size:clamp(12px,1.3vw,15px);color:var(--ink-3);margin:clamp(10px,1.6vh,16px) 0;font-weight:500">↓ &nbsp;all references removed (deployments deleted, namespace still exists) — clock starts</p>
 <pre class="code"><span class="k">kind:</span> InfraClaim
 <span class="k">metadata:</span>
   <span class="k">name:</span> voting-a-postgres
@@ -421,6 +571,7 @@
   <span class="k">phase:</span>        Orphaned
   <span class="v">referencedBy:</span> []
   <span class="v">expiresAt:</span>    2026-09-13T21:04:10Z</pre>
+</div>
 
       <div class="aside">
         <div class="note">This is what ties the infrastructure to the app that asked for it.
@@ -439,14 +590,14 @@
   </div>
 </section>
 
-<!-- 9 ---------------------------------------------------------------- -->
+<!-- 10 ---------------------------------------------------------------- -->
 <section class="slide">
   <div class="inner">
     <div class="eyebrow">How do we know the infrastructure is still needed</div>
-    <h2>A counter can drift. A list cannot.</h2>
+    <h2>The annotation is either there, or it is not.</h2>
     <p class="lede wide">Every thirty seconds the controller walks every claim, lists the
-    Deployments in its namespace, and writes down which ones still ask for it. That list is
-    <b>referencedBy</b>.</p>
+    Deployments in its namespace, and checks whether any still carry the annotation. Then it
+    updates the <b>referencedBy</b> on the claim.</p>
 
     <div class="ledger">
       <div class="line">
@@ -464,18 +615,6 @@
         <span class="verdict amber">the clock starts</span>
       </div>
     </div>
-  </div>
-</section>
-
-<!-- 10 ---------------------------------------------------------------- -->
-<section class="slide">
-  <div class="inner">
-    <div class="eyebrow">Why it stays safe</div>
-    <h2>Restart the controller mid-delete and nothing leaks.</h2>
-    <p class="lede wide">It misses the event, then works out the truth on the next pass and starts the
-    clock late. Late is the safe direction to be wrong in.</p>
-    <p class="lede wide">A destroy that fails holds its finalizer rather than forgetting the container
-    existed. The system would rather stall visibly than lose track.</p>
   </div>
 </section>
 
