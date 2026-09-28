@@ -1,10 +1,12 @@
 # S22 Review - review prompt (generated, do not abbreviate)
 
 Copy the text between the markers **verbatim** from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md`
-and substitute exactly six slots. Deviations, each marked inline: the S22 note in "What to
-read" and after questions 6 and 7 (S22 has no checkpoint script by design - its evidence
-is the captured all-fail run), and the ADR 0005 citation in "What the step was allowed to
-touch" (the re-review's contract fixes are approved decision, not scope creep).
+and substitute exactly six slots: the step (S22), the step number (22), the topic
+(`designs/declarers-and-consumers.md`), the goal (word for word from `docs/build-plan.md`
+S22), the commit range (`f0cdde0..da265a3`), and the files the step named as its scope
+(one path per line). Add nothing else - one S22 note is inserted, marked inline, only
+because there is no `scripts/checks/S22.sh` by design; the step's record is the captured
+all-fail run.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -23,9 +25,9 @@ verbatim".
 ## What the step was supposed to do
 
 **Goal:** all child checkpoints (`scripts/checks/S23.sh`-`S29.sh`, plus the runner
-`scripts/checkpoint.sh` and the guard `scripts/review-guard.sh`) exist and all of them
-fail for a readable reason — because nothing is implemented, not because the harness is
-broken.
+`scripts/checkpoint.sh` and the guard `scripts/review-guard.sh`) exist, and each
+child checkpoint fails for a readable reason — because nothing is implemented, not
+because the harness is broken.
 
 **Read:** [designs/declarers-and-consumers.md](designs/declarers-and-consumers.md)
 (§Verification), this document.
@@ -37,11 +39,12 @@ broken.
 - Turn each child step's assertions below into `scripts/checks/S23.sh` … `S29.sh`
   in one pass. `set -euo pipefail`, `fail()`, exit non-zero. They all fail now —
   that is the point, and it proves each asserts something real.
-- Add `make gate STEP=NN` to the Makefile, matching the existing idiom.
+- Add `make gate STEP=NN` to the Makefile next to the frozen `check` target: same
+  run, through the capturing runner.
 
 **Gate (this step's evidence, captured to
-`docs/evidence/s22-all-fail.log`):** running each child checkpoint reports its
-failure with a readable message and zero syntax errors.
+`docs/evidence/s22-all-fail.log`):** running each child script reports its failure
+with a readable message and zero syntax errors.
 
 **Gate:** the child checkpoints are frozen. `scripts/checks/S22.sh` itself does not
 exist — S22's record IS the captured all-fail run.
@@ -50,8 +53,8 @@ exist — S22's record IS the captured all-fail run.
 
 `scripts/checkpoint.sh`
 `scripts/review-guard.sh`
-`scripts/s22-all-fail.sh` (ADR 0005 - derives the all-fail summary by re-running the seven)
-`scripts/checks/lint-helpers.sh` (ADR 0005 - the runaway-execution guard the summarizer runs first)
+`scripts/s22-all-fail.sh`
+`scripts/checks/lint-helpers.sh`
 `scripts/checks/S23.sh`
 `scripts/checks/S24.sh`
 `scripts/checks/S25.sh`
@@ -64,20 +67,20 @@ exist — S22's record IS the captured all-fail run.
 `docs/todo.md` (Stage H rows)
 `.opencode/rules/s22-declarers.md`, `opencode.json`, `RUNBOOK.md`
 `docs/evidence/s22-all-fail.log`, `docs/evidence/S23.log`-`S29.log`
-`docs/decisions/0005-stage-h-checkpoint-contract-fixes.md` (ADR: the approved contract
-fixes applied after the first re-review - S23 verdict, S24 destroy pairs, S26
-conflict/apply/cleanup, S29 precondition/U12, the `-g`/`-gt` typo, the S26 `kill 0`
-trap, and the two round-3 record-builder/precondition fixes)
+`docs/decisions/0005-stage-h-checkpoint-contract-fixes.md`
 
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S22, its checkpoint, its gate
-- `git diff f0cdde0..da265a3` - what was actually done (S22 and its ADR-post-review contract fixes; the design-round artifacts sit below in f0cdde0, committed at the human's direction)
+- `git diff f0cdde0..da265a3` - what was actually done
 - `scripts/checks/S22.sh` - the assertion that passed
-  *(S22 note: there is no `S22.sh` by design; the evidence record is
-  `docs/evidence/s22-all-fail.log` and the per-checkpoint logs `docs/evidence/S23.log`
-  to `S29.log`, produced by the same runner.)*
+  *(S22 note: there is no `scripts/checks/S22.sh` by design. The equivalent is the
+  all-fail capture: the evidence record is `docs/evidence/s22-all-fail.log` plus the
+  per-checkpoint logs `docs/evidence/S23.log`-`S29.log`, produced by
+  `scripts/checkpoint.sh`. Run each as `./scripts/checkpoint.sh NN`; all seven are
+  designed to FAIL now, and the gate is that each failure is a readable `FAIL:` line
+  naming its precondition and none is a syntax error.)*
 
 ## First, mechanically
 
@@ -96,15 +99,12 @@ trap, and the two round-3 record-builder/precondition fixes)
    tree?
    - If it fails: **blocker**. A checkpoint that passed for the implementer and fails for
      you usually means the step only worked because of leftover state.
-   - *S22 note:* the equivalent of the checkpoint is the all-fail capture - run
-     `./scripts/checkpoint.sh NN` for each NN in 23..29; every one is designed to FAIL at
-     this point, and the gate is that each failure is a readable `FAIL:` line naming its
-     precondition, and none is a syntax error.
+   - *S22 note:* there is no `S22.sh`; the equivalent is the all-fail capture above.
 7. **Now read the checkpoint.** Would it still pass if the core logic of this step were
    deleted or stubbed out? If yes it is asserting nothing - **blocker**.
-   - *S22 note:* inverted for this pre-flight step - the checkpoints must still FAIL with
-     nothing implemented (they do), and each must have an assertion an immutable
-     implementation could eventually satisfy once S23-S29 build it.
+   - *S22 note:* inverted for this pre-flight step. The checkpoints must still FAIL with
+     nothing implemented, and each must carry an assertion a correct implementation
+     could satisfy once S23-S29 build it.
 
 ## Then, on substance
 
@@ -136,14 +136,13 @@ Write `docs/reviews/S22-findings.md`:
     <observations, no action implied.>
 
     ## Checkpoint assessment
-    <did the all-fail pre-flight actually assert the step's goal? one paragraph.>
+    <did the checkpoint pass on a clean run? does it actually assert the step's goal?
+    one paragraph.>
 
 Verdict rules:
-- Any mechanical finding (1-5) → BLOCKED - with the deliberate exception that S22's
-  purpose was to create the checkpoints under `scripts/checks/`; the rule's intent
-  (none may be edited after S22) is what to verify
-- A checkpoint failing for a reason other than its stated precondition → BLOCKED
-- A checkpoint that cannot bite once S23-S29 are implemented → BLOCKED
+- Any mechanical finding (1-5) → BLOCKED
+- Checkpoint fails when you run it → BLOCKED
+- Checkpoint would pass with the logic removed → BLOCKED
 - Design disagreement that changes behaviour → BLOCKED
 - Everything else → CONCERNS or CLEAR
 
