@@ -73,7 +73,7 @@ trap, and the two round-3 record-builder/precondition fixes)
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S22, its checkpoint, its gate
-- `git diff f0cdde0..2366b2c` - what was actually done (S22 and its ADR-post-review contract fixes; the design-round artifacts sit below in f0cdde0, committed at the human's direction)
+- `git diff f0cdde0..06ddaa0` - what was actually done (S22 and its ADR-post-review contract fixes; the design-round artifacts sit below in f0cdde0, committed at the human's direction)
 - `scripts/checks/S22.sh` - the assertion that passed
   *(S22 note: there is no `S22.sh` by design; the evidence record is
   `docs/evidence/s22-all-fail.log` and the per-checkpoint logs `docs/evidence/S23.log`
