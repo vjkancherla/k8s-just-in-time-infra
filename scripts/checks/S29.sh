@@ -8,7 +8,7 @@ set -euo pipefail
 fail() { echo "FAIL: $1"; exit 1; }
 
 # Bodied kubectl: a dead API server cannot hang the checkpoint or its cleanup trap.
-kk() { kk --request-timeout=5s "$@"; }
+kk() { kubectl --request-timeout=5s "$@"; }
 
 cleanup() { rc=$?; set +e
   docker start jit-runner >/dev/null 2>&1

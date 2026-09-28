@@ -31,7 +31,7 @@ fi
 for n in $DFS; do
   echo "--- S$n" >> "$out"
   if ! bash -n "scripts/checks/S$n.sh" 2>>"$out"; then ok=0; continue; fi
-  ./scripts/checkpoint.sh "$n" >/dev/null 2>&1; rc=$?
+  rc=0; ./scripts/checkpoint.sh "$n" >/dev/null 2>&1 || rc=$?
   reason="$(grep -m1 '^FAIL' "docs/evidence/S$n.log" || true)"
   if [ "$rc" -eq 0 ]; then
     ok=0; echo "S$n PASSED unexpectedly" >> "$out"
@@ -49,4 +49,4 @@ else
   echo "FAIL S22 pre-flight: see the S-lines above" >> "$out"
 fi
 [ "$ok" -eq 1 ] || exit 1
-[ "${1:-}" = "--capture" ] && echo "captured: docs/evidence/s22-all-fail.log"
+if [ "${1:-}" = "--capture" ]; then echo "captured: docs/evidence/s22-all-fail.log"; fi

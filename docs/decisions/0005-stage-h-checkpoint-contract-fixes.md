@@ -74,6 +74,22 @@ Now asserts both sides of that conditional, per build-plan S24's bullet 3:
    against the completed state: the namespace read must come back gone and stay gone
    for the checks that follow (claims survive check, finalizer check, container check).
 
+4. `S26.sh`'s `cleanup` trap and `S25/S26/S29`'s kubectl calls were previously
+   unbounded: against a dead or black-holed API server the precondition itself,
+   and the trap's scale-back, hit a connection that never returns, wedging the
+   checkpoint (demonstrated: S26 hung past 240s before this fix). Every kubectl
+   call now runs through a bound helper (`kk` = `kubectl --request-timeout=5s`),
+   so a precondition failure is a fast, readable `FAIL:` - in a S26 trap as
+   well as the preconditions of the three steps that call kubectl.
+
+5. The first cut of the `kk` helper in item 4 was itself a bug: it renamed the
+   inner `kubectl` to `kk`, making the helper recurse infinitely - the bash
+   child died with SIGSEGV (exit 139) instead of returning a readable FAIL.
+   `kk() { kubectl --request-timeout=5s "$@"; }` calls the real binary. Recorded
+   here because a fix to a frozen checkpoint must carry its own trip; the
+   recursion is the same class of trap the earlier "fix contract" found in
+   S23's verdict guard.
+
 Approved and recorded here; also cited in the S22 review prompt. Not in scope of this
 ADR: the concerns the re-review also raised (S29 U7's `postgres_db` variant, U1's
 Secret-byte check, U3/U13's timestamps) stay unfixed — the protocol fixes blockers,
