@@ -71,6 +71,7 @@ exist — S22's record IS the captured all-fail run.
 `docs/decisions/0006-resolve-s22-concerns.md`
 `docs/designs/declarers-and-consumers.md` (ADR 0006: one stale `S22.sh` path corrected
 to `S29.sh` - the named exception to that file's read-only default)
+
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
