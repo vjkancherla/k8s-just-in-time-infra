@@ -216,7 +216,7 @@ Migration needs no ordering. Before it, all annotations are agreeing declarers; 
 
 ## Verification (S22)
 
-Each check is an assertion in `scripts/checks/S22.sh`. "One tick" means one 30s resync plus one runner call.
+Each check is an assertion in `scripts/checks/S29.sh` (the design named `S22.sh`; the build-plan gate puts the U-table in S29, which records the mapping). "One tick" means one 30s resync plus one runner call.
 
 | # | Setup | Assert |
 | --- | --- | --- |

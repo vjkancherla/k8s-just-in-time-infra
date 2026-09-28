@@ -285,6 +285,39 @@ posts1="$(posts)"; sleep 32
 [ "$posts1" = "$posts0" ] || fail "U13: a TTL-only patch triggered a runner call"
 echo "U13 ok TTL maximum taken from a consumer, no runner call"
 
+# =============== the gate's suite survival (build-plan S29, before U12 deletes voting-a)
+# The R-suite and the J-suite must both survive everything Stage H changed. Run them
+# while voting-a is still alive (U12 destroys it below). `.workflow` lives at the repo
+# root or under app/ depending on the target; both are accepted, and a stale artifact is
+# removed first so it cannot pass the gate. Never trust `make verify`'s exit code for the
+# count - verify.sh exits 0 even when checks fail - so parse the summary line.
+rm -f .workflow/verify.md app/.workflow/verify.md
+if ! make verify NS=voting-a >/tmp/s29-verify.log 2>&1; then
+  tail -5 /tmp/s29-verify.log | sed 's/^/  /'
+  fail "the S29 gate: 'make verify NS=voting-a' failed - the R-suite broke under Stage H"
+fi
+verify_md="$(for f in .workflow/verify.md app/.workflow/verify.md; do [ -f "$f" ] && { echo "$f"; break; }; done)"
+[ -n "$verify_md" ] || fail "the S29 gate: make verify wrote no .workflow/verify.md"
+verify_sum="$(grep -E '^===== [0-9]+ PASS, [0-9]+ FAIL =====$' "$verify_md" | tail -1 || true)"
+[ "$verify_sum" = "===== 17 PASS, 0 FAIL =====" ] \
+  || fail "the S29 gate: make verify did not report '17 PASS, 0 FAIL' (got '${verify_sum:-no summary line}') - see $verify_md"
+echo "gate ok: make verify NS=voting-a reports 17 PASS, 0 FAIL"
+
+rm -f .workflow/verify-jit.md app/.workflow/verify-jit.md
+if ! make jit-verify >/tmp/s29-jit.log 2>&1; then
+  tail -5 /tmp/s29-jit.log | sed 's/^/  /'
+  fail "the S29 gate: 'make jit-verify' failed - the J-suite broke under Stage H"
+fi
+jit_md="$(for f in .workflow/verify-jit.md app/.workflow/verify-jit.md; do [ -f "$f" ] && { echo "$f"; break; }; done)"
+[ -n "$jit_md" ] || fail "the S29 gate: make jit-verify wrote no .workflow/verify-jit.md"
+for j in $(seq 1 11); do
+  grep -qE "^J${j}[[:space:]]+PASS" "$jit_md" \
+    || fail "the S29 gate: J$j did not report PASS in $jit_md"
+done
+grep -qE '^J[0-9]+[[:space:]]+FAIL' "$jit_md" \
+  && fail "the S29 gate: a J-check reported FAIL in $jit_md"
+echo "gate ok: make jit-verify reports J1-J11 all PASS"
+
 # ================================================================== U12 namespace delete after U2
 kk delete ns voting-a --wait=true >/dev/null 2>&1 &
 u12check() { [ -z "$(kk get ns voting-a -o name 2>/dev/null)" ]; }
