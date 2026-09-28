@@ -1,10 +1,9 @@
 # S26 checkpoint run - captured, never typed
-# started  2026-09-28T16:25:33Z
-# commit   d6946f6
-# pending  9 uncommitted change(s)
+# started  2026-09-28T18:31:23Z
+# commit   77a3845
+# pending  4 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S26.sh
 # --- raw output follows - do not edit anything below this line ---
 FAIL: CRD missing - run 'make jit-up' before this checkpoint
-scripts/checks/S26.sh: line 13: CTRL_PID: unbound variable
 # exit     1

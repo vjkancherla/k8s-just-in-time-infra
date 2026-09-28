@@ -1,8 +1,9 @@
 # S22 pre-flight checkpoint run - captured, never typed
-# started  2026-09-28T16:25:33Z
-# commit   d6946f6
-# command  for NN in 23..29: bash -n, then scripts/checkpoint.sh NN
-# purpose: every Stage-H checkpoint asserts something real (fails readable, 0 syntax errors)
+# started  2026-09-28T18:31:23Z
+# commit   77a3845
+# command  scripts/s22-all-fail.sh --capture   (lint first, then runs scripts/checkpoint.sh for NN in 23..29 under a 240s watchdog each, derives this from the captured logs)
+# purpose: every Stage-H checkpoint asserts something real
+#          each fails readable before any implementation, 0 syntax errors
 --- S23
 FAIL: docs/evidence/s23-spike.log missing - run the spike protocol first
 --- S24
