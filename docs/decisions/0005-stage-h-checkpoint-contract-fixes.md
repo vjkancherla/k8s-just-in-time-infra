@@ -106,6 +106,23 @@ Now asserts both sides of that conditional, per build-plan S24's bullet 3:
    by the summarizer). Both carry a readable `FAIL:`/`PASS` and exit non-zero on
    failure.
 
+8. `S26.sh`'s `cleanup` trap still wedged the checkpoint after item 3. The first
+   reading blamed the item-3 `[ -n "${CTRL_PID:-}" ] && wait` line; that line was a
+   bug too (it evaluates false on the precondition-failure path, returns 1, and under
+   an EXIT trap re-triggers exit before `exit "$rc"`), but the actual hang was one
+   line up: `kill "${CTRL_PID:-0}"` and `kill "${STUB_PID:-0}"`. With the variable
+   unset the parameter default yields the literal `0`, and `kill 0` signals **the
+   whole process group** — the checkpoint's own shell included — which then hangs
+   waiting on itself. Demonstrated: an eight-line probe printed `TRAP ctrl=''` and
+   died before reaching the next line; removing the `kill 0` lines alone made it
+   return. In the batch this presented as S26 hanging until the 240s watchdog (and,
+   before the watchdog, an hour-long stuck run). Both kills and the wait now use the
+   non-failing, non-group-signaling form `[ -z "${CTRL_PID:-}" ] || kill "$CTRL_PID"`
+   (and likewise for `STUB_PID` and the `wait`), so the trap reaches its `exit "$rc"`
+   and S26 fails readably in ~0.1s. Same class as items 5 and 6; recorded here
+   because the first fix in this ADR addressed the wrong line and the diagnosis is
+   the lesson.
+
 Approved and recorded here; also cited in the S22 review prompt's FILES list and Stage H
 of `docs/build-plan.md`. Not in scope of this ADR: the concerns the re-review also raised
 (S29 U7's `postgres_db` variant, U1's Secret-byte check, U3/U13's timestamps) stay

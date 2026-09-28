@@ -13,11 +13,11 @@ kk() { kubectl --request-timeout=5s "$@"; }
 
 cleanup() { rc=$?; set +e
   rm -f "$STUB_LOG" "$STOPFILE" 2>/dev/null
-  kill "${CTRL_PID:-0}" 2>/dev/null
-  kill "${STUB_PID:-0}" 2>/dev/null
+  [ -z "${CTRL_PID:-}" ] || kill "$CTRL_PID" 2>/dev/null
+  [ -z "${STUB_PID:-}" ] || kill "$STUB_PID" 2>/dev/null
   kk scale deploy/jit-controller -n default --replicas=1 >/dev/null 2>&1
   kk delete ns "$NS" --wait=false --ignore-not-found >/dev/null 2>&1
-  [ -n "${CTRL_PID:-}" ] && wait "$CTRL_PID" 2>/dev/null
+  [ -z "${CTRL_PID:-}" ] || wait "$CTRL_PID" 2>/dev/null
   exit "$rc"; }
 trap cleanup EXIT
 
