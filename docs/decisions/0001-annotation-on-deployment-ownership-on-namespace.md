@@ -41,6 +41,7 @@ Cleanup is two-speed:
 - **Ruled out**: Annotation on Namespace (tenants can't write it). Deployment-owned claims
   (break on rollout). Single-speed hard delete (rollouts become data-loss events).
 
-Supersedes: [v1](./jit-infra-poc-v1-superseded.md), [v2](./jit-infra-poc-v2-superseded.md),
-[v3](./jit-infra-poc-v3-superseded.md). See the [design note](../jit-infra-poc.md) for the
+Supersedes: v1, v2, v3 (their design notes were removed; the one-line summaries above and the
+[lineage table](../designs/README.md) keep the record). See the [design note](../designs/jit-infra-poc.md) for the
+full rationale.
 full rationale.

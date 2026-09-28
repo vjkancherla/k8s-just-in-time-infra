@@ -1,11 +1,5 @@
 # JIT Infra PoC - Design Note (v4)
 
-Date: 2026-09-01
-Scope: proof of concept on k3d. Not production grade.
-Supersedes: [v1](./jit-infra-poc-v1-superseded.md) (modules in the controller image),
-[v2](./jit-infra-poc-v2-superseded.md) (Deployment-owned, two tiers),
-[v3](./jit-infra-poc-v3-superseded.md) (annotation on the Namespace, single hard delete).
-
 Context read:
 - `local-ai-dev-workflow-voting-app` README, `docs/SCRIPTS-GUIDE.md`,
   `docs/MAKEFILE-GUIDE.md` - `vote → redis → worker → postgres ← result`, k3d cluster
@@ -276,24 +270,27 @@ while the other namespace keeps running.
 
 ## Roads not taken
 
-- **Annotation on the Namespace** ([v3](./jit-infra-poc-v3-superseded.md)): coherent,
-  but tenants have no write access to namespaces.
-- **Deployment-owned** ([v2](./jit-infra-poc-v2-superseded.md)): would win if
-  namespaces were per-team. They are per-app.
+- **Annotation on the Namespace** (v3, superseded — summarized in
+      [ADR 0001](../decisions/0001-annotation-on-deployment-ownership-on-namespace.md)): coherent,
+      but tenants have no write access to namespaces.
+- **Deployment-owned** (v2, superseded — summarized in [ADR 0001](../decisions/0001-annotation-on-deployment-ownership-on-namespace.md)): would win if
+      namespaces were per-team. They are per-app.
 - **Single hard delete**: what v3 had. Any Deployment delete became a data-loss event,
   which made rollouts frightening.
 - **Stopping containers during the retention window**: the correct cost answer and the
   right prod shape (`running` var, or snapshot-and-delete). Left out to keep the PoC's
   soft path to one state transition.
-- **Modules in the controller image** ([v1](./jit-infra-poc-v1-superseded.md)):
-  simpler, but credentials end up in-cluster and modules stop being versioned.
+- **Modules in the controller image** (v1, superseded — summarized in
+      [ADR 0001](../decisions/0001-annotation-on-deployment-ownership-on-namespace.md)):
+      simpler, but credentials end up in-cluster and modules stop being versioned.
 - **Async runner with a queue**: correct for real provisioning latency. The biggest
   divergence from prod, where RDS's 5-15 minutes forces the whole async status machinery.
 
 ## Open questions
 
-- [ ] Annotation edited on a live Deployment - re-apply, or refuse? Re-apply will
-      recreate Redis and drop the queue.
+- [x] Annotation edited on a live Deployment - re-apply, or refuse?
+      Answered in [declarers-and-consumers.md](./declarers-and-consumers.md):
+      re-apply what the module allows, refuse the rest with a named condition.
 - [ ] Should `Orphaned` infra be visible to the tenant, and where? A printer column on
       the claim is free, but tenants may not have read access to claims.
 - [ ] IP block reuse after teardown: immediate, or quarantined a cycle? Immediate risks

@@ -1,28 +1,22 @@
-Updated: 2026-09-19
+Updated: 2026-09-26
 
 ## Current focus
-Automate the demo-mode toggle so `make demo-up` ends with unlimited voting enabled.
+S22 design done: settings changes on provisioned JIT infra - Concept 1 (Converge) selected, documented under `docs/design/`.
 
 ## Blocked
 - scripts/checks/S18.sh:147 asserts redis stays Ready "because the worker still references it". Unblocking still needs approval to edit a file under scripts/checks/. (Not changed by this task.)
 
 ## Done (verified)
-- Option A implemented: the demo app consumes all infrastructure connection URLs from the controller-written module Secrets.
-- Added `ALLOW_MULTIPLE_VOTES` env var to `app/vote/app.py`: when set to `"true"`, every POST generates a fresh `voter_id`, so repeated clicks from the same browser count as separate votes.
-- Exposed `ALLOW_MULTIPLE_VOTES` in `app/kustomize/base/vote-deployment.yaml` (default `"false"` to keep R3 passing).
-- Documented the toggle in `app/docs/MANUAL-TESTING-GUIDE.md` §9 with the `kubectl set env` command.
-- Static validation: `python3 -m py_compile app/vote/app.py` and `kubectl kustomize app/kustomize/base` both PASS.
-- Automated Option A:
-  - `scripts/demo-up.sh` now verifies with `ALLOW_MULTIPLE_VOTES=false`, then patches the vote Deployment to `true` and waits for rollout.
-  - Root `Makefile` `demo-redeploy` target re-enables demo mode after re-applying the overlay.
-  - Updated `app/docs/MANUAL-TESTING-GUIDE.md` to say `make demo-up` auto-enables demo mode.
-  - `bash -n scripts/demo-up.sh` and `make -n demo-redeploy` both PASS.
+- S1-S21 complete (docs/todo.md all checked): demo-mode automation, console read model, and timeline are live.
+- S22 design complete: `docs/design/infra-change-flow-brainstorm.md` (decision: Concept 1 - Converge; 6 acceptance criteria) plus full transcript `docs/design/infra-change-flow-transcript.md`.
+- Decision: annotation stays sole source of truth; controller syncs `InfraClaim.spec` from the paramSource annotation and re-applies via runner `POST /v1/runs`; new `Updating` phase + `status.paramSource`; advisory `AppRestartRequired` (no controller-initiated restarts).
+- v1 scope: `params` + `softDeleteTTL` (`moduleVersion` deferred - runner ignores it). Rollback = re-annotate; failed updates stay in Ready/Failed, never Deleting.
 
 ## Checkpoints
 - None pending for this task.
 
 ## Next step
-User can run `make demo-up` — it will pass verification and end with `ALLOW_MULTIPLE_VOTES=true` on the vote Deployment.
+Add S22 to `docs/build-plan.md` and `docs/todo.md`, then implement the controller spec-sync + update flow in `jit-controller/main.py` with `scripts/checks/S22.sh`.
 
 ## Watch out
 - Existing namespaces created before this change have Secrets without `service_url`; redeploying those pods with the new manifests will fail until the namespace is recreated or the Secrets are patched.
@@ -31,3 +25,5 @@ User can run `make demo-up` — it will pass verification and end with `ALLOW_MU
 - CSS uppercases `.docker-table th` and `.tiny-tag`: compare inner_text lowercased.
 - pgadmin's lease is on vote deliberately; moving it breaks the orphaning demo.
 - refs/cline/checkpoints/* snapshot .env and terraform.tfstate; never `git push --all`/`--mirror`.
+- CRD `status` schema is a closed list: `status.paramSource` needs a CRD edit or the API server prunes it.
+- App env vars resolve at container start: a Secret change needs an app restart (advisory condition, not controller-initiated).
