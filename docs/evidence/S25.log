@@ -1,0 +1,9 @@
+# S25 checkpoint run - captured, never typed
+# started  2026-09-28T16:25:33Z
+# commit   d6946f6
+# pending  9 uncommitted change(s)
+# host     VJK-MacBook.local as vkancherla
+# command  bash scripts/checks/S25.sh
+# --- raw output follows - do not edit anything below this line ---
+FAIL: CRD not present in the cluster - run 'make jit-up' before this checkpoint
+# exit     1

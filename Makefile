@@ -158,3 +158,7 @@ console-shots: ## Render every console state to console/shots/ for review
 .PHONY: check
 check: ## Run one checkpoint from scripts/checks/: make check STEP=15
 	@bash $(SCRIPTS)/checks/S$(STEP).sh
+
+.PHONY: gate
+gate: ## Run one Stage-H checkpoint through the capturing runner: make gate STEP=23
+	@scripts/checkpoint.sh $(STEP)

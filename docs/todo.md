@@ -112,6 +112,22 @@ JavaScript error sweep. `--shots` renders numbered PNGs to `console/shots/` for 
 review. `console/test_console.py` (declaration/contract suite) and `console/test_serve.py`
 (proxy/unit tests) are the other two console test files.
 
+## Stage H — S22: declarers and consumers (settings changes)
+
+Design: [designs/declarers-and-consumers.md](./designs/declarers-and-consumers.md)
+Steps: build-plan.md Stage H. Evidence: `docs/evidence/SNN.log` via
+`scripts/checkpoint.sh`. Checkpoints S23-S29 written in S22 and **frozen**;
+runner and guard frozen with them.
+
+- [x] check  - [ ] review  **S22** [build-plan.md](./build-plan.md) Stage H: every Stage-H checkpoint written in one pass, all failing readable *(docs/evidence/s22-all-fail.log — 7 FAIL, 0 syntax errors)*
+- [ ] check  - [ ] review  **S23** Spike: replace timings, vote loss, `call_runner` blocking verdict  ← decides redis `maxmemory` mutability
+- [ ] check  - [ ] review  **S24** Runner: params-keyed success cache; `tofu state rm postgresql_*` before destroy
+- [ ] check  - [ ] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server
+- [ ] check  - [ ] review  **S26** Controller core against the stub runner: resolution, contract, update flow, backfill, stale `Updating`  ← strongest model
+- [ ] check  - [ ] review  **S27** Postgres `databases` in place, settings allowlist, `service_url_<db>`; redis via contract
+- [ ] check  - [ ] review  **S28** Tenant migration (declarers/consumers) + the three design-doc amendments  ← strongest model
+- [ ] check  - [ ] review  **S29** The gate: U1-U13 live, plus `make verify` 17 PASS and `make jit-verify` 11 PASS  ← strongest model
+
 ## Notes carried from the app's own docs
 
 - Checkpoint scripts use `set -euo pipefail` and **must** exit non-zero. `verify.sh`

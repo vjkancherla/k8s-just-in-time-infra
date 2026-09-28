@@ -1,0 +1,21 @@
+# S22 pre-flight checkpoint run - captured, never typed
+# started  2026-09-28T16:25:33Z
+# commit   d6946f6
+# command  for NN in 23..29: bash -n, then scripts/checkpoint.sh NN
+# purpose: every Stage-H checkpoint asserts something real (fails readable, 0 syntax errors)
+--- S23
+FAIL: docs/evidence/s23-spike.log missing - run the spike protocol first
+--- S24
+FAIL: runner not up - run 'make jit-up' before this checkpoint
+--- S25
+FAIL: CRD not present in the cluster - run 'make jit-up' before this checkpoint
+--- S26
+FAIL: CRD missing - run 'make jit-up' before this checkpoint
+--- S27
+FAIL: runner not up - run 'make jit-up' before this checkpoint
+--- S28
+FAIL: worker must CONSUME redis (no params key) - actual: declarer
+--- S29
+FAIL: make state says up=False - run 'make demo-up' before this checkpoint
+PASS S22 pre-flight: 7 checkpoints, all failing readable, 0 syntax errors
+PASS

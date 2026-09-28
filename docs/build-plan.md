@@ -769,9 +769,277 @@ fixtures. `--shots` writes numbered PNGs to `console/shots/` for visual review. 
 companion files exist: `console/test_console.py` (declaration/contract suite) and
 `console/test_serve.py` (proxy/unit tests).
 
-## Done
+## Stage H — S22: declarers and consumers (settings changes on shared infra)
 
-- [x] `make all` and `make jit-verify` both green from a cold `make destroy` — *amended by S17's review*:
+Design: [designs/declarers-and-consumers.md](designs/declarers-and-consumers.md)
+The design's verification table (U1-U13) is the stage's Verification section; every
+checkpoint below ladders up to it. Context read: this document, `docs/todo.md`,
+`docs/lessons.md`, `jit-controller/main.py` (`check_param_conflict`,
+`resolve_postgres_credentials`, `call_runner`), `app/kustomize/base/*.yaml`
+(every annotation carries `params: {}`, so today every reference is an agreeing
+declarer), `scripts/checks/S14.sh` (asserts idempotent create and auth; **no**
+conflict assertion — the first-writer-wins design line is superseded without touching
+a frozen gate).
+
+**Load-bearing decision:** the lease and the definition are separate roles — every
+referencing Deployment holds the lease; only declarers (annotation has a `params`
+key, including `params: {}`) shape the infra. Rejected: every reference an equal
+writer. **v1 mutable surface:** redis `maxmemory`, postgres `databases` (additive)
+and an allowlist of postgres server settings; everything else refused with a named
+condition. No new phase — progress and failure are conditions on a `Ready` claim.
+
+**How the steps read.** Nine steps, S22-S29, one session each, one checkpoint each.
+S22 writes every checkpoint in one pass, before any implementation, and they are
+frozen thereafter — the same rule Stage Z applied to S-1. Evidence is always
+`docs/evidence/SNN.log`, written only by `scripts/checkpoint.sh SNN` (the Stage-H
+runner, copied into the repo in S22; `make check STEP=NN` remains the bare
+entrail-reader). The repo's completion protocol above applies unchanged: two gates
+(checkpoint PASS, then a different model writes CLEAR in
+`docs/reviews/SNN-findings.md`), one step per session, no next step offered.
+
+Each setup table mirrors the design: run the steps with the demo stack up
+(`make demo-up`) unless the step says otherwise; each checkpoint fails rather than
+skipping when its precondition is missing.
+
+### S22. Write every Stage-H checkpoint script
+
+**Goal:** all child checkpoints (`scripts/checks/S23.sh`-`S29.sh`, plus the runner
+`scripts/checkpoint.sh` and the guard `scripts/review-guard.sh`) exist, and each
+child checkpoint fails for a readable reason — because nothing is implemented, not
+because the harness is broken.
+
+**Read:** [designs/declarers-and-consumers.md](designs/declarers-and-consumers.md)
+(§Verification), this document.
+
+**Do:**
+- Copy the skill's runner into `scripts/checkpoint.sh` and the guard into
+  `scripts/review-guard.sh`, with the evidence path at `docs/evidence/`. Both are
+  frozen from this commit.
+- Turn each child step's assertions below into `scripts/checks/S23.sh` … `S29.sh`
+  in one pass. `set -euo pipefail`, `fail()`, exit non-zero. They all fail now —
+  that is the point, and it proves each asserts something real.
+- Add `make gate STEP=NN` to the Makefile next to the frozen `check` target: same
+  run, through the capturing runner.
+
+**Gate (this step's evidence, captured to
+`docs/evidence/s22-all-fail.log`):** running each child script reports its failure
+with a readable message and zero syntax errors.
+
+**Gate:** the child checkpoints are frozen. `scripts/checks/S22.sh` itself does not
+exist — S22's record IS the captured all-fail run.
+
+### S23. Spike: replaces, vote loss, and the event loop
+
+**Goal:** measure what the mutability contract may only claim after measurement —
+how long a redis and a postgres container replace take, how many queued votes a
+redis replace drops, whether `vote`/`worker` reconnect — and confirm whether
+`call_runner` runs synchronously inside a `kopf` handler (it must move to
+`asyncio.to_thread` if it does). The verdict decides whether redis `maxmemory`
+stays in the mutable surface (U1).
+
+**Read:** design note §Crash recovery, §Build order item 1; `jit-controller/main.py`
+`call_runner`; `docs/lessons.md` ("A retained data volume and a regenerated password
+cannot both be right", for trap avoidance).
+
+**Do:** a probe script under `docs/evidence/` (like `race-test.sh`): replace both
+containers with tofu timings recorded, count `LLEN votes` lost across the replace,
+re-connect assertions for both apps; protocol from the handler side: either an
+instrumented timing of `call_runner` inside the loop, or a code reading recorded in
+the log. Write a verdict line: `VERDICT: maxmemory mutable` or
+`VERDICT: maxmemory refused — replace cost exceeds tolerance`, citing the numbers.
+
+**Checkpoint S23** **(precondition: `make jit-up` and the demo stack in `voting-a`)**
+asserts the evidence log exists under `docs/evidence/s23-spike.log`, contains replace
+timings for both containers, a lost-votes count, a blocking verdict, and that final
+`VERDICT:` line.
+
+**Gate:** if the verdict is "refused", stop: the design note gets `v2`
+(`declarers-and-consumers-v1-superseded.md`) with the empty-allowlist fallback, U1
+moves out of scope, and nothing after this step starts until the human approves.
+
+### S24. Runner: change-aware cache and the destroy path
+
+**Goal:** two runner changes the design calls load-bearing: the success cache keyed
+on module + workspace + params hash (without it, every update POST is a cached
+no-op recorded as applied), and `tofu state rm` of `postgresql_*` before destroy so
+the destroy path survives the module's new logical resources.
+
+**Read:** `docs/designs/runner-api.md`, `jit-runner/`, design note §Runner cache,
+§Destroy-path caveats, `docs/lessons.md` ("A destroy must never resolve to a module
+the caller did not name" — the module is always named here).
+
+**Do:**
+- Cache key: a hash of module + workspace + params, not workspace alone. A changed
+  params hash is a real run; the old behaviour stays for identical hash.
+- Before `tofu destroy` on any run whose state contains `postgresql_*` resources:
+  `tofu state rm postgresql_*`, then destroy — the volume still goes with the
+  container (`docker_volume` is not in that list), which is the s17-cold-path rule.
+- Keep the module fallback exactly as S17 left it (only when no module is named).
+
+**Checkpoint S24** **(needs the runner at `.10`; may run without tenants):**
+- same workspace, identical params twice → second POST is the cached success,
+  still one container
+- same workspace, `maxmemory` changed → the runner actually re-applies (container
+  `docker inspect` `Created` moves; if the spike ruled maxmemory out, use any
+  module-level variable and assert the re-apply on it)
+- with a `postgresql_*` resource in state and the container pre-removed, destroy
+  succeeds (today it fails on refresh), and the volume goes with it
+
+### S25. CRD: the closed status list gains the update fields
+
+**Goal:** `appliedParams`, `attemptedParamsHash`, `declaredBy` survive the API
+server's pruning, plus `ParamsConflict/AwaitingDeclarer/NoDeclarer/UpdateRefused/
+Updating/UpdateFailed/OutputsChanged` as conditions. `spec.params` already exists.
+
+**Read:** design note §State fields, §Conditions; `deploy/` CRD manifest;
+`docs/lessons.md`'s CRD note.
+
+**Do:** edit the CRD schema only. Nothing reads the fields yet.
+
+**Checkpoint S25:** three fields readable after an API round-trip (patch a claim
+with each, `kubectl get` returns them) — a field the schema does not list is pruned,
+so this is exactly the assertion; `kubectl get infraclaims` shows `DECLARED` as a
+printer column.
+
+### S26. Controller core, against a stub runner
+
+**Goal:** the genuinely new logic — declarer resolution, the mutability contract
+and validation, the update flow, backfill, stale-`Updating` recovery — proven with
+a wrong state transition costing nothing. **No real module runs here.**
+
+**Read:** design note §Resolution rules, §Mutability contract, §Update flow,
+§Conditions; `jit-controller/main.py` (`ensure_claim`, `check_param_conflict`,
+`list_referencing_deployments_with_params`, `_normalize_params`); build-plan §Unit
+tests (the four fiddly pieces — declarer resolution joins them).
+
+**Do:**
+- Resolution from live Deployments: agree → `spec.params` projected;
+  disagree → `ParamsConflict` holds desired at applied; no declarers →
+  `AwaitingDeclarer` (new claim) / `NoDeclarer` (existing); a new declarer after a
+  gap is an update, not a conflict; a consumer adding `params` follows rules 3/5.
+- Contract + validation: values checked before any runner call (`maxmemory`
+  pattern, Postgres setting types, identifier-shaped db names); any refused key
+  refuses the whole edit with `UpdateRefused` naming key and reason; unknown keys
+  refused (tofu would apply them green).
+- Update flow: demanded-vs-`appliedParams` compare, `attemptedParamsHash` retry
+  gate, lock and re-resolve, `Updating` flag, stub runner call, success/failure
+  branches exactly as the design's steps 6-7 (never `Deleting`, finalizer
+  untouched).
+- Backfill on upgrade; stale `Updating` cleared when this process does not hold
+  the claim lock.
+
+**Checkpoint S26** **(seeded claims via the stub; no cluster infra needed):** the
+stub records calls — assert the six resolution outcomes, the refusals, the skip,
+the success and failure branches, the backfill, and the crash-recovery clear. Each
+assertion names the condition or spec field it read.
+
+### S27. Modules: postgres databases in place, the settings allowlist, redis vars
+
+**Goal:** the mutability contract becomes executable: postgres databases as
+`postgresql_database` `for_each` resources against the running server, allowlisted
+settings as `-c` flags in the command, `service_url_<db>` Secret keys, and the v2
+destroy path proven against the real runner.
+
+**Read:** design note §Postgres module changes; `jit-modules/modules/postgres/`,
+`jit-modules/modules/redis/`, `jit-runner/` (module fetch, init); lessons ("A bind
+mount is resolved by the Docker daemon" — templates reach the runner image the same
+way; rebuild it). `tofu` version for `for_each` imports: confirm 1.7+ in the runner
+image; if it is older, importing stops being `for_each` — surface at review, do
+not fake it.
+
+**Do:**
+- `cyrilgdn/postgresql` provider beside `kreuzwerker/docker`, configured from
+  `var.ip`/`var.postgres_password`; container health check (`pg_isready`), wait
+  for it; an import block for the initial database (it exists already after init);
+  `settings` passed only through the allowlist; unknown `-var` refuse belongs to
+  the controller (S26) — the module still refuses nothing itself.
+- `service_url_<db>` per database added to `jit-postgres`; existing keys,
+  including `service_url`, never change value.
+- runner image rebuilt (templates bake in).
+- redis `maxmemory` unchanged in the module; the controller contract now drives it.
+
+**Checkpoint S27** **(live runner, live docker):** apply with one db → second
+`psql \l` shows a db added with the container ID unchanged; settings change shows
+the container replaced with the volume NOT destroyed (`docker volume ls` — the
+s17 rule, asserted here because it is the step that could break it); destroy after
+`state rm` removes container and volume; `service_url_analytics` appears and
+`service_url` keeps its bytes.
+
+### S28. Tenant migration and the docs the change invalidates
+
+**Goal:** the app manifests become one declarer per module with consumers, and the
+four documents drift stopped. No apply runs — before it all annotations are
+agreeing declarers, after it one declarer and consumers, and both resolve to the
+same desired params.
+
+**Read:** design note §Tenant experience; `docs/designs/annotation-to-state.md`,
+`jit-infra-flows.md`, `jit-infra-poc.md`; `app/kustomize/base/*.yaml`.
+
+**Invalidations — every row is what the change breaks, with what it becomes:**
+
+| Today | Becomes | Step note |
+|---|---|---|
+| `check_param_conflict` first-writer-wins runs on every resync | declarer resolution; `ParamsConflict` lists declarers only | S26 |
+| S14's design line "Conflicting params: first writer wins" | superseded declarer-first; **S14.sh asserts no conflict behaviour, no change needed** — record the supersession | here, one line |
+| `vote` annotates redis and pgadmin, `worker` redis and postgres, `result` postgres — all with `params: {}` | declarers keep params (vote: pgadmin; worker: redis + postgres); consumers lose the key (vote: redis; result: postgres). `softDeleteTTL` stays on every reference | this step |
+| `voting-b` overlay's pgadmin params patch | unchanged; it declares pgadmin there | keep as-is |
+| `annotation-to-state.md` contradicts itself on whether worker annotates redis | fixed to the checked-real answer (base today: it does) | this step |
+| `jit-infra-flows.md` has no update sequence; its `Failed → Pending: retry with backoff` line describes no behaviour | add the sequence + the state-machine note; delete the retry line | this step |
+| `jit-infra-poc.md`'s open question "re-apply or refuse?" and tenant-surface examples with `maxmemory` outside `params` | answer it; move `maxmemory` inside `params` | this step |
+| claims created pre-change have no `appliedParams` | controller backfill (S26); first resync after upgrade must not replace Redis — U11 | S29 |
+| console page + `make state` | no change: no conditions are displayed and `referencedBy` keeps its meaning. **Deliberately untouched** — a read-model change here is scope creep | record, no edit |
+| `app/scripts/verify.sh` R-checks and `make jit-verify` J-suite | unaffected; both read containers, not annotation params. If one fails, the migration broke something real | S29 re-runs both |
+
+**Do the migration exactly as the design's table** (redis: `vote` declarer,
+`worker` consumer; postgres: `worker` declarer, `result` consumer; pgadmin: `vote`
+declarer), then amend the three design docs (`docs/designs/README.md` lineage row
+too) and the module docs the tenants read: who declares what, what replaces a
+container, what is refused and why.
+
+**Checkpoint S28:** `kubectl kustomize` both overlays build; the built manifest's
+annotations carry the declarer/consumer shape; the `git grep params` scan of the
+base finds only the declarers; `tofu fmt -check` on the affected modules; the three
+design lines (flows sequence, poc answer, annotation-to-state) exist.
+
+### S29. The gate: U1-U13 against the live stack
+
+**Goal:** the design's verification table, once, end to end. The design named its
+holder `scripts/checks/S22.sh`; in this chain the U-table lives in `S29.sh` — this
+step's repo has the number, so the mapping is recorded rather than the design's
+path silently renamed.
+
+**Read:** design note §Verification (U1-U13, the source of every assertion),
+§Update flow; `docs/evidence/s23-spike.log` (the measured tolerance U1 leans on).
+
+**Do: nothing new** — run the frozen checkpoint. It asserts all thirteen.
+
+**Checkpoint S29** **(precondition: `make demo-up` and both stacks up):**
+- U1 redis `maxmemory 128mb` → one tick, command changed, IP and Secret bytes unchanged
+- U2 `analytics` added → `psql \l`, container ID unchanged, `service_url_analytics` added, existing keys unchanged
+- U3 consumer-only annotation edit → no runner call, container ID unchanged
+- U4 consumer declares params → `ParamsConflict` naming both declarers
+- U5 declarer deleted → `Ready`, `NoDeclarer`, `appliedParams` unchanged, no runner call
+- U6 consumer-first namespace → `Pending`+`AwaitingDeclarer`, then `Ready` after the declarer
+- U7 remove a database / change `postgres_db` → `UpdateRefused`, nothing applied
+- U8 `maxmemory: banana` → `UpdateRefused`, no runner call
+- U9 runner down → `Ready`+`UpdateFailed`, one attempt across two ticks, then converges
+- U10 controller killed mid-apply → `Updating` cleared within one tick, re-evaluated
+- U11 controller upgraded over `Ready` claims → no container IDs change, backfill done
+- U12 namespace delete after U2 → destroy succeeds, finalizer released, namespace gone
+- U13 two consumers' `softDeleteTTL` → the larger, no runner call
+
+**Gate:** run `make verify NS=voting-a` (17 PASS) and `make jit-verify` (11 PASS)
+in the same run — both suites must survive everything Stage H changed. Both logs
+join the evidence.
+
+**Stage gate:** `make check STEP=29` prints PASS with U1-U13 all present in
+`docs/evidence/S29.log`, and every stage-H step holds a CLEAR review.
+
+**Not in Stage H:** consumer `requires` fields, roles/grants, pgadmin
+auto-registration, agreement warnings among several declarers — the design's open
+questions, for the next design round, not this build.
+
+## Done — *amended by S17's review*:
       `make all` now targets the `voting-a` overlay (`app/Makefile` defaults `NS`/`KUSTOMIZE_DIR` to it),
       tenants never run in `default`, and the cold order needs `make jit-down` plus a cluster-creating
       `make deploy` before `jit-up`. The recipe and its traps are in the README's "From cold"; the runs

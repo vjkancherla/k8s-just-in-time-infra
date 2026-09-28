@@ -1,0 +1,9 @@
+# S28 checkpoint run - captured, never typed
+# started  2026-09-28T16:25:34Z
+# commit   d6946f6
+# pending  9 uncommitted change(s)
+# host     VJK-MacBook.local as vkancherla
+# command  bash scripts/checks/S28.sh
+# --- raw output follows - do not edit anything below this line ---
+FAIL: worker must CONSUME redis (no params key) - actual: declarer
+# exit     1
