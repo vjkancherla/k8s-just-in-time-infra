@@ -24,11 +24,22 @@
 #   IMPL_MODEL_26=opencode-go/deepseek-v4-pro      # the plan wants the strongest model
 #   REVIEW_MODEL_29=opencode-go/deepseek-v4-pro    # for S26, S28, S29
 #
-# Survive the night on macOS:
-#   caffeinate -dimsu tmux new -s night 'scripts/run-overnight.sh'
+# The machine stays awake for the whole run: the script re-execs itself under
+# caffeinate on macOS, so no wrapper is needed. Optionally still run it in tmux:
+#   tmux new -s night 'scripts/run-overnight.sh'
+#
+# Human directives: set IMPL_EXTRA to a sentence appended to every implementer prompt
+# (e.g. a design decision the human has made), so a step does not fork on its own.
 #
 # Output: docs/evidence/overnight-<stamp>.log (full transcript) and .md (the morning report).
 set -uo pipefail
+
+# Keep the machine awake (macOS). Re-exec once under caffeinate; -dimsu prevents
+# display, idle, disk and system sleep for as long as this script lives.
+if [ "${OVERNIGHT_CAFFEINATED:-}" != "1" ] && command -v caffeinate >/dev/null 2>&1; then
+  export OVERNIGHT_CAFFEINATED=1
+  exec caffeinate -dimsu "$0" "$@"
+fi
 
 cd "$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "FATAL: not inside a git repo"; exit 1; }
 
@@ -39,6 +50,7 @@ IMPL_MODEL=${IMPL_MODEL:-opencode-go/deepseek-v4.1-flash}
 REVIEW_MODEL=${REVIEW_MODEL:-opencode-go/mimo-v2.6-flash}
 MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
 ON_EXHAUST=${ON_EXHAUST:-halt}          # halt | continue  (continue = push past an uncleared step)
+IMPL_EXTRA=${IMPL_EXTRA:-}              # optional human directive appended to every implementer prompt
 
 EVIDENCE=docs/evidence
 REVIEWS=docs/reviews
@@ -153,6 +165,9 @@ This is an autonomous run. Follow docs/RUNBOOK.md step 1 and the binding rules i
 - Run the checkpoint only via scripts/checkpoint.sh $n. Commit code and docs/evidence/S$n.log
   together. Emit docs/reviews/S$n-review-prompt.md from the template (six slots verbatim) and
   make scripts/review-guard.sh $n print PASS.
+
+Human directive from the orchestrator (overrides the overrides above):
+$IMPL_EXTRA
 
 Final message: the commit SHA(s) and the checkpoint result.
 EOF
