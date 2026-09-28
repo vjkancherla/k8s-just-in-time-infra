@@ -3,9 +3,9 @@
 Copy the text between the markers **verbatim** from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md`
 and substitute exactly six slots: the step (S23), the step number (23), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from `docs/build-plan.md`
-S23), the commit range (`4fd26b9..7a614fc`), and the files the step named as its scope (one
+S23), the commit range (`4fd26b9..6fa2dcc`), and the files the step named as its scope (one
 path per line), plus the ADR-0007 note sanctioned by the human directive of 2026-09-28.
-Deviation, marked inline: the ADR-0007 note on Q7, with a pointer to the ADR in "What to
+Deviation, marked inline: the ADR-0007 note on Q6/Q7, with a pointer to the ADR in "What to
 read". Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
@@ -33,19 +33,19 @@ stays in the mutable surface (U1).
 
 ## What the step was allowed to touch
 
-`docs/designs/declarers-and-consumers.md`
-`jit-controller/main.py`
-`docs/lessons.md`
-`docs/evidence/s23-spike.sh`
-`docs/evidence/s23-spike.log`
-`docs/evidence/S23.log`
-`docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md`
+docs/designs/declarers-and-consumers.md
+jit-controller/main.py
+docs/lessons.md
+docs/evidence/s23-spike.sh
+docs/evidence/s23-spike.log
+docs/evidence/S23.log
+docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md
 
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S23, its checkpoint, its gate
-- `git diff 4fd26b9..7a614fc` - what was actually done
+- `git diff 4fd26b9..6fa2dcc` - what was actually done
 - `scripts/checks/S23.sh` - the assertion that passed
 - `docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md` - the human decision
   this review must assess
@@ -79,13 +79,13 @@ stays in the mutable surface (U1).
      measured replace timings for both containers, a lost-votes count, reconnect
      observations, the `call_runner` blocking verdict, and the final `VERDICT:` line. The
      probe measures the numbers; it does not decide mutability. **Judge ADR 0007 instead:**
-     is its reasoning sound (a <=1s replace with `vote`/`worker` reconnect, versus 50 of 50
-     queued votes lost, accepted as explicit annotation-driven downtime approval) and is its
-     scope correct (redis `maxmemory` only; U7's remove-database, rename `postgres_db` and
-     password-change refusals untouched)? ADR 0007 is the human approval this review must
-     assess as a decision, not re-derive by measurement. The trailing
-     `VERDICT: maxmemory mutable` line in `docs/evidence/s23-spike.log` is that decision,
-     not a probe result.
+     is its reasoning sound (a <=1s replace, with the worker's *startup* reconnect and
+     `vote`'s per-request reachability, versus 50 of 50 queued votes lost, accepted as
+     explicit annotation-driven downtime approval) and is its scope correct (redis
+     `maxmemory` only; U7's remove-database, rename `postgres_db` and password-change
+     refusals untouched)? ADR 0007 is the human approval this review must assess as a
+     decision, not re-derive by measurement. The trailing `VERDICT: maxmemory mutable` line
+     in `docs/evidence/s23-spike.log` is that decision, not a probe result.
 
 ## Then, on substance
 
