@@ -805,6 +805,14 @@ approved decision that changes them; `scripts/s22-all-fail.sh` re-runs the seven
 `scripts/checkpoint.sh` and derives `docs/evidence/s22-all-fail.log` from the captured
 logs, so the summary is not typed.
 
+**Amended 2026-09-28 by [ADR 0006](decisions/0006-resolve-s22-concerns.md).** The S22
+review returned CONCERNS with no blockers; because there is no next design round, all
+four are resolved here rather than carried. `scripts/checks/S29.sh` now asserts its own
+gate (the R-suite's 17 PASS and the J-suite's J1-J11, run before U12 deletes `voting-a`),
+the design's stale `S22.sh` path is corrected to `S29.sh`, and the S22 review prompt's Q1
+and Q4 carry the notes that stop a correct implementation from being blocked by its own
+prompt.
+
 Each setup table mirrors the design: run the steps with the demo stack up
 (`make demo-up`) unless the step says otherwise; each checkpoint fails rather than
 skipping when its precondition is missing.

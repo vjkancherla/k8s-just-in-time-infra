@@ -3,10 +3,10 @@
 Copy the text between the markers **verbatim** from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md`
 and substitute exactly six slots: the step (S22), the step number (22), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from `docs/build-plan.md`
-S22), the commit range (`f0cdde0..da265a3`), and the files the step named as its scope
-(one path per line). Add nothing else - one S22 note is inserted, marked inline, only
-because there is no `scripts/checks/S22.sh` by design; the step's record is the captured
-all-fail run.
+S22), the commit range, and the files the step named as its scope (one path per line),
+plus ADR 0006's named additions. Deviations, each marked inline: the S22 notes on Q1, Q4,
+Q6 and Q7 (there is no `scripts/checks/S22.sh` by design, and the prompt file in the range
+is review machinery), and the ADR 0005/0006 citations. Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -68,12 +68,14 @@ exist — S22's record IS the captured all-fail run.
 `.opencode/rules/s22-declarers.md`, `opencode.json`, `RUNBOOK.md`
 `docs/evidence/s22-all-fail.log`, `docs/evidence/S23.log`-`S29.log`
 `docs/decisions/0005-stage-h-checkpoint-contract-fixes.md`
-
+`docs/decisions/0006-resolve-s22-concerns.md`
+`docs/designs/declarers-and-consumers.md` (ADR 0006: one stale `S22.sh` path corrected
+to `S29.sh` - the named exception to that file's read-only default)
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S22, its checkpoint, its gate
-- `git diff f0cdde0..da265a3` - what was actually done
+- `git diff f0cdde0..c7ecc07` - what was actually done
 - `scripts/checks/S22.sh` - the assertion that passed
   *(S22 note: there is no `scripts/checks/S22.sh` by design. The equivalent is the
   all-fail capture: the evidence record is `docs/evidence/s22-all-fail.log` plus the
@@ -87,9 +89,17 @@ exist — S22's record IS the captured all-fail run.
 1. Did the diff touch anything under `scripts/checks/`, `.clinerules/`, CI config, or any
    scanner config? **Blocker**, no judgement required. Checkpoints are frozen; a newly
    created one is still a finding worth raising.
+   - *S22 note:* S22's stated job is to create `scripts/checks/S23.sh`-`S29.sh` and
+     `scripts/checks/lint-helpers.sh`. Q1 does **not** block those creations. It applies
+     to any edit of a checkpoint S22 did not own (`S01`-`S21.sh`), or to any change under
+     `.clinerules/`, CI or scanner config.
 2. Did it add a dependency the step did not name? Blocker.
 3. Did it delete or weaken an existing test or assertion? Blocker.
 4. Did it create or edit files outside the list above? Blocker.
+   - *S22 note:* `docs/reviews/S22-review-prompt.md` is review machinery, not
+     implementation. It appears in the range because the prompt was re-emitted during
+     the review cycle (the acts of review, not of implementation). Every implementation
+     file in the range is on the list above; treat the prompt file as exempt from rule 4.
 5. Did it tick a box in `docs/todo.md`? The review box is not the implementer's to tick.
    Blocker.
 
