@@ -20,7 +20,7 @@ if [ "${1:-}" = "--capture" ]; then
   { echo "# S22 pre-flight checkpoint run - captured, never typed"
     echo "# started  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "# commit   $(git rev-parse --short HEAD 2>/dev/null || echo none)"
-    echo "# command  scripts/s22-all-fail.sh --capture   (runs scripts/checkpoint.sh for NN in 23..29 and derives this from the captured logs)"
+    echo "# command  scripts/s22-all-fail.sh --capture   (lint first, then runs scripts/checkpoint.sh for NN in 23..29 under a 240s watchdog each, derives this from the captured logs)"
     echo "# purpose: every Stage-H checkpoint asserts something real"
     echo "#          each fails readable before any implementation, 0 syntax errors"
   } > "$out"
@@ -28,10 +28,30 @@ else
   out=/dev/stdout
 fi
 
+# lint first: the two runaway shapes the stage has hit once each -
+# recursion-in-wrapper (the kk helper) and unbounded wait loops - must ship no
+# further. Anything found stops the pre-flight with no checkpoint ran.
+if ! bash scripts/checks/lint-helpers.sh; then
+  echo "FAIL S22 pre-flight: lint-helpers found a runaway-execution shape (written to stderr)" >> "$out"
+  fail "lint-helpers found a runaway-execution shape - fix it before the pre-flight"
+fi
+
 for n in $DFS; do
   echo "--- S$n" >> "$out"
   if ! bash -n "scripts/checks/S$n.sh" 2>>"$out"; then ok=0; continue; fi
-  rc=0; ./scripts/checkpoint.sh "$n" >/dev/null 2>&1 || rc=$?
+
+  # hard wall-clock bound, foreground: perl's alarm kills a wedged child at
+  # 240s (four resync ticks + margin) and nothing is left running in the
+  # background, so the batch can cost exactly one timeout and no more. No
+  # background subshells: their inherited stdout holds a caller's pty open,
+  # which wedged two earlier - real - capture runs of this stage.
+  rc=0
+  perl -e 'alarm 240; exec @ARGV' ./scripts/checkpoint.sh "$n" >/dev/null 2>&1 || rc=$?
+  if [ "$rc" -eq 142 ] || [ "$rc" -ge 137 ]; then
+    ok=0
+    echo "S$n: did not return within the 240s alarm (rc=$rc) - see docs/evidence/S$n.log" >> "$out"
+    continue
+  fi
   reason="$(grep -m1 '^FAIL' "docs/evidence/S$n.log" || true)"
   if [ "$rc" -eq 0 ]; then
     ok=0; echo "S$n PASSED unexpectedly" >> "$out"

@@ -797,6 +797,14 @@ entrail-reader). The repo's completion protocol above applies unchanged: two gat
 (checkpoint PASS, then a different model writes CLEAR in
 `docs/reviews/SNN-findings.md`), one step per session, no next step offered.
 
+**Amended 2026-09-28 by [ADR 0005](decisions/0005-stage-h-checkpoint-contract-fixes.md).**
+The re-review of the frozen child checkpoints found contract bugs in four of them (S23's
+verdict guard, S24's conditional `state rm`, S26's conflict guard and group-5 apply, S29's
+U12 and precondition) plus a `-g`/`-gt` typo in the S26 fix. The ADR above is the
+approved decision that changes them; `scripts/s22-all-fail.sh` re-runs the seven through
+`scripts/checkpoint.sh` and derives `docs/evidence/s22-all-fail.log` from the captured
+logs, so the summary is not typed.
+
 Each setup table mirrors the design: run the steps with the demo stack up
 (`make demo-up`) unless the step says otherwise; each checkpoint fails rather than
 skipping when its precondition is missing.

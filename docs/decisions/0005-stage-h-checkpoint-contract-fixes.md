@@ -11,9 +11,10 @@ sanctions and cited in `docs/build-plan.md` Stage H and the S22 review prompt.
 ## What the checkpoints asserted, why that is wrong, what they become
 
 All seven Stage-H checkpoint scripts (`scripts/checks/S23.sh`-`S29.sh`) were created in
-the S22 pre-flight and frozen at `a1bafed`. The re-review found five contract bugs in
-four of them, each of which makes the script fail correct behavior or pass incorrect
-behavior. They are mechanics fixes to the asserted contract, not softenings: every fix is
+the S22 pre-flight and frozen at `d0d4329` (the rebuilt history's S22 commit; the
+re-review's `a1bafed` named the pre-rebuild commit the rebuild removed). The re-review
+found five contract bugs in four of them, each of which makes the script fail correct
+behavior or pass incorrect behavior. They are mechanics fixes to the asserted contract, not softenings: every fix is
 listed below with the old and new assertion, and each still fails readably with nothing
 implemented.
 
@@ -90,7 +91,22 @@ Now asserts both sides of that conditional, per build-plan S24's bullet 3:
    recursion is the same class of trap the earlier "fix contract" found in
    S23's verdict guard.
 
-Approved and recorded here; also cited in the S22 review prompt. Not in scope of this
-ADR: the concerns the re-review also raised (S29 U7's `postgres_db` variant, U1's
-Secret-byte check, U3/U13's timestamps) stay unfixed — the protocol fixes blockers,
-concerns go back to the next design round.
+6. The item-3 group-5 loop from the first cut read `[ "$n1" -g "$n0" ]`. `-g` is not
+   a test operator: every pass printed `binary operator expected`, and the loop never
+   broke early, so a conforming controller took the full 90s wait instead of breaking
+   on the tick the update landed. It is `-gt`. Recorded here for the same reason as
+   item 5: a fix to a frozen checkpoint carries its own trip.
+
+7. Two pre-flight files the first cut did not name are now part of S22 and sanctioned
+   by this ADR: `scripts/s22-all-fail.sh` (the summary is *derived* by re-running the
+   seven through `scripts/checkpoint.sh` and reading the captured logs, so blocker 8's
+   "the summary is typed in no script" has a script behind it) and
+   `scripts/checks/lint-helpers.sh` (a guard against the two runaway-execution shapes
+   this stage has already hit — the `kk` recursion and unbounded wait loops; run first
+   by the summarizer). Both carry a readable `FAIL:`/`PASS` and exit non-zero on
+   failure.
+
+Approved and recorded here; also cited in the S22 review prompt's FILES list and Stage H
+of `docs/build-plan.md`. Not in scope of this ADR: the concerns the re-review also raised
+(S29 U7's `postgres_db` variant, U1's Secret-byte check, U3/U13's timestamps) stay
+unfixed — the protocol fixes blockers, concerns go back to the next design round.

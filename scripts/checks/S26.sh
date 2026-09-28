@@ -118,7 +118,7 @@ echo "4 ok refused keys: named condition, no POST"
 make d1 "redis" '{"module":"redis","params":{"maxmemory":"222mb"}}'
 c2="$(stub_get redis "$NS-redis")"; n0="$(echo "$c2" | wc -l | tr -d ' ')"
 for i in $(seq 1 9); do
-  n1="$(stub_get redis "$NS-redis" | wc -l | tr -d ' ')"; [ "$n1" -g "$n0" ] && break; sleep 10
+  n1="$(stub_get redis "$NS-redis" | wc -l | tr -d ' ')"; [ "$n1" -gt "$n0" ] && break; sleep 10
 done
 [ "$n1" -gt "$n0" ] || fail "allowed update never reached the stub runner"
 ap="$(waitfield "$NS-redis" '{.status.appliedParams.maxmemory}')"
