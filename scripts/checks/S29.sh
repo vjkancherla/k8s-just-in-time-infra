@@ -7,39 +7,42 @@
 set -euo pipefail
 fail() { echo "FAIL: $1"; exit 1; }
 
+# Bodied kubectl: a dead API server cannot hang the checkpoint or its cleanup trap.
+kk() { kk --request-timeout=5s "$@"; }
+
 cleanup() { rc=$?; set +e
   docker start jit-runner >/dev/null 2>&1
-  kubectl scale deploy/jit-controller -n default --replicas=1 >/dev/null 2>&1
-  kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+  kk scale deploy/jit-controller -n default --replicas=1 >/dev/null 2>&1
+  kk annotate deploy voting-app-vote -n voting-a --overwrite \
     jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m"}' >/dev/null 2>&1
-  kubectl annotate deploy voting-app-worker -n voting-a --overwrite \
+  kk annotate deploy voting-app-worker -n voting-a --overwrite \
     jit.infra/postgres='{"module":"postgres","moduleVersion":"v1","softDeleteTTL":"10m"}' >/dev/null 2>&1
-  kubectl scale deploy voting-app-vote voting-app-worker voting-app-result \
+  kk scale deploy voting-app-vote voting-app-worker voting-app-result \
     -n voting-a --replicas=1 >/dev/null 2>&1
-  kubectl delete ns voting-c --ignore-not-found >/dev/null 2>&1
+  kk delete ns voting-c --ignore-not-found >/dev/null 2>&1
   exit "$rc"; }
 trap cleanup EXIT
 
 jqf() { python3 -c "import sys,json;d=json.load(sys.stdin);print(d$1)"; }
 cluster_up="$(make state 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("up") is True)')"
 [ "$cluster_up" = "True" ] || fail "make state says up=$cluster_up - run 'make demo-up' before this checkpoint"
-if ! kubectl get infraclaim voting-a-redis -n voting-a >/dev/null 2>&1 \
-   || ! kubectl get infraclaim voting-a-postgres -n voting-a >/dev/null 2>&1; then
+if ! kk get infraclaim voting-a-redis -n voting-a >/dev/null 2>&1 \
+   || ! kk get infraclaim voting-a-postgres -n voting-a >/dev/null 2>&1; then
   fail "the voting-a claims are missing - deploy the demo first"
 fi
 
-ph() { kubectl get infraclaim "voting-a-$1" -n voting-a -o jsonpath='{.status.phase}' 2>/dev/null; }
-cond() { kubectl get infraclaim "voting-a-$1" -n voting-a -o json 2>/dev/null | python3 -c "
+ph() { kk get infraclaim "voting-a-$1" -n voting-a -o jsonpath='{.status.phase}' 2>/dev/null; }
+cond() { kk get infraclaim "voting-a-$1" -n voting-a -o json 2>/dev/null | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 cs={c['type']:c['status'] for c in (d['status'].get('conditions') or [])}
 print(cs.get('$2','Absent'))"; }
-condmsg() { kubectl get infraclaim "voting-a-$1" -n voting-a -o json 2>/dev/null | python3 -c "
+condmsg() { kk get infraclaim "voting-a-$1" -n voting-a -o json 2>/dev/null | python3 -c "
 import sys,json
 d=json.load(sys.stdin)
 for c in d['status'].get('conditions') or []:
   if c['type']=='$2': print(c.get('message','')); break"; }
-field() { kubectl get infraclaim "voting-a-$1" -n voting-a -o "jsonpath=$2" 2>/dev/null; }
+field() { kk get infraclaim "voting-a-$1" -n voting-a -o "jsonpath=$2" 2>/dev/null; }
 tick() { # tick <seconds> <test-cmd>  -> retries the cmd until it succeeds or timeout
   for i in $(seq 1 9); do "$@" >/dev/null 2>&1 && return 0; sleep 12; done; return 1; }
 redis_c() { docker ps --format '{{.Names}}' | grep -x 'voting-a-redis-redis'; }
@@ -48,34 +51,34 @@ posts()  { docker logs jit-runner 2>&1 | grep -c 'POST /v1/runs' || true; }
 
 # ================================================================== U1 redis maxmemory
 posts0="$(posts)" 
-kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+kk annotate deploy voting-app-vote -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m","params":{"maxmemory":"128mb"}}' >/dev/null \
   || fail "U1: could not annotate the redis declarer"
 u1check() { docker exec "$(redis_c)" redis-cli CONFIG GET maxmemory 2>/dev/null | grep -qx "134217728"; }
 tick u1check || fail "U1: redis did not take --maxmemory 128mb within one tick"
 [ "$(field redis '{.status.appliedParams.maxmemory}')" = "128mb" ] \
   || fail "U1: appliedParams.maxmemory not $(field redis '{.status.appliedParams.maxmemory}')"
-[ "$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "$(redis_c)")" = "$(kubectl get infraclaim voting-a-redis -n voting-a -o jsonpath='{.status.endpoint}')" ] \
+[ "$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "$(redis_c)")" = "$(kk get infraclaim voting-a-redis -n voting-a -o jsonpath='{.status.endpoint}')" ] \
   || fail "U1: the redis container moved off its allocated IP"
 echo "U1 ok: maxmemory 128mb applied, IP unchanged"
 
 # ================================================================== U2 postgres add analytics in place
 pgid0="$(docker inspect -f '{{.Id}}' "$(pg_c)")"
-secret_keys0="$(kubectl get secret jit-postgres -n voting-a -o json 2>/dev/null)"
+secret_keys0="$(kk get secret jit-postgres -n voting-a -o json 2>/dev/null)"
 [ -n "$secret_keys0" ] && echo "$secret_keys0" >/tmp/s29-secret0.json
 keys0="$(echo "$secret_keys0" | python3 -c 'import sys,json;print(" ".join(json.load(sys.stdin)["data"]))')"
-kubectl annotate deploy voting-app-worker -n voting-a --overwrite \
+kk annotate deploy voting-app-worker -n voting-a --overwrite \
   jit.infra/postgres='{"module":"postgres","moduleVersion":"v1","softDeleteTTL":"10m","params":{"databases":["voting","analytics"]}}' >/dev/null \
   || fail "U2: could not annotate the postgres declarer"
 u2check() { docker exec "$(pg_c)" psql -U postgres -l 2>/dev/null | grep -qw analytics; }
 tick u2check || fail "U2: analytics not created within one tick"
 [ "$(docker inspect -f '{{.Id}}' "$(pg_c)")" = "$pgid0" ] \
   || fail "U2: adding a database replaced the postgres container - databases are in-place"
-kubectl get secret jit-postgres -n voting-a -o json | python3 -c 'import sys,json;print(",".join(sorted(json.load(sys.stdin)["data"])))' | grep -q service_url_analytics \
+kk get secret jit-postgres -n voting-a -o json | python3 -c 'import sys,json;print(",".join(sorted(json.load(sys.stdin)["data"])))' | grep -q service_url_analytics \
   || fail "U2: service_url_analytics not added to jit-postgres"
 # exact-bytes check for every key that existed before:
 for k in $(echo "$keys0"); do
-  kubectl get secret jit-postgres -n voting-a -o "jsonpath={.data.$k}" \
+  kk get secret jit-postgres -n voting-a -o "jsonpath={.data.$k}" \
     | grep -qx "$(python3 -c "import json;print(json.load(open('/tmp/s29-secret0.json'))['data']['$k'])")" \
     || fail "U2: existing Secret key $k changed value"
 done
@@ -84,7 +87,7 @@ echo "U2 ok analytics created in place, container kept, service_url_analytics ad
 # ================================================================== U3 consumer-only edit
 posts0="$(posts)"
 redis_c0="$(docker inspect -f '{{.Id}}' "$(redis_c)")"
-kubectl annotate deploy voting-app-worker -n voting-a --overwrite \
+kk annotate deploy voting-app-worker -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"20m"}' >/dev/null \
   || fail "U3: could not annotate the redis consumer"
 posts0="$(posts)"; sleep 32
@@ -96,15 +99,15 @@ echo "U3 ok consumer edit: no runner call, container untouched"
 
 # ================================================================== U4 consumer declares different params
 sleep 20
-kubectl annotate deploy voting-app-result -n voting-a --overwrite \
+kk annotate deploy voting-app-result -n voting-a --overwrite \
   jit.infra/postgres='{"module":"postgres","softDeleteTTL":"10m","params":{"databases":["other"]}}' >/dev/null \
   || fail "U4: could not annotate result"
 u4check() { [ "$(cond postgres ParamsConflict)" = "True" ]; }
 tick u4check || fail "U4: ParamsConflict not set by a disagreeing consumer-turned-declarer"
-msg="$(kubectl get infraclaim voting-a-postgres -n voting-a -o json 2>/dev/null | python3 -c 'import sys,json;print([c.get("message","") for c in json.load(sys.stdin)["status"].get("conditions") or [] if c["type"]=="ParamsConflict"][0])')"
+msg="$(kk get infraclaim voting-a-postgres -n voting-a -o json 2>/dev/null | python3 -c 'import sys,json;print([c.get("message","") for c in json.load(sys.stdin)["status"].get("conditions") or [] if c["type"]=="ParamsConflict"][0])')"
 echo "$msg" | grep -q voting-app-worker || fail "U4: ParamsConflict does not name worker as declarer"
 echo "$msg" | grep -q voting-app-result || fail "U4: ParamsConflict does not name result as declarer"
-kubectl annotate deploy voting-app-result -n voting-a --overwrite \
+kk annotate deploy voting-app-result -n voting-a --overwrite \
   jit.infra/postgres='{"module":"postgres","softDeleteTTL":"10m"}' >/dev/null || true
 pgid1="$(docker inspect -f '{{.Id}}' "$(pg_c)")"
 [ "$pgid1" = "$pgid0" ] || fail "U4: the conflict replaced a container"
@@ -113,7 +116,7 @@ echo "U4 ok consumer declares params: conflict named, locked, container kept"
 # ================================================================== U7 refused: remove a database / rename postgres_db
 sleep 20
 posts0="$(posts)"
-kubectl annotate deploy voting-app-worker -n voting-a --overwrite \
+kk annotate deploy voting-app-worker -n voting-a --overwrite \
   jit.infra/postgres='{"module":"postgres","moduleVersion":"v1","softDeleteTTL":"10m","params":{"databases":["voting"]}}' >/dev/null \
   || fail "U7: could not annotate a database removal"
 u7check() { [ "$(cond postgres UpdateRefused)" = "True" ]; }
@@ -128,7 +131,7 @@ echo "U7 ok database removal refused: named key, nothing applied"
 
 # ================================================================== U8 invalid maxmemory value
 posts0="$(posts)"
-kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+kk annotate deploy voting-app-vote -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m","params":{"maxmemory":"banana"}}' >/dev/null \
   || fail "U8: could not annotate the redis declarer"
 u8check() { [ "$(cond redis UpdateRefused)" = "True" ]; }
@@ -140,7 +143,7 @@ echo "U8 ok invalid value refused, no runner call"
 # ================================================================== U5 declarer deleted, consumers keep the claim
 sleep 20
 posts0="$(posts)"
-kubectl delete deploy voting-app-vote -n voting-a >/dev/null \
+kk delete deploy voting-app-vote -n voting-a >/dev/null \
   || fail "U5: could not delete the redis declarer"
 u5check() { [ "$(cond redis NoDeclarer)" = "True" ]; }
 tick u5check || fail "U5: deleting the declarer did not set NoDeclarer"
@@ -152,8 +155,8 @@ posts1="$(posts)"
 echo "U5 ok declarer gone: Ready held, NoDeclarer set, nothing re-applied"
 
 # ================================================================== U6 consumer-first namespace
-kubectl create ns voting-c >/dev/null 2>&1 || fail "U6: could not create the test namespace"
-cat <<EOF | kubectl apply -f - >/dev/null || fail "U6: consumer deployment failed"
+kk create ns voting-c >/dev/null 2>&1 || fail "U6: could not create the test namespace"
+cat <<EOF | kk apply -f - >/dev/null || fail "U6: consumer deployment failed"
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -170,16 +173,16 @@ spec:
     spec:
       containers: [{name: pause, image: public.ecr.aws/aws-cli/aws-cli:latest, command: ["sh","-c","sleep 600"]}]
 EOF
-u6check() { kubectl get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}' 2>/dev/null | grep -qx Pending; }
+u6check() { kk get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}' 2>/dev/null | grep -qx Pending; }
 tick u6check || fail "U6: consumer-created claim did not stay Pending"
-[ "$(kubectl get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}')" = "Pending" ] || true
+[ "$(kk get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}')" = "Pending" ] || true
 condc="Absent"
 for i in $(seq 1 9); do
-  condc="$(kubectl get infraclaim voting-c-redis -n voting-c -o json 2>/dev/null | python3 -c 'import sys,json;print({c["type"]:c["status"] for c in json.load(sys.stdin)["status"].get("conditions") or []}.get("AwaitingDeclarer","Absent"))')"
+  condc="$(kk get infraclaim voting-c-redis -n voting-c -o json 2>/dev/null | python3 -c 'import sys,json;print({c["type"]:c["status"] for c in json.load(sys.stdin)["status"].get("conditions") or []}.get("AwaitingDeclarer","Absent"))')"
   [ "$condc" = "True" ] && break; sleep 12
 done
 [ "$condc" = "True" ] || fail "U6: consumer-created claim lacks AwaitingDeclarer"
-cat <<EOF | kubectl apply -f - >/dev/null || fail "U6: declarer deployment failed"
+cat <<EOF | kk apply -f - >/dev/null || fail "U6: declarer deployment failed"
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -196,14 +199,14 @@ spec:
     spec:
       containers: [{name: pause, image: public.ecr.aws/aws-cli/aws-cli:latest, command: ["sh","-c","sleep 600"]}]
 EOF
-u6bcheck() { kubectl get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}' 2>/dev/null | grep -qx Ready; }
+u6bcheck() { kk get infraclaim voting-c-redis -n voting-c -o jsonpath='{.status.phase}' 2>/dev/null | grep -qx Ready; }
 tick u6bcheck || fail "U6: claim never went Ready after the declarer appeared"
 echo "U6 ok consumer-first namespace: Pending + AwaitingDeclarer, Ready once declared"
 
 # ================================================================== U9 runner down: failure isolation and retry-on-change
 docker stop jit-runner >/dev/null || fail "U9: could not stop the runner"
 posts0="$(posts)"
-kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+kk annotate deploy voting-app-vote -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m","params":{"maxmemory":"200mb"}}' >/dev/null \
   || fail "U9: could not annotate the redis declarer with a change"
 u9cond=""
@@ -223,7 +226,7 @@ hash1="$(field redis '{.status.attemptedParamsHash}')"
 [ "$hash1" = "$hash0" ] || fail "U9: the failed update was retried without the params changing"
 docker start jit-runner >/dev/null || fail "U9: could not restart the runner"
 sleep 5
-kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+kk annotate deploy voting-app-vote -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m","params":{"maxmemory":"222mb"}}' >/dev/null \
   || fail "U9: could not re-edit the redis declarer"
 u9bcheck() { [ "$(field redis '{.status.appliedParams.maxmemory}')" = "222mb" ]; }
@@ -232,12 +235,12 @@ echo "U9 ok runner down: Ready kept, one attempt, and convergence after re-edit"
 
 # ================================================================== U10 controller killed mid-apply
 posts0="$(posts)"
-kubectl annotate deploy voting-app-vote -n voting-a --overwrite \
+kk annotate deploy voting-app-vote -n voting-a --overwrite \
   jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m","params":{"maxmemory":"233mb"}}' >/dev/null \
   || fail "U10: could not annotate"
-kubectl scale deploy/jit-controller -n default --replicas=0 >/dev/null || fail "U10: could not kill the controller"
+kk scale deploy/jit-controller -n default --replicas=0 >/dev/null || fail "U10: could not kill the controller"
 sleep 40
-kubectl scale deploy/jit-controller -n default --replicas=1 >/dev/null
+kk scale deploy/jit-controller -n default --replicas=1 >/dev/null
 u10check() { [ "$(cond redis Updating)" != "True" ]; }
 tick u10check || fail "U10: stale Updating not cleared within one tick of the restart"
 u10bcheck() { [ "$(field redis '{.status.appliedParams.maxmemory}')" = "233mb" ]; }
@@ -250,10 +253,10 @@ echo "U10 ok crash recovered: Updating cleared, update converged"
 posts0="$(posts)"
 redis_c0="$(docker inspect -f '{{.Id}}' "$(redis_c)")"
 pgid0="$(docker inspect -f '{{.Id}}' "$(pg_c)")"
-kubectl patch infraclaim voting-a-redis -n voting-a --type=json -p='[{"op":"remove","path":"/status/appliedParams"}]' >/dev/null 2>&1 \
+kk patch infraclaim voting-a-redis -n voting-a --type=json -p='[{"op":"remove","path":"/status/appliedParams"}]' >/dev/null 2>&1 \
   || fail "U11: could not strip appliedParams for the backfill test"
-kubectl rollout restart deploy/jit-controller -n default >/dev/null || fail "U11: could not restart the controller"
-u11check() { kubectl get infraclaim voting-a-redis -n voting-a -o json 2>/dev/null | python3 -c '
+kk rollout restart deploy/jit-controller -n default >/dev/null || fail "U11: could not restart the controller"
+u11check() { kk get infraclaim voting-a-redis -n voting-a -o json 2>/dev/null | python3 -c '
 import sys,json
 d=json.load(sys.stdin)
 s=d["status"].get("appliedParams") or {}
@@ -265,25 +268,25 @@ tick u11check || fail "U11: appliedParams not backfilled after the upgrade"
 echo "U11 ok backfill: adopted spec.params without a runner call, no container churn"
 
 # ================================================================== U13 two consumers, different TTL (voting-b)
-kubectl get infraclaim voting-b-postgres -n voting-b >/dev/null 2>&1 \
+kk get infraclaim voting-b-postgres -n voting-b >/dev/null 2>&1 \
   || fail "U13: voting-b claims missing - run 'make test-up' before this checkpoint"
 posts0="$(posts)"
-kubectl annotate deploy voting-app-vote -n voting-b --overwrite \
+kk annotate deploy voting-app-vote -n voting-b --overwrite \
   jit.infra/redis='{"module":"redis","softDeleteTTL":"45m"}' >/dev/null \
   || fail "U13: could not set a consumer TTL in voting-b"
-u13check() { ttl="$(kubectl get infraclaim voting-b-postgres -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ "$ttl" = "45m" ] || true; ttl="$(kubectl get infraclaim voting-b-redis -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ -n "$ttl" ] && [ "$ttl" = "45m" ]; }
+u13check() { ttl="$(kk get infraclaim voting-b-postgres -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ "$ttl" = "45m" ] || true; ttl="$(kk get infraclaim voting-b-redis -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ -n "$ttl" ] && [ "$ttl" = "45m" ]; }
 tick u13check || fail "U13: spec.softDeleteTTL is not the maximum (45m) across references"
 posts1="$(posts)"; sleep 32
 [ "$posts1" = "$posts0" ] || fail "U13: a TTL-only patch triggered a runner call"
 echo "U13 ok TTL maximum taken from a consumer, no runner call"
 
 # ================================================================== U12 namespace delete after U2
-kubectl delete ns voting-a --wait=true >/dev/null 2>&1 &
-u12check() { [ -z "$(kubectl get ns voting-a -o name 2>/dev/null)" ]; }
+kk delete ns voting-a --wait=true >/dev/null 2>&1 &
+u12check() { [ -z "$(kk get ns voting-a -o name 2>/dev/null)" ]; }
 tick u12check || fail "U12: namespace not fully deleted - the finalizer is wedged"
-kubectl get ns voting-a >/dev/null 2>&1 \
+kk get ns voting-a >/dev/null 2>&1 \
   && fail "U12: namespace is still listed - the finalizer is wedged"
-kubectl get infraclaims -n voting-a -o name 2>/dev/null | grep -q . \
+kk get infraclaims -n voting-a -o name 2>/dev/null | grep -q . \
   && fail "U12: claims survived the namespace"
 docker ps -a --format '{{.Names}}' | grep -qx 'voting-a-postgres-postgres' \
   && fail "U12: the postgres container survived the namespace delete"
