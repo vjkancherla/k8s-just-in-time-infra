@@ -1,6 +1,6 @@
 # S22 pre-flight checkpoint run - captured, never typed
-# started  2026-09-28T18:31:23Z
-# commit   77a3845
+# started  2026-09-28T18:50:44Z
+# commit   e434fc5
 # command  scripts/s22-all-fail.sh --capture   (lint first, then runs scripts/checkpoint.sh for NN in 23..29 under a 240s watchdog each, derives this from the captured logs)
 # purpose: every Stage-H checkpoint asserts something real
 #          each fails readable before any implementation, 0 syntax errors
@@ -17,6 +17,6 @@ FAIL: runner not up - run 'make jit-up' before this checkpoint
 --- S28
 FAIL: worker must CONSUME redis (no params key) - actual: declarer
 --- S29
-FAIL: make state says up=False - run 'make demo-up' before this checkpoint
+FAIL: make state did not report up=True (got 'False') - run 'make demo-up' before this checkpoint
 PASS S22 pre-flight: 7 checkpoints, all failing readable, 0 syntax errors
 PASS
