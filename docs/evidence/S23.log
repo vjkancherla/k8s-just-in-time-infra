@@ -1,9 +1,9 @@
 # S23 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:49Z
-# commit   e8ab404
-# pending  4 uncommitted change(s)
+# started  2026-09-28T23:27:28Z
+# commit   4fd26b9
+# pending  6 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S23.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: docs/evidence/s23-spike.log missing - run the spike protocol first
-# exit     1
+PASS S23: spike measured (both replaces, vote loss, reconnect), verdict: VERDICT: maxmemory mutable
+# exit     0
