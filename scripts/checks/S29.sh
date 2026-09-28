@@ -24,8 +24,13 @@ cleanup() { rc=$?; set +e
 trap cleanup EXIT
 
 jqf() { python3 -c "import sys,json;d=json.load(sys.stdin);print(d$1)"; }
-cluster_up="$(make state 2>/dev/null | python3 -c 'import sys,json;print(json.load(sys.stdin).get("up") is True)')"
-[ "$cluster_up" = "True" ] || fail "make state says up=$cluster_up - run 'make demo-up' before this checkpoint"
+# make state can die before it prints a document (e.g. an untracked deploy/.env
+# missing, or no cluster at all): an empty stdout makes json.load raise, which
+# under set -e exits with a bare traceback. Read it into a variable with the
+# failures consumed, so a bad document reaches the readable fail() below.
+state_json="$(make state 2>/dev/null || true)"
+cluster_up="$(printf '%s' "$state_json" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("up") is True)' 2>/dev/null || true)"
+[ "$cluster_up" = "True" ] || fail "make state did not report up=True (got '$cluster_up') - run 'make demo-up' before this checkpoint"
 if ! kk get infraclaim voting-a-redis -n voting-a >/dev/null 2>&1 \
    || ! kk get infraclaim voting-a-postgres -n voting-a >/dev/null 2>&1; then
   fail "the voting-a claims are missing - deploy the demo first"

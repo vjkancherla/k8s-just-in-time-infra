@@ -66,7 +66,8 @@ exist — S22's record IS the captured all-fail run.
 `docs/evidence/s22-all-fail.log`, `docs/evidence/S23.log`-`S29.log`
 `docs/decisions/0005-stage-h-checkpoint-contract-fixes.md` (ADR: the approved contract
 fixes applied after the first re-review - S23 verdict, S24 destroy pairs, S26
-conflict/apply/cleanup, S29 precondition/U12, and the `-g`/`-gt` typo)
+conflict/apply/cleanup, S29 precondition/U12, the `-g`/`-gt` typo, the S26 `kill 0`
+trap, and the two round-3 record-builder/precondition fixes)
 
 ## What to read
 

@@ -123,6 +123,29 @@ Now asserts both sides of that conditional, per build-plan S24's bullet 3:
    because the first fix in this ADR addressed the wrong line and the diagnosis is
    the lesson.
 
+9. Round-3 review of the rebuilt S22 found two blockers in the machinery that produces
+   the step's only record; both are fixed here.
+
+   - **`scripts/s22-all-fail.sh` could certify a run the runner refused.** It ran each
+     checkpoint with stdout discarded and then read `docs/evidence/SNN.log`; when
+     `scripts/checkpoint.sh` refuses before truncating the log (a dirty checkpoint is a
+     stop trigger), the old log was read and scored as this run's failure. Demonstrated
+     in a scratch clone: with one comment appended to `scripts/checks/S27.sh`, the
+     builder printed S27's stale `FAIL:` from the committed log and ended
+     `PASS … exit 0`. Now the runner's own output is kept, and the log is trusted only
+     when its `# started` is at or after this run's start; a refused or stale log is
+     reported from the runner's words and fails the pre-flight. This is round-1
+     blocker 3's class (evidence not tied to an executed run) reappearing inside the
+     sanctioned tool, which is why it is fixed here rather than parked.
+   - **`S29.sh`'s first precondition still died without a `FAIL:` line.** Line 27 piped
+     `make state` into `json.load`; an empty document (e.g. the untracked `deploy/.env`
+     missing) raised and, under `set -euo pipefail`, exited 1 with a bare traceback.
+     The readable-`FAIL:` contract the ADR claims to have closed applies to the *first*
+     thing the script runs, not just the `kk` guards below it. Now `make state` is read
+     into a variable with failures consumed and a bad document reaches a named `fail`.
+     Demonstrated: with `.env` moved aside, S29 printed `FAIL: make state did not report
+     up=True (got '') - run 'make demo-up' before this checkpoint`.
+
 Approved and recorded here; also cited in the S22 review prompt's FILES list and Stage H
 of `docs/build-plan.md`. Not in scope of this ADR: the concerns the re-review also raised
 (S29 U7's `postgres_db` variant, U1's Secret-byte check, U3/U13's timestamps) stay

@@ -14,11 +14,12 @@ set -euo pipefail
 fail() { echo "FAIL: $1"; exit 1; }
 DFS="23 24 25 26 27 28 29"
 ok=1
+run_started="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 if [ "${1:-}" = "--capture" ]; then
   out=docs/evidence/s22-all-fail.log
   { echo "# S22 pre-flight checkpoint run - captured, never typed"
-    echo "# started  $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "# started  $run_started"
     echo "# commit   $(git rev-parse --short HEAD 2>/dev/null || echo none)"
     echo "# command  scripts/s22-all-fail.sh --capture   (lint first, then runs scripts/checkpoint.sh for NN in 23..29 under a 240s watchdog each, derives this from the captured logs)"
     echo "# purpose: every Stage-H checkpoint asserts something real"
@@ -45,21 +46,47 @@ for n in $DFS; do
   # background, so the batch can cost exactly one timeout and no more. No
   # background subshells: their inherited stdout holds a caller's pty open,
   # which wedged two earlier - real - capture runs of this stage.
+  #
+  # The runner's own output is KEPT (stderr merged), not discarded: when it
+  # refuses to execute - a dirty checkpoint is a stop trigger, not a nuance -
+  # it prints its reason and never touches the log, so a discarded stdout
+  # plus a stale log let this builder certify a run that never happened. The
+  # log is captured to a temp file, and the report line is read from THAT,
+  # never from docs/evidence/SNN.log.
   rc=0
-  perl -e 'alarm 240; exec @ARGV' ./scripts/checkpoint.sh "$n" >/dev/null 2>&1 || rc=$?
+  runner_log="$(mktemp /tmp/s22-runner-XXXX.log)"
+  perl -e 'alarm 240; exec @ARGV' ./scripts/checkpoint.sh "$n" >"$runner_log" 2>&1 || rc=$?
   if [ "$rc" -eq 142 ] || [ "$rc" -ge 137 ]; then
     ok=0
     echo "S$n: did not return within the 240s alarm (rc=$rc) - see docs/evidence/S$n.log" >> "$out"
+    rm -f "$runner_log"
     continue
   fi
+
+  # Freshness first: this run's failure must be the one the runner just wrote.
+  # When the runner refuses to execute - a dirty checkpoint is a stop trigger,
+  # not a nuance - or dies before opening the log, the log is absent or stale,
+  # and its old FAIL: line must never be certified as this run's result. The
+  # runner timestamps the log a moment after we start, so the test is "log
+  # started at or after this run", not equality. The runner's own stdout (kept
+  # above, not discarded) supplies the reason when the log is stale.
+  started="$(sed -n 's/^# started  //p' "docs/evidence/S$n.log" 2>/dev/null | head -1)"
+  if [ -z "$started" ] || [ "$started" \< "$run_started" ]; then
+    ok=0
+    echo "S$n: the runner did not execute it this run (log started '$started', this run '$run_started') - runner said: $(grep -m1 '^FAIL' "$runner_log" || tail -1 "$runner_log")" >> "$out"
+    rm -f "$runner_log"
+    continue
+  fi
+
   reason="$(grep -m1 '^FAIL' "docs/evidence/S$n.log" || true)"
   if [ "$rc" -eq 0 ]; then
     ok=0; echo "S$n PASSED unexpectedly" >> "$out"
   elif [ -n "$reason" ]; then
     echo "$reason" >> "$out"
   else
-    ok=0; echo "S$n failed with no FAIL: line (rc=$rc)" >> "$out"
+    ok=0; echo "S$n failed with no FAIL: line (rc=$rc) - runner said: $(tail -1 "$runner_log")" >> "$out"
   fi
+  rm -f "$runner_log"
 done
 
 if [ "$ok" -eq 1 ]; then
