@@ -1,23 +1,31 @@
 
 === preflight - demo stack up ===
-# spike run started 2026-09-28T21:19:04Z on VJK-MacBook.local
+# spike run started 2026-09-28T23:45:10Z on VJK-MacBook.local
 tofu OpenTofu v1.8.1
 redis voting-a-redis-redis at 172.19.0.102; postgres voting-a-postgres-postgres at 172.19.0.100; network k3d-voting-app
 
 === handler-side protocol: does call_runner block the kopf event loop? ===
 controller image: jit-controller
-kopf 1.44.6: event-loop thread 281473607140544; sync handler ran on thread 281473518268800; separate executor thread: True
+kopf 1.44.6: event-loop thread 281473196614848; sync handler ran on thread 281473107816832; separate executor thread: True
+default sync-handler executor: ThreadPoolExecutor max_workers=6
 code reading: jit-controller/main.py handle_deployment is a synchronous def (line 129) and
 resync_referenced_by is a synchronous @kopf.timer def (line 816); provision_infra -> call_runner
 (line 352) is a plain blocking requests.post with timeout=600.
 kopf/_core/actions/invocation.py line 134 executes a synchronous handler with
 loop.run_in_executor(executor, real_fn), i.e. on a worker thread, not the event loop.
-call_runner blocking verdict: call_runner does not block the kopf event loop - kopf offloads
-synchronous handlers to an executor thread, so the 30s resync keeps ticking while an apply runs;
-asyncio.to_thread would be required only if S26 converts the handler to async def.
+call_runner blocking verdict (derived from the probe above, rc=0): call_runner does not block
+the kopf event loop - kopf offloads synchronous handlers to an executor thread, so the 30s resync
+keeps ticking while an apply runs; asyncio.to_thread would be required only if S26 converts the
+handler to async def.
+caveat - the executor pool is the real ceiling, and this probe did not drive it there: kopf shares
+that executor across every sync handler (handle_deployment, the 30s resync timer, the delete handler).
+The pool's max_workers is printed above. The resync keeps ticking only while fewer than that many
+applies are in flight; at the ceiling a 600s call_runner call queues the resync behind it, which is
+the same stop the design describes, arriving through the pool rather than the event loop. S26 decides
+whether to cap concurrency or move call_runner to asyncio.to_thread; this spike records the ceiling.
 
 === redis replace - queue held behind a stopped worker, then the container replaced ===
-before: id=b74279f658de3fa4e939fcf52029b756964e29fa5081ad17ef3f18ea7bda1c66 cmd=["redis-server","--maxmemory","256mb","--maxmemory-policy","noeviction"]
+before: id=5b3982d3033def57b52fcebc774f1dab3d7e002787a01466c1b68b8b32a193a5 cmd=["redis-server","--maxmemory","256mb","--maxmemory-policy","noeviction"]
 
 Initializing the backend...
 
@@ -49,7 +57,7 @@ rerun this command to reinitialize your working directory. If you forget, other
 commands will detect it and remind you to do so if necessary.
   # docker_container.redis must be replaced
       ~ command                                     = [ # forces replacement
-          ~ external = 33196 -> 0 # forces replacement
+          ~ external = 33200 -> 0 # forces replacement
 Plan: 1 to add, 0 to change, 1 to destroy.
 scale voting-app-worker to 0 so nothing drains the queue during the replace
 deployment.apps/voting-app-worker scaled
@@ -59,7 +67,7 @@ errors: 0, replies: 50
 queued 50 votes (LLEN votes) with the worker stopped
 data.docker_network.this: Reading...
 data.docker_network.this: Read complete after 0s [id=c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390]
-docker_container.redis: Refreshing state... [id=b74279f658de3fa4e939fcf52029b756964e29fa5081ad17ef3f18ea7bda1c66]
+docker_container.redis: Refreshing state... [id=5b3982d3033def57b52fcebc774f1dab3d7e002787a01466c1b68b8b32a193a5]
 
 OpenTofu used the selected providers to generate the following execution
 plan. Resource actions are indicated with the following symbols:
@@ -89,8 +97,8 @@ OpenTofu will perform the following actions:
       ~ env                                         = [] -> (known after apply)
       + exit_code                                   = (known after apply)
       - group_add                                   = [] -> null
-      ~ hostname                                    = "b74279f658de" -> (known after apply)
-      ~ id                                          = "b74279f658de3fa4e939fcf52029b756964e29fa5081ad17ef3f18ea7bda1c66" -> (known after apply)
+      ~ hostname                                    = "5b3982d3033d" -> (known after apply)
+      ~ id                                          = "5b3982d3033def57b52fcebc774f1dab3d7e002787a01466c1b68b8b32a193a5" -> (known after apply)
       ~ init                                        = false -> (known after apply)
       ~ ipc_mode                                    = "private" -> (known after apply)
       ~ log_driver                                  = "json-file" -> (known after apply)
@@ -107,7 +115,7 @@ OpenTofu will perform the following actions:
               - ip_address                = "172.19.0.102"
               - ip_prefix_length          = 16
               - ipv6_gateway              = ""
-              - mac_address               = "a2:39:d3:6a:48:4c"
+              - mac_address               = "ae:e4:b9:3e:71:18"
               - network_name              = "k3d-voting-app"
             },
         ] -> (known after apply)
@@ -125,7 +133,7 @@ OpenTofu will perform the following actions:
         # (16 unchanged attributes hidden)
 
       ~ ports {
-          ~ external = 33196 -> 0 # forces replacement
+          ~ external = 33200 -> 0 # forces replacement
             # (3 unchanged attributes hidden)
         }
 
@@ -133,10 +141,10 @@ OpenTofu will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-docker_container.redis: Destroying... [id=b74279f658de3fa4e939fcf52029b756964e29fa5081ad17ef3f18ea7bda1c66]
+docker_container.redis: Destroying... [id=5b3982d3033def57b52fcebc774f1dab3d7e002787a01466c1b68b8b32a193a5]
 docker_container.redis: Destruction complete after 0s
 docker_container.redis: Creating...
-docker_container.redis: Creation complete after 1s [id=9bdbe9837f4528731ecb2a5391e162e8c1012138b8ab22159f7b4d2465350d79]
+docker_container.redis: Creation complete after 0s [id=b1b3348865312b458c94b35964621ecd5a1793268c2ace0f62c5bbebc67df31a]
 
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
@@ -145,10 +153,13 @@ Outputs:
 address = "172.19.0.102"
 port = 6379
 url = "redis://172.19.0.102:6379"
-redis replace: 1s or less until redis answers again (tofu apply 0.79s + container start; the plan above shows the container is replaced)
-after: id=9bdbe9837f4528731ecb2a5391e162e8c1012138b8ab22159f7b4d2465350d79 cmd=["redis-server","--maxmemory","128mb","--maxmemory-policy","noeviction"]
+redis replace: 1s or less until redis answers again (tofu apply 0.77s + container start 0.07s = 0.84s total; the plan above shows the container is replaced)
+after: id=b1b3348865312b458c94b35964621ecd5a1793268c2ace0f62c5bbebc67df31a cmd=["redis-server","--maxmemory","128mb","--maxmemory-policy","noeviction"]
 votes lost across the replace: 50 of 50 queued (LLEN votes after=0)
 scale voting-app-worker back to 1 and assert reconnect
+(the worker was deliberately stopped before the replace, so this is a fresh-pod startup reconnect,
+ not evidence that a long-lived client survives a replace; the in-place RedisError reconnect path in
+ app/worker/app.py is not exercised here because the pod is recreated)
 deployment.apps/voting-app-worker scaled
 Waiting for deployment "voting-app-worker" rollout to finish: 0 out of 1 new replicas have been updated...
 Waiting for deployment spec update to be observed...
@@ -156,13 +167,15 @@ Waiting for deployment "voting-app-worker" rollout to finish: 0 out of 1 new rep
 Waiting for deployment "voting-app-worker" rollout to finish: 0 of 1 updated replicas are available...
 deployment "voting-app-worker" successfully rolled out
 Defaulted container "worker" out of: worker, init-db (init)
-reconnect: worker --healthcheck OK - reached the recreated redis and postgres
-reconnect: vote /healthz OK - vote built a fresh redis client after the replace
-reconnect: worker drained a post-replace vote to postgres (LLEN votes=0)
+reconnect (worker): fresh pod --healthcheck OK - it connected to the recreated redis and postgres
+reconnect (vote): vote was NOT restarted; /healthz OK - it reached the recreated redis. app/vote/app.py
+builds a fresh Redis client per request, so this proves reachability of the new container, not
+re-establishment of a long-lived connection.
+reconnect (worker): the restarted worker drained a post-replace vote to postgres (LLEN votes=0)
 restore maxmemory to 256mb so the demo stack keeps its declared defaults
 data.docker_network.this: Reading...
 data.docker_network.this: Read complete after 0s [id=c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390]
-docker_container.redis: Refreshing state... [id=9bdbe9837f4528731ecb2a5391e162e8c1012138b8ab22159f7b4d2465350d79]
+docker_container.redis: Refreshing state... [id=b1b3348865312b458c94b35964621ecd5a1793268c2ace0f62c5bbebc67df31a]
 
 OpenTofu used the selected providers to generate the following execution
 plan. Resource actions are indicated with the following symbols:
@@ -192,8 +205,8 @@ OpenTofu will perform the following actions:
       ~ env                                         = [] -> (known after apply)
       + exit_code                                   = (known after apply)
       - group_add                                   = [] -> null
-      ~ hostname                                    = "9bdbe9837f45" -> (known after apply)
-      ~ id                                          = "9bdbe9837f4528731ecb2a5391e162e8c1012138b8ab22159f7b4d2465350d79" -> (known after apply)
+      ~ hostname                                    = "b1b334886531" -> (known after apply)
+      ~ id                                          = "b1b3348865312b458c94b35964621ecd5a1793268c2ace0f62c5bbebc67df31a" -> (known after apply)
       ~ init                                        = false -> (known after apply)
       ~ ipc_mode                                    = "private" -> (known after apply)
       ~ log_driver                                  = "json-file" -> (known after apply)
@@ -210,7 +223,7 @@ OpenTofu will perform the following actions:
               - ip_address                = "172.19.0.102"
               - ip_prefix_length          = 16
               - ipv6_gateway              = ""
-              - mac_address               = "7e:dc:e8:a4:77:5e"
+              - mac_address               = "de:7f:eb:29:39:6a"
               - network_name              = "k3d-voting-app"
             },
         ] -> (known after apply)
@@ -228,7 +241,7 @@ OpenTofu will perform the following actions:
         # (16 unchanged attributes hidden)
 
       ~ ports {
-          ~ external = 33199 -> 0 # forces replacement
+          ~ external = 33203 -> 0 # forces replacement
             # (3 unchanged attributes hidden)
         }
 
@@ -236,10 +249,10 @@ OpenTofu will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-docker_container.redis: Destroying... [id=9bdbe9837f4528731ecb2a5391e162e8c1012138b8ab22159f7b4d2465350d79]
+docker_container.redis: Destroying... [id=b1b3348865312b458c94b35964621ecd5a1793268c2ace0f62c5bbebc67df31a]
 docker_container.redis: Destruction complete after 0s
 docker_container.redis: Creating...
-docker_container.redis: Creation complete after 0s [id=5b3982d3033def57b52fcebc774f1dab3d7e002787a01466c1b68b8b32a193a5]
+docker_container.redis: Creation complete after 0s [id=49330990949db686eb1a2f981899ac94f95704dc45c7102eab96c1df69b0c305]
 
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
@@ -251,7 +264,7 @@ url = "redis://172.19.0.102:6379"
 redis restore: 0.8s (rc=0; cmd=["redis-server","--maxmemory","256mb","--maxmemory-policy","noeviction"])
 
 === postgres replace - an S27-style setting (-c) added to the container command ===
-before: id=4a0ac3cfe72894ad02837960bedc237bb460bef9646a157d00c26d6f3127a6c5 volume=voting-a-postgres-postgres-data created=2026-09-28T21:57:33+01:00 rows=8
+before: id=0993dd73b1494cae532bc8f36d800844beb0bf7bb2457dda0b7ef629a7b21d04 volume=voting-a-postgres-postgres-data created=2026-09-28T21:57:33+01:00 rows=8
 
 Initializing the backend...
 
@@ -282,12 +295,12 @@ If you ever set or change modules or backend configuration for OpenTofu,
 rerun this command to reinitialize your working directory. If you forget, other
 commands will detect it and remind you to do so if necessary.
       ~ command                                     = [ # forces replacement
-          ~ external = 33198 -> 0 # forces replacement
+          ~ external = 33202 -> 0 # forces replacement
 Plan: 1 to add, 0 to change, 1 to destroy.
 data.docker_network.this: Reading...
 docker_volume.postgres_data: Refreshing state... [id=voting-a-postgres-postgres-data]
 data.docker_network.this: Read complete after 0s [id=c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390]
-docker_container.postgres: Refreshing state... [id=4a0ac3cfe72894ad02837960bedc237bb460bef9646a157d00c26d6f3127a6c5]
+docker_container.postgres: Refreshing state... [id=0993dd73b1494cae532bc8f36d800844beb0bf7bb2457dda0b7ef629a7b21d04]
 
 OpenTofu used the selected providers to generate the following execution
 plan. Resource actions are indicated with the following symbols:
@@ -313,8 +326,8 @@ OpenTofu will perform the following actions:
         ] -> (known after apply)
       + exit_code                                   = (known after apply)
       - group_add                                   = [] -> null
-      ~ hostname                                    = "4a0ac3cfe728" -> (known after apply)
-      ~ id                                          = "4a0ac3cfe72894ad02837960bedc237bb460bef9646a157d00c26d6f3127a6c5" -> (known after apply)
+      ~ hostname                                    = "0993dd73b149" -> (known after apply)
+      ~ id                                          = "0993dd73b1494cae532bc8f36d800844beb0bf7bb2457dda0b7ef629a7b21d04" -> (known after apply)
       ~ init                                        = false -> (known after apply)
       ~ ipc_mode                                    = "private" -> (known after apply)
       ~ log_driver                                  = "json-file" -> (known after apply)
@@ -331,7 +344,7 @@ OpenTofu will perform the following actions:
               - ip_address                = "172.19.0.100"
               - ip_prefix_length          = 16
               - ipv6_gateway              = ""
-              - mac_address               = "be:3b:a3:1c:27:33"
+              - mac_address               = "7e:c3:62:3a:0d:b3"
               - network_name              = "k3d-voting-app"
             },
         ] -> (known after apply)
@@ -349,7 +362,7 @@ OpenTofu will perform the following actions:
         # (17 unchanged attributes hidden)
 
       ~ ports {
-          ~ external = 33198 -> 0 # forces replacement
+          ~ external = 33202 -> 0 # forces replacement
             # (3 unchanged attributes hidden)
         }
 
@@ -367,10 +380,10 @@ OpenTofu will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-docker_container.postgres: Destroying... [id=4a0ac3cfe72894ad02837960bedc237bb460bef9646a157d00c26d6f3127a6c5]
+docker_container.postgres: Destroying... [id=0993dd73b1494cae532bc8f36d800844beb0bf7bb2457dda0b7ef629a7b21d04]
 docker_container.postgres: Destruction complete after 0s
 docker_container.postgres: Creating...
-docker_container.postgres: Creation complete after 0s [id=c9a0f38211ee90b0c8420bcd963ebbaeb21f2dd9e543841534c7486878b2a0bd]
+docker_container.postgres: Creation complete after 0s [id=682921d1f93d5900c475c087d069b54c542a5288464f6bac1d0cca8a452104c5]
 
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
@@ -380,8 +393,8 @@ address = "172.19.0.100"
 port = 5432
 url = <sensitive>
 volume_name = "voting-a-postgres-postgres-data"
-postgres replace: 1s or less until postgres answers again (tofu apply 0.76s + server start; adds command ['postgres','-c','max_connections=200'] - the S27 settings path; the plan above shows the container is replaced)
-after: id=c9a0f38211ee90b0c8420bcd963ebbaeb21f2dd9e543841534c7486878b2a0bd
+postgres replace: 1s or less until postgres answers again (tofu apply 0.83s + server start 0.07s = 0.90s total; adds command ['postgres','-c','max_connections=200'] - the S27 settings path; the plan above shows the container is replaced)
+after: id=682921d1f93d5900c475c087d069b54c542a5288464f6bac1d0cca8a452104c5
 postgres volume survived the replace: voting-a-postgres-postgres-data created=2026-09-28T21:57:33+01:00 (unchanged: yes)
 postgres data survived the replace: votes rows before=8 after=8
 restore the stock postgres module (drop the injected command) so the demo stack is unchanged
@@ -417,7 +430,7 @@ commands will detect it and remind you to do so if necessary.
 data.docker_network.this: Reading...
 docker_volume.postgres_data: Refreshing state... [id=voting-a-postgres-postgres-data]
 data.docker_network.this: Read complete after 0s [id=c1797e613adf27b975f16f35fb2d185dd3b0fa8f17a58010844c076b5fb58390]
-docker_container.postgres: Refreshing state... [id=c9a0f38211ee90b0c8420bcd963ebbaeb21f2dd9e543841534c7486878b2a0bd]
+docker_container.postgres: Refreshing state... [id=682921d1f93d5900c475c087d069b54c542a5288464f6bac1d0cca8a452104c5]
 
 OpenTofu used the selected providers to generate the following execution
 plan. Resource actions are indicated with the following symbols:
@@ -443,8 +456,8 @@ OpenTofu will perform the following actions:
         ] -> (known after apply)
       + exit_code                                   = (known after apply)
       - group_add                                   = [] -> null
-      ~ hostname                                    = "c9a0f38211ee" -> (known after apply)
-      ~ id                                          = "c9a0f38211ee90b0c8420bcd963ebbaeb21f2dd9e543841534c7486878b2a0bd" -> (known after apply)
+      ~ hostname                                    = "682921d1f93d" -> (known after apply)
+      ~ id                                          = "682921d1f93d5900c475c087d069b54c542a5288464f6bac1d0cca8a452104c5" -> (known after apply)
       ~ init                                        = false -> (known after apply)
       ~ ipc_mode                                    = "private" -> (known after apply)
       ~ log_driver                                  = "json-file" -> (known after apply)
@@ -461,7 +474,7 @@ OpenTofu will perform the following actions:
               - ip_address                = "172.19.0.100"
               - ip_prefix_length          = 16
               - ipv6_gateway              = ""
-              - mac_address               = "f2:39:2e:a8:2f:38"
+              - mac_address               = "06:28:c9:ec:6a:db"
               - network_name              = "k3d-voting-app"
             },
         ] -> (known after apply)
@@ -479,7 +492,7 @@ OpenTofu will perform the following actions:
         # (17 unchanged attributes hidden)
 
       ~ ports {
-          ~ external = 33201 -> 0 # forces replacement
+          ~ external = 33205 -> 0 # forces replacement
             # (3 unchanged attributes hidden)
         }
 
@@ -497,10 +510,10 @@ OpenTofu will perform the following actions:
     }
 
 Plan: 1 to add, 0 to change, 1 to destroy.
-docker_container.postgres: Destroying... [id=c9a0f38211ee90b0c8420bcd963ebbaeb21f2dd9e543841534c7486878b2a0bd]
+docker_container.postgres: Destroying... [id=682921d1f93d5900c475c087d069b54c542a5288464f6bac1d0cca8a452104c5]
 docker_container.postgres: Destruction complete after 0s
 docker_container.postgres: Creating...
-docker_container.postgres: Creation complete after 0s [id=0993dd73b1494cae532bc8f36d800844beb0bf7bb2457dda0b7ef629a7b21d04]
+docker_container.postgres: Creation complete after 0s [id=1e6878894a539deb26fe9b0a6bfa149abab2916e789460a85ead1521f5c6af64]
 
 Apply complete! Resources: 1 added, 0 changed, 1 destroyed.
 
@@ -513,16 +526,18 @@ volume_name = "voting-a-postgres-postgres-data"
 postgres restore: 1.5s (rc=0; stock module re-applied, command removed)
 
 === verdict ===
-measured: redis replace <=1s (apply 0.79s + start 0.86s, measured wall time until redis answers);
-postgres replace <=1s (apply 0.76s + start 0.84s, until pg_isready); votes lost 50 of 50 across the redis replace;
-vote/worker reconnected and the worker drained a post-replace vote.
+measured: redis replace <=1s (apply 0.77s + container start 0.07s = 0.84s total, measured wall time until redis answers);
+postgres replace <=1s (apply 0.83s + server start 0.07s = 0.90s total, until pg_isready); votes lost 50 of 50 across the redis replace;
+reconnect: the worker was restarted for this measurement and re-drained a post-replace vote; vote stayed up and reached the new redis.
 decision-overlay: docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md
 human decision (2026-09-28): an infrastructure change made through the Deployment annotation is an
-explicit approval for any downtime it causes, so downtime is accepted. The replaces are <=1s and
-vote/worker reconnect, so the update cost is acceptable; redis maxmemory stays mutable and U1 stays
-in scope. This replaces the spike's own 'refused' reading of criterion 1.
+explicit approval for any downtime it causes, so downtime is accepted. The replaces are <=1s and the
+worker reconnects on restart (vote stays reachable through a fresh per-request client), so the update
+cost is acceptable; redis maxmemory stays mutable and U1 stays in scope. Read literally, the
+contract's criterion 1 ('adds or tunes, never removes data') would refuse maxmemory on the 50-of-50
+vote loss; the 2026-09-28 human decision overrides that reading for redis maxmemory.
 verdict provenance: the VERDICT line below is the recorded human decision, not a result the probe
-measured. The probe measured the replace timings, the reconnect behaviour and the 50-of-50 vote loss;
+measured. The probe measured the replace timings, the (startup) reconnect and the 50-of-50 vote loss;
 it did not decide mutability. The decision is ADR 0007 - a review judges that ADR (its reasoning and
 its scope), not the probe's numbers.
 VERDICT: maxmemory mutable

@@ -75,21 +75,39 @@ def sync_handler(**kwargs):
 async def main():
     loop_tid = threading.get_ident()
     handler_tid = await invoke(sync_handler)
+    separate = handler_tid != loop_tid
+    from kopf._cogs.configs import configuration
+    pool = configuration.OperatorSettings().execution.executor
     print(f"kopf {kopf.__version__}: event-loop thread {loop_tid}; "
           f"sync handler ran on thread {handler_tid}; "
-          f"separate executor thread: {handler_tid != loop_tid}")
+          f"separate executor thread: {separate}")
+    print(f"default sync-handler executor: {type(pool).__name__} "
+          f"max_workers={getattr(pool, '_max_workers', '?')}")
 
 asyncio.run(main())
 PY
-kubectl exec -i -n default deploy/jit-controller -- python - < /tmp/s23-kopf-probe.py 2>&1 | tee -a "$LOG"
+# rc-checked: the verdict is derived from this probe, never typed ahead of it.
+probe_out="$(kubectl exec -i -n default deploy/jit-controller -- python - < /tmp/s23-kopf-probe.py 2>&1)"
+probe_rc=$?
+printf '%s\n' "$probe_out" | tee -a "$LOG"
+[ "$probe_rc" = "0" ] || die "kopf executor probe failed (rc=$probe_rc) - cannot decide whether call_runner blocks"
+printf '%s\n' "$probe_out" | grep -q 'separate executor thread: True' \
+  || die "the kopf probe reported no separate executor thread - call_runner may block the event loop; refusing to write the verdict"
 log "code reading: jit-controller/main.py handle_deployment is a synchronous def (line 129) and"
 log "resync_referenced_by is a synchronous @kopf.timer def (line 816); provision_infra -> call_runner"
 log "(line 352) is a plain blocking requests.post with timeout=600."
 log "kopf/_core/actions/invocation.py line 134 executes a synchronous handler with"
 log "loop.run_in_executor(executor, real_fn), i.e. on a worker thread, not the event loop."
-log "call_runner blocking verdict: call_runner does not block the kopf event loop - kopf offloads"
-log "synchronous handlers to an executor thread, so the 30s resync keeps ticking while an apply runs;"
-log "asyncio.to_thread would be required only if S26 converts the handler to async def."
+log "call_runner blocking verdict (derived from the probe above, rc=$probe_rc): call_runner does not block"
+log "the kopf event loop - kopf offloads synchronous handlers to an executor thread, so the 30s resync"
+log "keeps ticking while an apply runs; asyncio.to_thread would be required only if S26 converts the"
+log "handler to async def."
+log "caveat - the executor pool is the real ceiling, and this probe did not drive it there: kopf shares"
+log "that executor across every sync handler (handle_deployment, the 30s resync timer, the delete handler)."
+log "The pool's max_workers is printed above. The resync keeps ticking only while fewer than that many"
+log "applies are in flight; at the ceiling a 600s call_runner call queues the resync behind it, which is"
+log "the same stop the design describes, arriving through the pool rather than the event loop. S26 decides"
+log "whether to cap concurrency or move call_runner to asyncio.to_thread; this spike records the ceiling."
 
 sec "redis replace - queue held behind a stopped worker, then the container replaced"
 REDIS_ID_BEFORE=$(docker inspect -f '{{.Id}}' "$REDIS")
@@ -104,11 +122,14 @@ tofu -chdir="$RW" plan -no-color -input=false \
   2>&1 | grep -E "must be replaced|forces replacement|Plan:" | tee -a "$LOG"
 
 log "scale voting-app-worker to 0 so nothing drains the queue during the replace"
-kubectl scale deploy voting-app-worker -n "$NS" --replicas=0 >>"$LOG" 2>&1
+kubectl scale deploy voting-app-worker -n "$NS" --replicas=0 >>"$LOG" 2>&1 \
+  || die "could not scale voting-app-worker to 0 - the vote-loss measurement would be invalid"
 for _ in $(seq 1 60); do
   [ "$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=worker --no-headers 2>/dev/null | wc -l | tr -d ' ')" = "0" ] && break
   sleep 1
 done
+worker_left=$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=worker --no-headers 2>/dev/null | wc -l | tr -d ' ')
+[ "$worker_left" = "0" ] || die "worker still has $worker_left pod(s) after 60s - the vote-loss measurement would be invalid"
 docker exec "$REDIS" redis-cli DEL votes >/dev/null 2>&1
 python3 - "$N" > /tmp/s23-votes.resp <<'PY'
 import json, sys
@@ -130,9 +151,10 @@ t_apply=$(now)
 for _ in $(seq 1 150); do docker exec "$REDIS" redis-cli ping >/dev/null 2>&1 && break; sleep 0.2; done
 t_ready=$(now)
 RS=$(python3 -c "print(f'{$t_apply-$t0:.2f}')")
+RSTART=$(python3 -c "print(f'{$t_ready-$t_apply:.2f}')")
+RTOT=$(python3 -c "print(f'{$t_ready-$t0:.2f}')")
 RSI=$(python3 -c "import math; print(math.ceil($t_ready-$t0))")
-RSR=$(python3 -c "print(f'{$t_ready-$t0:.2f}')")
-log "redis replace: ${RSI}s or less until redis answers again (tofu apply ${RS}s + container start; the plan above shows the container is replaced)"
+log "redis replace: ${RSI}s or less until redis answers again (tofu apply ${RS}s + container start ${RSTART}s = ${RTOT}s total; the plan above shows the container is replaced)"
 
 REDIS_ID_AFTER=$(docker inspect -f '{{.Id}}' "$REDIS")
 REDIS_CMD_AFTER=$(docker inspect -f '{{json .Config.Cmd}}' "$REDIS")
@@ -144,19 +166,25 @@ log "after: id=$REDIS_ID_AFTER cmd=$REDIS_CMD_AFTER"
 log "votes lost across the replace: $LOST of ${BEFORE:-0} queued (LLEN votes after=${AFTER:-0})"
 
 log "scale voting-app-worker back to 1 and assert reconnect"
-kubectl scale deploy voting-app-worker -n "$NS" --replicas=1 >>"$LOG" 2>&1
+log "(the worker was deliberately stopped before the replace, so this is a fresh-pod startup reconnect,"
+log " not evidence that a long-lived client survives a replace; the in-place RedisError reconnect path in"
+log " app/worker/app.py is not exercised here because the pod is recreated)"
+kubectl scale deploy voting-app-worker -n "$NS" --replicas=1 >>"$LOG" 2>&1 \
+  || die "could not scale voting-app-worker back to 1"
 kubectl rollout status deploy/voting-app-worker -n "$NS" --timeout=120s >>"$LOG" 2>&1
 W_POD=$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 if kubectl exec -n "$NS" "$W_POD" -- python /app/app.py --healthcheck >>"$LOG" 2>&1; then
-  log "reconnect: worker --healthcheck OK - reached the recreated redis and postgres"
+  log "reconnect (worker): fresh pod --healthcheck OK - it connected to the recreated redis and postgres"
 else
-  log "reconnect: worker --healthcheck FAILED"
+  log "reconnect (worker): fresh pod --healthcheck FAILED"
 fi
 V_POD=$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=vote -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
 if kubectl exec -n "$NS" "$V_POD" -- python -c 'import urllib.request; urllib.request.urlopen("http://localhost:80/healthz", timeout=5)' >>"$LOG" 2>&1; then
-  log "reconnect: vote /healthz OK - vote built a fresh redis client after the replace"
+  log "reconnect (vote): vote was NOT restarted; /healthz OK - it reached the recreated redis. app/vote/app.py"
+  log "builds a fresh Redis client per request, so this proves reachability of the new container, not"
+  log "re-establishment of a long-lived connection."
 else
-  log "reconnect: vote /healthz FAILED"
+  log "reconnect (vote): /healthz FAILED"
 fi
 FV=$(python3 -c 'import json; print(json.dumps({"voter_id": "s23-post-replace", "choice": "Dogs", "timestamp": 0}))')
 docker exec "$REDIS" redis-cli RPUSH votes "$FV" >/dev/null 2>&1
@@ -164,7 +192,7 @@ for _ in $(seq 1 30); do
   [ "$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r')" = "0" ] && break
   sleep 1
 done
-log "reconnect: worker drained a post-replace vote to postgres (LLEN votes=$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r'))"
+log "reconnect (worker): the restarted worker drained a post-replace vote to postgres (LLEN votes=$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r'))"
 
 log "restore maxmemory to 256mb so the demo stack keeps its declared defaults"
 t0=$(now)
@@ -210,9 +238,10 @@ t_apply=$(now)
 for _ in $(seq 1 300); do docker exec "$PG" pg_isready -U postgres >/dev/null 2>&1 && break; sleep 0.2; done
 t_ready=$(now)
 PS=$(python3 -c "print(f'{$t_apply-$t0:.2f}')")
+PSTART=$(python3 -c "print(f'{$t_ready-$t_apply:.2f}')")
+PTOT=$(python3 -c "print(f'{$t_ready-$t0:.2f}')")
 PSI=$(python3 -c "import math; print(math.ceil($t_ready-$t0))")
-PSR=$(python3 -c "print(f'{$t_ready-$t0:.2f}')")
-log "postgres replace: ${PSI}s or less until postgres answers again (tofu apply ${PS}s + server start; adds command ['postgres','-c','max_connections=200'] - the S27 settings path; the plan above shows the container is replaced)"
+log "postgres replace: ${PSI}s or less until postgres answers again (tofu apply ${PS}s + server start ${PSTART}s = ${PTOT}s total; adds command ['postgres','-c','max_connections=200'] - the S27 settings path; the plan above shows the container is replaced)"
 PG_ID_AFTER=$(docker inspect -f '{{.Id}}' "$PG")
 PGVOL_AFTER=$(docker volume inspect "$PGVOL" -f '{{.CreatedAt}}' 2>/dev/null)
 ROWS_AFTER=$(docker exec "$PG" psql -U postgres -d voting -tAc 'select count(*) from votes' 2>/dev/null | tr -d '[:space:]')
@@ -234,9 +263,9 @@ PRS=$(python3 -c "print(round($t1-$t0,1))")
 log "postgres restore: ${PRS}s (rc=$rc; stock module re-applied, command removed)"
 
 sec "verdict"
-log "measured: redis replace <=${RSI}s (apply ${RS}s + start ${RSR}s, measured wall time until redis answers);"
-log "postgres replace <=${PSI}s (apply ${PS}s + start ${PSR}s, until pg_isready); votes lost ${LOST} of ${BEFORE:-0} across the redis replace;"
-log "vote/worker reconnected and the worker drained a post-replace vote."
+log "measured: redis replace <=${RSI}s (apply ${RS}s + container start ${RSTART}s = ${RTOT}s total, measured wall time until redis answers);"
+log "postgres replace <=${PSI}s (apply ${PS}s + server start ${PSTART}s = ${PTOT}s total, until pg_isready); votes lost ${LOST} of ${BEFORE:-0} across the redis replace;"
+log "reconnect: the worker was restarted for this measurement and re-drained a post-replace vote; vote stayed up and reached the new redis."
 # The verdict is a recorded human decision, not a function of LOST alone. The 50/50 lost
 # votes would refuse redis maxmemory under the mutability contract's criterion 1 ('adds or
 # tunes, never removes data'); the human decided on 2026-09-28 that a Deployment-annotation
@@ -244,11 +273,13 @@ log "vote/worker reconnected and the worker drained a post-replace vote."
 # rerun regenerates the committed verdict block (docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md).
 log "decision-overlay: docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md"
 log "human decision (2026-09-28): an infrastructure change made through the Deployment annotation is an"
-log "explicit approval for any downtime it causes, so downtime is accepted. The replaces are <=1s and"
-log "vote/worker reconnect, so the update cost is acceptable; redis maxmemory stays mutable and U1 stays"
-log "in scope. This replaces the spike's own 'refused' reading of criterion 1."
+log "explicit approval for any downtime it causes, so downtime is accepted. The replaces are <=1s and the"
+log "worker reconnects on restart (vote stays reachable through a fresh per-request client), so the update"
+log "cost is acceptable; redis maxmemory stays mutable and U1 stays in scope. Read literally, the"
+log "contract's criterion 1 ('adds or tunes, never removes data') would refuse maxmemory on the 50-of-50"
+log "vote loss; the 2026-09-28 human decision overrides that reading for redis maxmemory."
 log "verdict provenance: the VERDICT line below is the recorded human decision, not a result the probe"
-log "measured. The probe measured the replace timings, the reconnect behaviour and the 50-of-50 vote loss;"
+log "measured. The probe measured the replace timings, the (startup) reconnect and the 50-of-50 vote loss;"
 log "it did not decide mutability. The decision is ADR 0007 - a review judges that ADR (its reasoning and"
 log "its scope), not the probe's numbers."
 log "VERDICT: maxmemory mutable"
