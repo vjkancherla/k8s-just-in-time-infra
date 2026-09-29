@@ -4,15 +4,15 @@ Reviewer model: mimo-v2.6-flash (opencode-go/mimo-v2.6-flash)
 Verdict: CONCERNS
 
 Prompt intact: yes — twelve numbered questions, counted. Range under review
-`4fd26b9..6fa2dcc` (4 commits, 6 files, +1238/-5: `docs/decisions/0007-…`,
-`docs/evidence/S23.log`, `docs/evidence/s23-spike.log`,
-`docs/evidence/s23-spike.sh`, plus the two review-machinery files the prompt
-exempts from rule 4). HEAD is `cccd035`; no commit in the range amends anything
-under `scripts/checks/` or `scripts/checkpoint.sh`, so no ADR under the frozen-
-checkpoint rule is in play beyond ADR 0007 itself. I ran
-`scripts/checkpoint.sh 23 /tmp/S23-review.log` privately; committed evidence
-untouched. My first invocation (`… S23`) failed only because the runner takes
-`23` (`scripts/checkpoint.sh:7`), my error, no repo side effect.
+`4fd26b9..b7c6650` (8 commits, 6 files, +1296/-5: `docs/decisions/0007-…`,
+`docs/evidence/S23.log`, `docs/evidence/s23-spike.log`, `docs/evidence/s23-spike.sh`,
+plus the two review-machinery files the prompt exempts from rule 4). HEAD is
+`5808c1a` (the prompt commit); no commit in the range amends `scripts/checks/`,
+`scripts/checkpoint.sh`, `.clinerules/`, CI or scanner config, so the frozen-
+checkpoint ADR rule is not engaged beyond judging ADR 0007 itself. I ran
+`scripts/checkpoint.sh 23 /tmp/S23-review.log` privately — committed evidence
+untouched. My first invocation (`… S23`) failed because the runner takes `23`,
+my error, no repo side effect.
 
 ## Blockers
 
@@ -21,159 +21,158 @@ None.
 Q1-Q5 mechanical record:
 
 1. Nothing under `scripts/checks/`, `.clinerules/`, CI or scanner config:
-   `git diff --name-only 4fd26b9..6fa2dcc` lists exactly the six files above.
-   `checkpoint.sh 23` also re-checked `scripts/checks/S23.sh` for uncommitted
-   edits and found none. No checkpoint created or reworded.
-2. No dependency added: no manifest, module, requirements or Makefile change.
-   The probe uses python3/tofu/docker/kubectl/`redis-cli`-in-container — the
-   repo's existing evidence-script toolchain (`docs/evidence/race-test.sh`).
-3. Nothing deleted or weakened. `scripts/checks/S23.sh` is untouched across the
-   range; the only rewrite of an assertion-adjacent artefact is
-   `docs/evidence/S23.log` going FAIL → PASS, which is the capture itself.
+   `git diff --name-only 4fd26b9..b7c6650 -- docs/todo.md scripts/checks/
+   scripts/checkpoint.sh .clinerules/ .github/` is empty. The checkpoint scripts
+   were frozen at `d0d4329` (S22) and are untouched here; no checkpoint created,
+   reworded or weakened.
+2. No dependency added: no manifest, requirements, Makefile or module change in
+   the range. `docs/evidence/s23-spike.sh` uses python3/tofu/docker/kubectl/
+   `redis-cli`-in-container — the repo's existing evidence-script toolchain
+   (`docs/evidence/race-test.sh`).
+3. Nothing deleted or weakened. `scripts/checks/S23.sh` is byte-identical across
+   the range; the only assertion-adjacent rewrite is `docs/evidence/S23.log`
+   going FAIL → PASS, which is the capture itself (`4fd26b9` held S22's
+   "s23-spike.log missing" FAIL).
 4. No file created or edited outside the named list. The three untracked
    `docs/evidence/overnight-20260928T232512Z.*` files in the working tree are
-   the orchestrator's own run log, outside the range (Notes).
-5. `docs/todo.md` untouched; both S23 boxes still `[ ]`
+   the orchestrator's session log, outside the range (Notes).
+5. `docs/todo.md` untouched; S23's boxes are still `- [ ] check  - [ ] review`
    (`docs/todo.md:123`).
 
-Q6: `scripts/checks/S23.sh` passes on my clean run (exit 0, 0 pending changes,
-commit `cccd035`) and matches the implementer's capture
-(`docs/evidence/S23.log`, run at `dbb2df0`, probe started 23:45:10Z, checkpoint
-23:46:27Z — same artefact, committed with its code in `6fa2dcc`).
+Q6: `scripts/checks/S23.sh` passes on my clean run — `scripts/checkpoint.sh 23
+/tmp/S23-review.log` → "PASS S23: spike measured (both replaces, vote loss,
+reconnect), verdict: VERDICT: maxmemory mutable", and `bash scripts/checks/S23.sh`
+exits 0 directly. The committed capture (`docs/evidence/S23.log`) records the same
+line, run at `0889a9d` with 5 pending changes (those changes are `b7c6650`); my run
+at HEAD confirms the PASS still holds over the final state, so the capture-vs-head
+gap is a freshness note, not leftover state.
 
 Q7: per the prompt's ADR-0007 note I did not turn the log-only gate into a
-blocker; I judged ADR 0007 as a decision. Reasoning sound within its own
-disclosed limits, scope correct — see the Checkpoint assessment. The remaining
-findings are forward-reachability and probe-robustness issues, not a defect in
+blocker; I judged ADR 0007 as a decision. Its reasoning is sound within its
+disclosed limits and its scope is correct — see the Checkpoint assessment. The
+findings below are reachability, provenance and citation issues, not a defect in
 the decision.
 
 ## Concerns
 
-1. **ADR 0007's obligations are unreachable from the step that must obey them.**
-   The ADR states "`docs/designs/` is read-only in S23, so this ADR — not the
-   design note — is the authority until S28. S26 must implement `maxmemory` as
-   mutable (U1) and must not take criterion 1's 'refused' branch"
-   (`docs/decisions/0007-…md:74-79`). Nothing routes S26 to it: `git grep 0007`
-   hits only the ADR, the spike script/log and ADR 0006:91 — not
-   `docs/build-plan.md`, whose S26 **Read** list is "design note §Resolution
-   rules, §Mutability contract, §Update flow, §Conditions; `jit-controller/main.py`…"
-   (`docs/build-plan.md:926-929`). S26 codes "the mutability contract" from
-   §Mutability contract, whose criterion 1 still reads "adds or tunes, **never
-   removes data**" (`docs/designs/declarers-and-consumers.md:100`) while its own
-   table one paragraph down already lists `maxmemory` mutable with "queue
-   contents lost" (`:105`). An implementer reading the criteria as guards
-   implements `UpdateRefused` on exactly the key U1 (`:223`) and S29 U1
-   (`build-plan.md:1033`) require to be applied. Fix: cite ADR 0007 in the S26
-   session's reading/prompt the same way this prompt cites it, or have the plan
-   owner add one line to build-plan S26; and remember the ADR's own S28 row
-   obligation (`build-plan.md:996-1007` has no row for it yet) will need the
-   same sanction when S28's scope list is generated.
-2. **The probe records a *failed* reconnect and still gates green.**
-   `docs/evidence/s23-spike.sh:176-188` runs the worker healthcheck and the
-   vote `/healthz` as `if … then log "… OK" else log "… FAILED" fi` with no
-   `die`, and `:195` logs "the restarted worker drained a post-replace vote"
-   unconditionally, appending whatever `LLEN votes` happens to be. The frozen
-   gate's only reconnect assertion is the bare word
-   (`scripts/checks/S23.sh:23-24`, `grep -qi reconnect`), so a worker that fails
-   to reconnect after a real `maxmemory` edit produces a log that passes S23
-   unchanged. `:174` (`kubectl rollout status`) is likewise not rc-checked and
-   `W_POD` can be empty, which lands in the FAILED branch. S23.sh is frozen, so
-   the fix belongs in the probe: `die` on either FAILED branch and on a
-   non-zero post-replace `LLEN`.
-3. **The port-drift side finding is material to S27/U2 and lives nowhere but
-   the spike log.** `docs/evidence/s23-spike.log:545-549` records that every
-   re-apply of the stock module plans a replacement even with unchanged params
-   (`ports { external = 0 }` round-trips `0 -> <assigned>`), and that S27's
-   databases-only update (U2: "container ID unchanged") needs the module fixed
-   or the container is replaced on every apply. That collides with
-   `build-plan.md:978` and `:1034`. It is not in ADR 0007, not in
-   `docs/lessons.md` (which *was* in this step's allowed list), not in the
-   build plan. A 550-line log is where a later step will not look. Fix: carry
-   the one paragraph into `docs/lessons.md` or ADR 0007 before S27 starts.
-4. **Any rerun of the probe destroys the committed evidence the gate reads.**
-   First act of `docs/evidence/s23-spike.sh:32` is `: > "$LOG"` with no
-   "log exists" guard; a run that dies at preflight (`:53-59`) leaves a file
-   containing only `FAIL: …`, and the next `scripts/checkpoint.sh 23` fails
-   through no fault of the step, with the real measurement unrecoverable (the
-   script hardcodes `ROOT` at `:17`, so it only runs on this machine anyway).
-   Previously raised and still open. Fix: refuse to run if the log exists
-   unless `--force` is passed, or write to a timestamped file and copy.
-5. **"Downtime" in the ADR means container replace only, from one warm sample.**
-   The Decision rests on "the replaces are <=1s" (`0007-…md:45-48`), measured as
-   tofu apply + time-until-ping on one host with warm caches
-   (`s23-spike.log:156`, `:396`: 0.84s and 0.90s). It excludes the controller
-   noticing the annotation (up to a 30s resync), runner queueing and client
-   retry — the parts a tenant actually experiences — and postgres answering
-   `pg_isready` 0.07s after apply-return is at the fast edge of plausible
-   (`:396`). The ADR does label the numbers "in the recorded run"
-   (`0007-…md:12-16`), so this is a framing caveat: read "seconds", not "1s
-   outage", when U1's tolerance is quoted in S26/S29.
+1. **ADR 0007's obligations are still unwired from the step that must obey them**
+   (carried forward; recorded, not closed). The ADR now says so itself — "Before
+   S26 starts, ADR 0007 must be added to S26's reading"
+   (`docs/decisions/0007-…md:90-95`) — but nothing has been done: S26's **Read**
+   list is still "design note §Resolution rules, §Mutability contract, §Update
+   flow, §Conditions; `jit-controller/main.py`…" (`docs/build-plan.md:926-929`)
+   with no ADR 0007, and a repo-wide grep for `0007` hits only the ADR, the spike
+   script/log, ADR 0006:91 and the review files — never `docs/build-plan.md`,
+   `docs/designs/` or `docs/lessons.md`. S26 would code criterion 1's literal
+   "adds or tunes, never removes data" (`docs/designs/declarers-and-consumers.md:100`)
+   and emit `UpdateRefused` on exactly the key U1 (`:223`) requires to be applied.
+   **Action:** orchestrator adds ADR 0007 to S26's reading before S26 starts, and
+   adds the two S28 invalidation rows the ADR promises (`design:100` criterion 1
+   and the stale `design:161` "step 0 spike" line) to the table at
+   `docs/build-plan.md:996-1007`, which has no such row yet.
+2. **The probe hardening that closed the previous concern 2 has no captured run.**
+   The committed `docs/evidence/s23-spike.log` was last regenerated in `6fa2dcc`;
+   `b7c6650` then hardened `s23-spike.sh` (rollout rc-check, empty worker/vote pod
+   guards, both healthchecks `die` on FAILED, 30s drain rc-check, temp-file +
+   `mv` publish, `S23_SPIKE_LOG` redirect) **without regenerating the log** —
+   which the prompt sanctions under the human directive of 2026-09-28. The
+   claimed end-to-end validation of the hardened script ("reproduced 0.81s /
+   0.85s, 50/50, both reconnects OK") exists only as prose in `b7c6650`'s commit
+   message; no artefact in the repo records it. **Action:** capture that run
+   (`S23_SPIKE_LOG=/tmp/… docs/evidence/s23-spike.sh` output, or a one-line
+   trailer in `docs/evidence/S23.log`) so the fix for "a FAILED reconnect still
+   gates green" is evidenced rather than asserted.
+3. **The evidence log carries no script provenance.** Neither `s23-spike.log` nor
+   `S23.log` records which version/hash of `s23-spike.sh` produced the numbers, so
+   a reader cannot tell whether the committed measurement came from the
+   pre-hardening or post-hardening probe — the two concerns above are only
+   discoverable by reading commit history. **Action:** one header line in the
+   probe (`log "# probe $script_sha"` or similar) naming the script that wrote
+   the log.
+4. **ADR 0007's U7 citation is imprecise.** The ADR says "removing a database,
+   renaming `postgres_db` or changing the password remain refused (U7)"
+   (`0007-…md:75-77`), but U7 covers only the first two
+   (`docs/designs/declarers-and-consumers.md:229`); `postgres_password` is
+   refused by the table row at `:109` and stated at `:205`. The scope claim
+   (nothing besides `maxmemory` is relaxed) is correct; the locator is not, and
+   whoever wires S29's assertions from U7 will not find password coverage under
+   it. **Action:** cite `:109` for the password refusal alongside U7.
 
 ## Notes
 
-- The `VERDICT:` line is scripted, not derived: `s23-spike.sh:285` always writes
-  `VERDICT: maxmemory mutable`, with the decision-overlay and provenance
-  paragraphs immediately above it (`:269-284`) and the same statement in the log
-  (`s23-spike.log:532-542`) and the ADR (`0007-…md:39-41, 50-53`). Disclosed
-  three ways, so not a finding — but it means the build plan's "refused" verdict
-  branch (`build-plan.md:864-865`) is no longer reachable through the sanctioned
-  probe, and S23.sh still accepts either (`S23.sh:31-36`).
-- S23.sh accepts any digits (`redis replace: 0s`, `votes lost 0` grep clean,
-  `S23.sh:17-22`). Frozen, and the prompt bars turning the paperwork gate itself
-  into a blocker; recorded here for the record.
-- Design line 161 says "Run it with `asyncio.to_thread` (the step 0 spike
-  confirms which case applies)" — the case that applies is the *sync*-handler
-  one, because `jit-controller/main.py` contains no `async def` handler at all
-  (verified: only `@kopf.on.login`, `@kopf.on.create/update`, `@kopf.timer`,
-  `@kopf.on.delete`, all `def`). The spike answered the design's actual
-  question; the goal's broader parenthetical ("it must move to
-  `asyncio.to_thread` if it does [run synchronously]") would require converting
-  the handlers first. The residual pool ceiling (`max_workers=6`,
-  `s23-spike.log:10`) is recorded and assigned to S26 — correct placement.
-- ADR citation nit: the password-change refusal is attributed to U7
-  (`0007-…md:69-71`), but U7 (`design:229`) names remove-database and
-  `postgres_db` only; `postgres_password` is refused by the table row at
-  `:109`. Same outcome, wrong locator.
-- `docs/evidence/README.md` indexes every other probe (`race-test.sh`,
-  `leak-probe*.sh`, `s17-*`) and has no S23 row for `s23-spike.sh`/`.log`. Not
-  in this step's allowed list, so correctly not edited — flag it for whoever
-  sanctions the next evidence-index edit.
-- Hardcoded `ROOT`, `DOCKER_HOST` (`s23-spike.sh:17, 30`), MinIO keys
-  (`:43-44`) and the container IPs (`:25-26`) match the repo's existing
-  convention (`race-test.sh`, `deploy/.env`, `jit-runner/main.py`), so no new
-  secret and no portability finding — but the IPs are never validated against
-  the running containers, so a stack rebuilt at a different address would be
-  silently re-addressed by the probe.
+- The prompt's Q6 note states the committed numbers as "redis 0.81s, postgres
+  0.85s". The committed log says **0.84s** and **0.90s** total
+  (`docs/evidence/s23-spike.log:156, 396, 529-530`), which is what ADR 0007 quotes
+  (`0007-…md:12-16`). 0.81/0.85 are the /tmp validation-run figures from
+  `b7c6650`'s message. Prompt defect, not an implementer defect — recorded so the
+  next reviewer does not chase it.
+- The gate is a gate on the artefact forever: once `s23-spike.log` exists,
+  S23.sh can only fail if the log is edited, and a probe run that `die()`s leaves
+  the old log in place (by design — the `mv` publish at
+  `s23-spike.sh:312-313`). S23.sh's greps also accept any digits
+  (`votes lost 0 of 0` would match). Frozen, and the prompt bars turning the
+  paperwork gate into a blocker; recorded for the record.
+- The probe's "code reading" lines (`s23-spike.sh:104-108`: "handle_deployment is
+  a synchronous def (line 129)", "invocation.py line 134") are typed prose, not
+  asserted. They are accurate today — verified: `main.py:129` is a sync `def`,
+  `:352` is the `call_runner` call, `:473/:488` the blocking `requests.post`,
+  `:816` the sync timer, and there is no `async def` handler anywhere — but a
+  future async conversion would still print "sync def (line 129)" on a rerun; the
+  rc-checked probe proves only that *a* sync handler offloads to an executor.
+- Design `:161` is satisfied, not contradicted: it is conditional ("If it is a
+  synchronous call inside an `async` kopf handler…"), the spike established the
+  sync-handler case, so `asyncio.to_thread` is correctly not applied;
+  `jit-controller/main.py` is untouched across the range. The residual executor
+  ceiling (`max_workers=6`, `s23-spike.log:10`) is disclosed in the log and the
+  ADR and parked on S26 — correct placement, but it inherits concern 1's wiring
+  gap.
+- Design `:201-205` asks that the queue-loss and refusal facts reach tenants "in
+  the module docs and the console". ADR 0007 assigns module-docs recording to S28
+  and disclaims the console with a correct citation of build-plan S28's
+  "Deliberately untouched" row (`build-plan.md:1006`). Defensible, but it is the
+  ADR overriding the design's text — worth a glance from whoever signs S28.
 - The postgres "settings path" was measured by patching a `/tmp` copy of the
-  module (`s23-spike.sh:216-224`), since the module's `settings` var does not
-  exist until S27. Honest label in the log (`:296`, `:396`); worth remembering
-  that the spike did not exercise the code S27 will ship.
+  module (`s23-spike.sh:232-242`), because the module has no `settings` var until
+  S27. The log labels it honestly; the spike did not exercise the code S27 ships.
+- Hardcoded `ROOT`, `DOCKER_HOST`, MinIO keys and container IPs
+  (`s23-spike.sh:17-29`) match the repo's convention (`race-test.sh`,
+  `deploy/.env`), so no new secret; but the IPs are never validated against the
+  running containers, so a stack rebuilt at a different address would be silently
+  re-addressed by the probe.
+- `docs/evidence/README.md` indexes every other probe and has no S23 row; not in
+  this step's allowed list, correctly not edited — flag for the next evidence-
+  index edit.
+- `scripts/checks/S23.sh` is mode `100644` while the Stage-Z checks are `0755`
+  (all S23-S29 are). `checkpoint.sh` invokes it with `bash`, so no impact; a
+  frozen S22 artefact, outside this range.
 - The three untracked `docs/evidence/overnight-20260928T232512Z.*` files are the
-  orchestrator's run log predating and surrounding this range; they should not
-  be swept into a later commit as step evidence.
+  orchestrator's run log; they must not be swept into a later commit as step
+  evidence.
 
 ## Checkpoint assessment
 
-`scripts/checkpoint.sh 23 /tmp/S23-review.log` passed on my clean run: exit 0,
+`scripts/checkpoint.sh 23 /tmp/S23-review.log` passed on my clean run — exit 0,
 "PASS S23: spike measured (both replaces, vote loss, reconnect), verdict:
-VERDICT: maxmemory mutable", 0 pending changes at `cccd035` — the same line the
-implementer captured in `docs/evidence/S23.log`. It asserts the step's goal at
-artefact level exactly as `docs/build-plan.md:867-870` specifies: the log
-exists, carries a redis and a postgres replace time with units, a lost-votes
-count, a reconnect observation, the `call_runner` blocking verdict, and a final
-`VERDICT:` line of one of the two allowed values. It would still pass if the
-probe were deleted outright (it greps only the committed log) — the prompt
+VERDICT: maxmemory mutable" — and `bash scripts/checks/S23.sh` exits 0 directly,
+matching the implementer's capture in `docs/evidence/S23.log`. It asserts the
+step's goal at artefact level exactly as `docs/build-plan.md:867-870` specifies:
+the log exists, carries a redis and a postgres replace time with units, a
+lost-votes count, a reconnect observation, the `call_runner` blocking verdict,
+and a final `VERDICT:` line of one of the two allowed values. It would still pass
+if the probe were deleted outright (it greps only the committed log); the prompt
 directs me to treat that as the designed paperwork gate over the human-run
-protocol, so I assessed ADR 0007 instead, and it holds: the reasoning matches
-the measurements in the log (0.84s and 0.90s replaces, 50-of-50 loss stated
-plainly, reconnect honestly downgraded to fresh-pod startup + per-request
-reachability after the previous review, event-loop verdict backed by a
-rc-checked probe printing `separate executor thread: True` and `max_workers=6`
-with the pool ceiling disclosed and parked on S26), and the scope is correct —
-redis `maxmemory` only, remove-database / `postgres_db` rename / password
-refusals and the rest of the v1 surface expressly untouched, the console
-obligation withdrawn, module-docs recording assigned to S28's existing Do bullet
-(`build-plan.md:1011-1013`). No blocker; five concerns, of which 1 and 3 should
-be closed before S26 and S27 respectively start.
+protocol and to judge ADR 0007 instead, which I did. The ADR's reasoning is sound
+within its own disclosed limits — the ≤1s figures are labelled container-replace
+wall time only, explicitly excluding resync/runner/client latency
+(`0007-…md:26-30`); the 50-of-50 loss is stated plainly and overridden by an
+explicit annotation-as-downtime-approval decision; the reconnect evidence is
+honestly downgraded to fresh-pod startup plus per-request reachability, with the
+un-exercised in-place `RedisError` path called out as *not* established; and the
+event-loop verdict is backed by a rc-checked probe printing `separate executor
+thread: True` with the pool ceiling disclosed. Its scope is correct: redis
+`maxmemory` only, with remove-database, `postgres_db` rename and password
+refusals expressly untouched (design `:106/:108/:109` unchanged), no v2 design
+round, no console obligation. No blocker; four concerns, of which 1 must close
+before S26 starts and 2 before anyone trusts the hardened probe.
 
 Verdict: CONCERNS
