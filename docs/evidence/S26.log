@@ -1,9 +1,18 @@
 # S26 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:49Z
-# commit   e8ab404
-# pending  7 uncommitted change(s)
+# started  2026-09-29T02:09:41Z
+# commit   c2cc124
+# pending  3 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S26.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: CRD missing - run 'make jit-up' before this checkpoint
-# exit     1
+1 ok declarer resolution; declaredBy=["d1"]
+2 ok ParamsConflict among declarers only; no runner call
+3 ok agreement clears ParamsConflict
+4 ok refused keys: named condition, no POST
+5 ok successful update: POSTed, appliedParams+hash written, Updating cleared
+6 ok failure: Ready kept, one attempt, retry on change, deactivated
+7 ok NoDeclarer: lease held, nothing re-applied
+8 ok consumer-first claim: Pending + AwaitingDeclarer, then Ready
+9 ok stale Updating recovered
+PASS S26: nine resolution/contract/flow groups asserted against the stub
+# exit     0

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import base64
+import hashlib
 import json
 import logging
 import os
@@ -72,17 +73,26 @@ def load_kube():
     client.Configuration.set_default(configuration)
 
 
-@kopf.on.login()
-def custom_login(**kwargs):
-    load_kube()
-    return kopf.ConnectionInfo(
-        server="https://kubernetes.default.svc",
-        ca_path="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
-        insecure=True,
-        token=open("/var/run/secrets/kubernetes.io/serviceaccount/token").read(),
-        default_namespace="default",
-        priority=100,
-    )
+SERVICE_ACCOUNT_TOKEN = "/var/run/secrets/kubernetes.io/serviceaccount/token"
+
+
+# Registered only in-cluster. Off-cluster (S26's stub run, local diagnostics)
+# the file does not exist; registering the handler there would make kopf retry a
+# FileNotFoundError login forever instead of falling back to the kubeconfig that
+# load_kube() loaded. With no explicit login handler registered, kopf's own
+# kubeconfig login is used.
+if os.path.exists(SERVICE_ACCOUNT_TOKEN):
+    @kopf.on.login()
+    def custom_login(**kwargs):
+        load_kube()
+        return kopf.ConnectionInfo(
+            server="https://kubernetes.default.svc",
+            ca_path="/var/run/secrets/kubernetes.io/serviceaccount/ca.crt",
+            insecure=True,
+            token=open(SERVICE_ACCOUNT_TOKEN).read(),
+            default_namespace="default",
+            priority=100,
+        )
 
 
 def get_namespace_uid(namespace):
@@ -148,8 +158,9 @@ def handle_deployment(body, namespace, name, logger, **kwargs):
             "softDeleteTTL": claim_spec.get("softDeleteTTL", "30d"),
         }
         ensure_claim(api, namespace, ns_uid, claim_name, spec)
-        with claim_lock(namespace, claim_name):
-            provision_infra(api, namespace, claim_name, module, spec)
+        # Resolve from live Deployments rather than this event's copy, so the
+        # create+update pair and a stale event body agree on the desired params.
+        reconcile_claim(api, namespace, claim_name, module, spec, force=True)
 
 
 def _allocated_ip(api, ns, name):
@@ -283,8 +294,12 @@ def resolve_postgres_credentials(ns, module, params):
     return params, ""
 
 
-def provision_infra(api, ns, name, module, spec):
-    """Call the runner to provision real infra, then create Secret + Service + EndpointSlice."""
+def provision_infra(api, ns, name, module, spec, tenant_params=None):
+    """Create path: fetch the claim, then apply the resolved params via the runner.
+
+    `tenant_params` is the resolved desired params from declarers; when omitted
+    (older callers) the claim's spec.params is used.
+    """
     try:
         obj = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
     except client.exceptions.ApiException:
@@ -329,13 +344,35 @@ def provision_infra(api, ns, name, module, spec):
     if phase == "Deleting":
         return
 
-    # Compute runner params: annotation params + mandatory overrides.
     allocated_ip = status.get("allocatedIP", "")
     if not allocated_ip:
         logger.warning(f"No allocatedIP on {name}, cannot provision")
         return
 
-    runner_params = dict(spec.get("params", {}))
+    if tenant_params is None:
+        tenant_params = _normalize_params(spec.get("params", {}))
+    _apply_via_runner(api, ns, name, module, spec, tenant_params, allocated_ip,
+                      is_update=False)
+
+
+def _existing_outputs_changed(ns, module, new_outputs):
+    """True when a Secret key that exists today would change value (design §Update flow 6)."""
+    old = _jit_secret_data(ns, module)
+    for key, value in old.items():
+        if key in new_outputs and str(new_outputs[key]) != str(value):
+            return True
+    return False
+
+
+def _apply_via_runner(api, ns, name, module, spec, tenant_params, allocated_ip, is_update):
+    """POST the resolved params plus the controller overlay; record the outcome.
+
+    Both the create path (`is_update=False`) and the update path (`is_update=True`)
+    share this. A create failure sets phase `Failed`; an update failure keeps the
+    design's `Ready` + `UpdateFailed`, never `Deleting`, and never touches the
+    finalizer.
+    """
+    runner_params = dict(tenant_params)
     runner_params["name"] = f"{ns}-{module}"
     runner_params["ip"] = allocated_ip
     runner_params["network"] = DOCKER_NETWORK
@@ -348,22 +385,34 @@ def provision_infra(api, ns, name, module, spec):
         logger.info(f"provision_infra: {name} pending - {pending}")
         return
 
+    patch_status_fields(api, ns, name,
+                        {"attemptedParamsHash": params_hash(module, ns, tenant_params)})
+    set_condition(ns, name, "Updating", "True", "Applying",
+                  f"applying {sorted(_normalize_params(tenant_params))}")
+
     # Call the runner.
     runner_resp = call_runner(module, spec.get("moduleVersion", "v1"), ns, runner_params)
     if runner_resp is None:
         # Runner URL not configured — pretend success (fake mode, S8-S12 compat).
         logger.info(f"No runner URL, using fake provisioning for {name}")
         _provision_fake(api, ns, name, module)
+        patch_status_fields(api, ns, name, {"appliedParams": tenant_params})
+        set_condition(ns, name, "Updating", "False", "Done", "")
         return
 
     if runner_resp.get("status") != "success":
-        error_msg = runner_resp.get("error", "unknown runner error")
+        error_msg = str(runner_resp.get("error", "unknown runner error"))[:512]
         logger.error(f"Runner failed for {name}: {error_msg}")
-        patch = {"status": {"phase": "Failed", "message": str(error_msg)[:512]}}
-        try:
-            api.patch_namespaced_custom_object_status(GROUP, VERSION, ns, PLURAL, name, patch)
-        except client.exceptions.ApiException:
-            pass
+        if is_update:
+            # The design keeps phase Ready and the old Secret; the condition is
+            # the report. attemptedParamsHash stays, so the same desired params
+            # are not retried until they change.
+            set_condition(ns, name, "Updating", "False", "Done", "")
+            set_condition(ns, name, "UpdateFailed", "True", "RunnerError", error_msg)
+        else:
+            set_condition(ns, name, "Updating", "False", "Done", "")
+            patch_status_fields(api, ns, name,
+                                {"phase": "Failed", "message": error_msg})
         return
 
     outputs = runner_resp.get("outputs", {})
@@ -377,7 +426,21 @@ def provision_infra(api, ns, name, module, spec):
     if module == "postgres" and runner_params.get("postgres_password"):
         outputs["POSTGRES_PASSWORD"] = runner_params["postgres_password"]
 
+    changed = _existing_outputs_changed(ns, module, outputs)
     _write_k8s_resources(api, ns, name, module, outputs, allocated_ip, runner_params)
+
+    # appliedParams carries tenant params only - never the password the overlay
+    # just added - because claim status is readable by anyone who can get claims.
+    patch_status_fields(api, ns, name, {"appliedParams": tenant_params})
+    set_condition(ns, name, "Updating", "False", "Done", "")
+    if is_update:
+        set_condition(ns, name, "UpdateFailed", "False", "Done", "")
+    if changed:
+        set_condition(ns, name, "OutputsChanged", "True", "ContractViolation",
+                      "an existing output key changed value")
+    else:
+        set_condition(ns, name, "OutputsChanged", "False", "Done", "")
+    logger.info(f"Applied desired params for {name}: {tenant_params}")
 
 
 def _provision_fake(api, ns, name, module):
@@ -600,6 +663,318 @@ def _normalize_params(params):
     return {k: str(v) for k, v in (params or {}).items()}
 
 
+def _reference_declarers(namespace, module):
+    """Live Deployments annotating jit.infra/<module>: [(name, params, declares)].
+
+    `declares` is True when the annotation carries a `params` key. The key's
+    *presence* is the role (design §Terms): `params: {}` declares the defaults,
+    a missing key consumes.
+    """
+    apps = client.AppsV1Api()
+    out = []
+    for d in apps.list_namespaced_deployment(namespace).items:
+        raw = (d.metadata.annotations or {}).get(f"jit.infra/{module}")
+        if raw is None:
+            continue
+        try:
+            data = json.loads(raw) or {}
+        except Exception:
+            data = {}
+        out.append((d.metadata.name, data.get("params") or {},
+                    "params" in data))
+    return sorted(out)
+
+
+def resolve_desired(refs):
+    """Desired params from declarer references only.
+
+    `refs` is `[(name, params, declares)]`. Returns `(desired, declarers,
+    conflict)`:
+
+    - no declarers: `(None, [], False)` — the caller distinguishes a new
+      consumer-only claim (AwaitingDeclarer) from an existing one (NoDeclarer);
+    - declarers disagree: `(None, [...], True)` — desired holds at applied;
+    - otherwise: the agreed normalized params, the declarers, False.
+
+    Rule 6 falls out of this: a single declarer after a gap is not a conflict,
+    so its params are desired and go through the contract.
+    """
+    declarers = [(n, p) for n, p, declares in refs if declares]
+    if not declarers:
+        return None, [], False
+    norms = [_normalize_params(p) for _, p in declarers]
+    if any(n != norms[0] for n in norms):
+        return None, declarers, True
+    return norms[0], declarers, False
+
+
+_IDENTITY_KEYS = ("name", "ip", "network", "postgres_db", "postgres_password",
+                  "postgres_user", "postgres_url")
+_IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+_MAXMEMORY = re.compile(r"^[0-9]+(kb|mb|gb)$")
+_PG_SIZE = re.compile(r"^[0-9]+(kB|MB|GB|TB)?$")
+_PG_SETTINGS = ("max_connections", "shared_buffers", "work_mem")
+
+
+def validate_params(module, desired, applied=None):
+    """The per-module mutability contract. Returns `(ok, bad_key, reason)`.
+
+    Anything not in the v1 surface is refused, so a typo never reaches tofu
+    (which only warns on unknown `-var`s and would record it as applied). The
+    whole edit is refused, not just the offending key.
+    """
+    desired = desired or {}
+    applied = applied or {}
+    if module == "redis":
+        allowed = {"maxmemory"}
+    elif module == "postgres":
+        allowed = {"databases", "settings"}
+    else:
+        allowed = set()  # pgadmin and anything else: v1 refuses every param
+
+    for key in desired:
+        if key in _IDENTITY_KEYS:
+            return False, key, "identity or controller-owned, not a tenant setting"
+        if key not in allowed:
+            return False, key, f"unknown key for module {module}"
+
+    if module == "redis" and "maxmemory" in desired:
+        if not _MAXMEMORY.match(str(desired["maxmemory"])):
+            return False, "maxmemory", "must match ^[0-9]+(kb|mb|gb)$"
+
+    if module == "postgres":
+        if "databases" in desired:
+            dbs = desired["databases"]
+            if not isinstance(dbs, list) or not all(
+                    isinstance(d, str) and _IDENTIFIER.match(d) for d in dbs):
+                return False, "databases", "must be a list of identifier-shaped names"
+            old = applied.get("databases")
+            if isinstance(old, list):
+                for d in old:
+                    if d not in dbs:
+                        return False, "databases", f"removing database {d} is refused"
+        if "settings" in desired:
+            settings = desired["settings"]
+            if not isinstance(settings, dict):
+                return False, "settings", "must be an object"
+            for key, value in settings.items():
+                if key not in _PG_SETTINGS:
+                    return False, f"settings.{key}", "not in the v1 settings allowlist"
+                if key == "max_connections":
+                    try:
+                        int(str(value))
+                    except ValueError:
+                        return False, f"settings.{key}", "must be an integer"
+                elif not _PG_SIZE.match(str(value)):
+                    return False, f"settings.{key}", "must be a Postgres size"
+    return True, "", ""
+
+
+def params_hash(module, workspace, params):
+    """Hash of module + workspace + normalized params (the retry gate's key)."""
+    payload = json.dumps({"module": module, "workspace": workspace,
+                          "params": _normalize_params(params)}, sort_keys=True)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def patch_status_fields(api, namespace, name, fields):
+    """Patch status fields in one call; failures are logged, not raised."""
+    try:
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name, {"status": fields})
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to patch status {sorted(fields)} on {name}: {e}")
+
+
+def _condition_status(status, cond_type):
+    for c in (status.get("conditions") or []):
+        if c.get("type") == cond_type:
+            return c.get("status")
+    return None
+
+
+def _project_spec_params(api, namespace, name, desired):
+    """Project the agreed desired params onto spec.params (no-op when equal)."""
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+    except client.exceptions.ApiException:
+        return
+    existing = (obj.get("spec", {}) or {}).get("params") or {}
+    desired = desired or {}
+    if existing == desired:
+        return
+    # A merge patch merges object keys: projecting {"b": "2"} onto {"a": "1"}
+    # would leave "a" behind, and a refused key would then travel into the
+    # destroy call. Null the keys this projection removes; the desired keys are
+    # set in the same patch.
+    patch = {k: None for k in existing if k not in desired}
+    patch.update(desired)
+    try:
+        api.patch_namespaced_custom_object(
+            GROUP, VERSION, namespace, PLURAL, name, {"spec": {"params": patch}})
+        logger.info(f"Projected desired params onto {name}: {desired}")
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to project spec.params on {name}: {e}")
+
+
+def _destroy_params(status, spec):
+    """What to send the runner at teardown: the last applied params, not the desired.
+
+    A refused edit leaves spec.params different from what was applied; destroying
+    with a refused key makes the real module reject the whole destroy (observed:
+    an unknown `wikijunk` var failed S26's teardown). Falls back to spec.params
+    for pre-S26 claims, which have no appliedParams.
+    """
+    return status.get("appliedParams") or spec.get("params", {}) or {}
+
+
+def _recover_stale_updating(namespace, name, status):
+    """Clear a leftover Updating flag when this process does not hold the lock.
+
+    One controller replica: an Updating=True with the claim's lock unlocked is a
+    crash's leftover (or a seeded flag), never a live apply.
+    """
+    if _condition_status(status, "Updating") == "True":
+        if not claim_lock(namespace, name).locked():
+            set_condition(namespace, name, "Updating", "False", "Stale",
+                          "no apply holds the claim lock; cleared for re-evaluation")
+            return True
+    return False
+
+
+def apply_update(api, ns, name, module, spec, desired, status):
+    """Update path: apply new desired params against an existing provisioned claim."""
+    allocated_ip = status.get("allocatedIP", "") or _allocated_ip(api, ns, name)
+    if not allocated_ip:
+        logger.warning(f"No allocatedIP on {name}, cannot update")
+        return
+    _apply_via_runner(api, ns, name, module, spec, desired, allocated_ip, is_update=True)
+
+
+def reconcile_claim(api, ns, name, module, spec, force=False):
+    """Level-triggered evaluation of one claim (design §Resolution, §Update flow).
+
+    Runs on every Deployment event and every resync tick. Resolution always reads
+    live Deployments, so it survives a controller restart and does not trust the
+    event's copy of the annotation.
+    """
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
+    except client.exceptions.ApiException:
+        return
+    status = obj.get("status", {}) or {}
+    phase = status.get("phase", "")
+    if phase == "Deleting":
+        return
+
+    _recover_stale_updating(ns, name, status)
+
+    refs = _reference_declarers(ns, module)
+    ref_names = sorted(n for n, _, _ in refs)
+    desired, declarers, conflict = resolve_desired(refs)
+    declarer_names = sorted(n for n, _ in declarers)
+
+    # referencedBy/declaredBy are a recomputation, not an event log.
+    patch_status_fields(api, ns, name,
+                        {"referencedBy": ref_names, "declaredBy": declarer_names})
+
+    if not ref_names:
+        return  # orphan/TTL handling lives in the resync branch
+
+    if phase == "Failed" and not force:
+        logger.info(f"Reconcile {name}: phase=Failed, not retrying until the "
+                    f"Deployment changes")
+        return
+
+    if not declarers:
+        set_condition(ns, name, "ParamsConflict", "False", "NoDeclarers", "")
+        if status.get("appliedParams") or phase in ("Ready", "Orphaned"):
+            # An existing claim keeps its applied params; consumers hold the lease.
+            set_condition(ns, name, "NoDeclarer", "True", "DeclarerGone",
+                          "all declarers are gone; applied params kept")
+            set_condition(ns, name, "AwaitingDeclarer", "False", "Done", "")
+        else:
+            # A new claim with only consumers waits, Pending, for a declarer.
+            set_condition(ns, name, "AwaitingDeclarer", "True", "NoDeclarerYet",
+                          "a new claim has only consumers")
+            set_condition(ns, name, "NoDeclarer", "False", "Done", "")
+            if phase != "Pending":
+                patch_status_fields(api, ns, name, {"phase": "Pending"})
+        return
+
+    set_condition(ns, name, "AwaitingDeclarer", "False", "Done", "")
+    set_condition(ns, name, "NoDeclarer", "False", "Done", "")
+
+    if conflict:
+        detail = ", ".join(f"{n} wants {p}" for n, p in declarers)
+        set_condition(ns, name, "ParamsConflict", "True", "DeclarersDisagree", detail)
+        return  # desired holds at applied
+
+    set_condition(ns, name, "ParamsConflict", "False", "DeclarersAgree", "")
+
+    desired_raw = declarers[0][1] or {}
+    _project_spec_params(api, ns, name, desired_raw)
+
+    applied_raw = status.get("appliedParams") or {}
+    applied_norm = _normalize_params(applied_raw)
+    desired_norm = _normalize_params(desired_raw)
+    provisioned = phase in ("Ready", "Orphaned")
+
+    if provisioned and "appliedParams" not in status:
+        # Backfill on upgrade: a Ready claim with no appliedParams adopts its
+        # desired params without calling the runner, or the first resync after
+        # the upgrade would replace every live container. The key's *absence* is
+        # the test: an explicit `appliedParams: {}` is a real applied result, and
+        # a later non-empty desired must go through the update flow.
+        patch_status_fields(api, ns, name, {"appliedParams": desired_norm})
+        set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+        logger.info(f"Backfilled appliedParams for {name}: {desired_norm}")
+        return
+
+    if provisioned and applied_norm == desired_norm:
+        # Equal: stop. This is what keeps rollouts free. A reappearing reference
+        # resurrects an Orphaned claim without a runner call.
+        if phase == "Orphaned":
+            patch_status_fields(api, ns, name, {"phase": "Ready"})
+            clear_status_field(ns, name, "expiresAt")
+            logger.info(f"Resurrected {name} from Orphaned")
+        set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+        return
+
+    ok, bad_key, reason = validate_params(module, desired_raw, applied_raw)
+    if not ok:
+        set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
+                      f"{bad_key}: {reason}")
+        return
+    set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+
+    h = params_hash(module, ns, desired_norm)
+    if (h == status.get("attemptedParamsHash")
+            and _condition_status(status, "UpdateFailed") == "True"):
+        return  # one attempt per desired params; retried only when they change
+
+    with claim_lock(ns, name):
+        # Re-read and re-resolve inside the lock: spec can move between the
+        # compare above and here (ensure_claim runs outside the lock).
+        try:
+            obj2 = api.get_namespaced_custom_object(GROUP, VERSION, ns, PLURAL, name)
+        except client.exceptions.ApiException:
+            return
+        status2 = obj2.get("status", {}) or {}
+        if status2.get("phase", "") == "Deleting":
+            return
+        refs2 = _reference_declarers(ns, module)
+        desired2, declarers2, conflict2 = resolve_desired(refs2)
+        if conflict2 or not declarers2:
+            return
+        if desired2 != desired_norm:
+            return  # params moved; the next tick evaluates them
+        if status2.get("phase", "") in ("Ready", "Orphaned"):
+            apply_update(api, ns, name, module, spec, desired2, status2)
+        else:
+            provision_infra(api, ns, name, module, spec, desired2)
+
+
 def set_condition(namespace, name, cond_type, status, reason, message):
     """Add or replace one entry in status.conditions, leaving other types alone."""
     api = client.CustomObjectsApi()
@@ -641,38 +1016,6 @@ def clear_condition(namespace, name, cond_type):
         logger.info(f"Condition {cond_type} cleared on {name}")
     except client.exceptions.ApiException as e:
         logger.warning(f"Failed to clear condition {cond_type} on {name}: {e}")
-
-
-def check_param_conflict(namespace, name, module, refs, stored_params, status):
-    """First writer wins on params.
-
-    The claim keeps the params of the writer that provisioned it. Any other referencing
-    Deployment whose annotation params differ is recorded in a ParamsConflict condition
-    naming both. The condition is cleared once the conflicting writers are gone or agree.
-    """
-    has_condition = any(c.get("type") == "ParamsConflict"
-                        for c in (status.get("conditions") or []))
-    if len(refs) < 2:
-        if has_condition:
-            clear_condition(namespace, name, "ParamsConflict")
-        return
-
-    stored = _normalize_params(stored_params)
-    deployments = list_referencing_deployments_with_params(namespace, module)
-    matching = [n for n, p in deployments if _normalize_params(p) == stored]
-    ignored = [(n, _normalize_params(p)) for n, p in deployments
-               if _normalize_params(p) != stored]
-    if not ignored:
-        if has_condition:
-            clear_condition(namespace, name, "ParamsConflict")
-        return
-
-    winner = matching[0] if matching else refs[0]
-    detail = ", ".join(f"{n} wants {p}" for n, p in ignored)
-    set_condition(
-        namespace, name, "ParamsConflict", "True", "FirstWriterWins",
-        f"{winner} won with params {stored}; ignored: {detail}",
-    )
 
 
 def parse_ttl(ttl_str):
@@ -821,7 +1164,6 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
         return
 
     api = client.CustomObjectsApi()
-    refs = list_referencing_deployments(namespace, module)
     ttl_str = body.get("spec", {}).get("softDeleteTTL", "30d")
 
     # Re-read status fresh: the kopf timer body can lag behind status patches
@@ -841,42 +1183,23 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
         status = body.get("status", {}) or {}
     phase = status.get("phase", "")
 
-    # First writer wins on params: warn any writer whose params were ignored.
-    check_param_conflict(namespace, name, module, refs, spec.get("params", {}), status)
-
+    refs = list_referencing_deployments(namespace, module)
     if refs and phase != "Deleting":
-        # References exist: update refs, trigger provisioning if not yet Ready.
-        # Failed is terminal: the resync must not re-drive a failing runner every
-        # tick. A Deployment change re-fires handle_deployment, which retries.
-        if phase == "Failed":
-            logger.info(f"Resync {name}: phase=Failed, not retrying until the "
-                        f"Deployment changes")
-        elif phase != "Ready":
-            with claim_lock(namespace, name):
-                provision_infra(api, namespace, name, module, spec)
-            # Re-read phase after provisioning attempt
-            try:
-                obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
-                phase = obj.get("status", {}).get("phase", "")
-            except client.exceptions.ApiException:
-                pass
-        # If Ready (or still pending), update refs
-        try:
-            api.patch_namespaced_custom_object_status(
-                GROUP, VERSION, namespace, PLURAL, name,
-                {"status": {"referencedBy": refs}})
-        except client.exceptions.ApiException as e:
-            logger.warning(f"Failed to patch {name}: {e}")
+        # References exist: declarer resolution, the mutability contract, the
+        # update flow and provisioning all live in reconcile_claim, recomputed
+        # from live Deployments so the answer survives a restart. Failed is
+        # terminal until the Deployment changes; reconcile_claim carries that.
+        reconcile_claim(api, namespace, name, module, spec)
         if phase == "Ready":
             clear_status_field(namespace, name, "expiresAt")
-            logger.info(f"Resync {name}: referencedBy={refs}, phase=Ready")
+        logger.info(f"Resync {name}: referencedBy={refs}, phase={phase}")
     else:
         # No references
         if phase == "Deleting":
             # Committed to destruction — retry the destroy+cleanup
             logger.info(f"Resync {name}: retrying destroy (Deleting)")
             if destroy_infra(namespace, module, status.get("allocatedIP", ""),
-                             spec.get("params", {})):
+                             _destroy_params(status, spec)):
                 cleanup_k8s_resources(namespace, module)
                 # This branch must release the block itself: it is the one path in
                 # the teardown machine that used to leave the claim in the ledger.
@@ -938,7 +1261,7 @@ def resync_referenced_by(body, namespace, name, logger, **kwargs):
                     except client.exceptions.ApiException:
                         pass
                     if destroy_infra(namespace, module, status.get("allocatedIP", ""),
-                                     spec.get("params", {})):
+                                     _destroy_params(status, spec)):
                         cleanup_k8s_resources(namespace, module)
                         if remove_finalizer_and_delete(namespace, name, FINALIZER):
                             release_block(namespace)
@@ -961,7 +1284,7 @@ def handle_claim_delete(body, namespace, name, logger, **kwargs):
     if module:
         logger.info(f"Hard delete triggered for {name} in {namespace}, destroying infra")
         allocated_ip = body.get("status", {}).get("allocatedIP", "")
-        params = body.get("spec", {}).get("params", {})
+        params = _destroy_params(body.get("status", {}) or {}, body.get("spec", {}) or {})
         if not destroy_infra(namespace, module, allocated_ip, params):
             # S11 semantics keep namespace deletion unconditional, so the claim is
             # removed regardless — make the leak loud rather than silent.
