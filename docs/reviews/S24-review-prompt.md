@@ -3,11 +3,11 @@
 Copy the text between the markers **verbatim** from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md`
 and substitute exactly six slots: the step (S24), the step number (24), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from `docs/build-plan.md`
-S24), the commit range (`f39fb33..614bd46`), and the files the step named as its scope (one
-path per line), plus the ADR-0008 note sanctioned by the human directive of 2026-09-29.
-Deviations, marked inline: the ADR-0008 note on Q1/Q4 (the checkpoint amendment, with a
-pointer to the ADR in "What to read"), and the rule-4 exemption for the review-machinery
-files in the range. Add nothing else.
+S24), the commit range (`f39fb33..2de7d98`), and the files the step named as its scope (one
+path per line), plus the ADR-sanctioned files below. Deviations, marked inline: the
+ADR-0008/0009/0010 notes on Q1/Q4/Q7 (the checkpoint amendments and the scope decision,
+with pointers in "What to read"), the human directive's ADR-0007 build-plan additions, and
+the rule-4 exemption for the review-machinery files in the range. Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -38,36 +38,51 @@ docs/designs/declarers-and-consumers.md
 docs/lessons.md
 docs/evidence/S24.log
 docs/decisions/0008-s24-checkpoint-setup-fixes.md
+docs/decisions/0009-s24-postgres-databases-scope.md
+docs/decisions/0010-s24-checkpoint-cache-hit-assertion.md
 scripts/checks/S24.sh
 docs/build-plan.md
+jit-modules/modules/postgres/variables.tf
 
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S24, its checkpoint, its gate
-- `git diff f39fb33..614bd46` - what was actually done
+- `git diff f39fb33..2de7d98` - what was actually done
 - `scripts/checks/S24.sh` - the assertion that passed
-- `docs/decisions/0008-s24-checkpoint-setup-fixes.md` - the checkpoint amendment this
-  review must assess
+- `docs/decisions/0008-s24-checkpoint-setup-fixes.md` - the checkpoint amendment (setup
+  defects) this review must assess
+- `docs/decisions/0009-s24-postgres-databases-scope.md` - the scope decision this review
+  must assess; it is the remedy the previous S24 review recorded for its Blocker 1
+- `docs/decisions/0010-s24-checkpoint-cache-hit-assertion.md` - the checkpoint amendment
+  that asserts the identical-params cache hit
 
 ## First, mechanically
 
 1. Did the diff touch anything under `scripts/checks/`, `.clinerules/`, CI config, or any
    scanner config? **Blocker**, no judgement required. Checkpoints are frozen; a newly
    created one is still a finding worth raising.
-   - *S24 note:* the range touches `scripts/checks/S24.sh`, sanctioned by ADR 0008 and
-     committed with it. The amendment fixes setup defects only (host-reachable runner URL,
-     the redis create's required `ip`, JSON `Content-Type`, the destroy status string, and
-     a positive `state rm` test that actually exercises the conditional); no assertion is
-     softened. Judge ADR 0008 as a decision, not the edit as a violation.
+   - *S24 note:* the range touches `scripts/checks/S24.sh`, sanctioned by ADR 0008
+     (setup defects: host-reachable runner URL, the redis create's required `ip`, JSON
+     `Content-Type`, the destroy status string, a positive `state rm` test) and by
+     ADR 0010 (adds the cache-hit assertion the previous review asked for). Each ADR is
+     committed with its edit. No assertion is deleted or weakened; ADR 0010 adds one.
+     Judge the ADRs as decisions, not the edits as violations.
 2. Did it add a dependency the step did not name? Blocker.
 3. Did it delete or weaken an existing test or assertion? Blocker.
 4. Did it create or edit files outside the list above? Blocker.
    - *S24 note:* the range contains review-machinery files, not implementation:
      `docs/reviews/S24-findings.md` (the reviewer's findings) and
      `docs/reviews/S24-review-prompt.md` (the prompt re-emitted during the review cycle -
-     acts of review, not of implementation). Every implementation file in the range is on
-     the list above; treat the review files as exempt from rule 4.
+     acts of review, not of implementation). Treat them as exempt from rule 4.
+   - *S24 note:* `jit-modules/modules/postgres/variables.tf` is on the list because
+     ADR 0009 puts it in S24's scope. The frozen checkpoint's postgres create posts
+     `databases` (`scripts/checks/S24.sh:60`), and OpenTofu 1.8.1 refuses an undeclared
+     `-var`, so the module must declare it for the checkpoint to pass; S27 wires it to
+     `postgresql_database` resources and must not re-declare it.
+   - *S24 note:* `docs/build-plan.md` carries the human directive's ADR-0007 additions
+     (ADR 0007 added to S26's Read list, and two S28 invalidation rows for
+     `declarers-and-consumers.md:100` and `:161`), recorded by that directive.
 5. Did it tick a box in `docs/todo.md`? The review box is not the implementer's to tick.
    Blocker.
 
@@ -89,6 +104,10 @@ docs/build-plan.md
      or not the runner runs `state rm`, and the positive side asserts nothing. Judge
      whether the injection makes the conditional real, and whether the negative side (a
      redis-only destroy runs no `state rm`) is genuinely asserted.
+   - *S24 note (ADR 0010):* test 1 now captures `Created` after the identical re-POST and
+     asserts it is unchanged, so deleting the success cache altogether fails the
+     checkpoint rather than passing it. Judge whether the cache-hit and the changed-params
+     halves are both asserted.
 
 ## Then, on substance
 
