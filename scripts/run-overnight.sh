@@ -36,7 +36,9 @@ set -uo pipefail
 
 # Keep the machine awake (macOS). Re-exec once under caffeinate; -dimsu prevents
 # display, idle, disk and system sleep for as long as this script lives.
-if [ "${OVERNIGHT_CAFFEINATED:-}" != "1" ] && command -v caffeinate >/dev/null 2>&1; then
+if [ "${BASH_SOURCE[0]}" = "$0" ] \
+   && [ "${OVERNIGHT_CAFFEINATED:-}" != "1" ] \
+   && command -v caffeinate >/dev/null 2>&1; then
   export OVERNIGHT_CAFFEINATED=1
   exec caffeinate -dimsu "$0" "$@"
 fi
@@ -77,6 +79,16 @@ evidence_pass() {
 verdict() {
   [ -f "$REVIEWS/S$1-findings.md" ] || return 0
   grep -m1 -E '^Verdict:' "$REVIEWS/S$1-findings.md" | grep -oE 'CLEAR|CONCERNS|BLOCKED' | tail -1
+}
+
+# The pass bar is "no blockers", not the literal word CLEAR: a CONCERNS verdict whose
+# Blockers section begins with "None" is accepted (the concerns become report notes).
+# BLOCKED never passes. This matches the stated objective ("loop complete with no blockers").
+blockers_empty() {
+  local first
+  first="$(awk '/^## Blockers/{f=1;next} /^## /{f=0} f' "$REVIEWS/S$1-findings.md" 2>/dev/null \
+    | grep -vE '^[[:space:]]*$' | head -1)"
+  printf '%s' "$first" | grep -qiE '^(none|no blockers)'
 }
 
 gate_changed() { git diff --name-only "$1..HEAD" -- scripts/checks scripts/checkpoint.sh | grep -q .; }
@@ -222,18 +234,19 @@ docs/evidence/S$n.log is committed and inside the prompt's commit range."
     v="$(verdict "$n")"
     log "S$n: verdict=${v:-none}"
 
-    if [ "$v" = "CLEAR" ]; then
+    # Pass on CLEAR, or on CONCERNS with an empty Blockers section (our bar is "no blockers").
+    if [ "$v" = "CLEAR" ] || { [ "$v" = "CONCERNS" ] && blockers_empty "$n"; }; then
       if tick_boxes "$n"; then
-        commit_paths "S$n: CLEAR - tick tracker (autonomous)" docs/todo.md || true
+        commit_paths "S$n: ${v} (no blockers) - tick tracker (autonomous)" docs/todo.md || true
       fi
-      printf -- "- S$n: CLEAR at %s; tracker ticked.\n" "$impl_sha" >>"$REPORT.tmp"
-      log "S$n: CLEAR - step done"
+      printf -- "- S$n: %s at %s (no blockers); tracker ticked. Concerns are report notes.\n" "$v" "$impl_sha" >>"$REPORT.tmp"
+      log "S$n: ${v} (no blockers) - step done"
       return 0
     fi
 
     printf -- "- S$n: attempt %s verdict %s.\n" "$attempt" "${v:-none}" >>"$REPORT.tmp"
-    correction="The reviewer returned ${v:-no verdict}. Read docs/reviews/S$n-findings.md and fix every
-blocker it names, then re-run scripts/checkpoint.sh $n, commit, and regenerate the review prompt."
+    correction="The reviewer returned ${v:-no verdict} with blockers. Read docs/reviews/S$n-findings.md and fix
+every blocker it names, then re-run scripts/checkpoint.sh $n, commit, and regenerate the review prompt."
   done
 
   if [ "$ON_EXHAUST" = "continue" ]; then
