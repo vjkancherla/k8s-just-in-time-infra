@@ -388,137 +388,149 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
     # Keyed by (workspace, module): a namespace can hold several modules, so destroy
     # must target the requested one rather than whichever was cached.
     requested = body.module if body else None
-    key = None
-    entry = None
-    with _runs_lock:
-        if requested:
-            key = (workspace, requested)
-            entry = _runs.get(key)
-        if entry is None and requested is None:
+    if requested:
+        key = (workspace, requested)
+    elif requested is None:
+        with _runs_lock:
             candidates = [k for k in _runs if k[0] == workspace]
-            if len(candidates) == 1:
-                # Only reachable when the caller named no module at all.
-                logger.warning(
-                    f"Destroy {workspace}: the request named no module, falling "
-                    f"back to the workspace's only cached run ({candidates[0][1]})")
-                key = candidates[0]
-                entry = _runs[key]
-
-    if entry:
-        work_dir = entry["dir"]
-        module = entry["module"]
-        params = entry.get("params", {})
-        logger.info(f"Destroy {workspace}: resolved from the cached run "
-                    f"({workspace}/{module}); removing container "
-                    f"{workspace}-{module}-{module}")
-    elif body and body.module:
-        # No in-memory entry — use provided module/params. The work dir is created inside
-        # the try below so a failed module copy cannot escape as a 500 that leaks it.
-        module = body.module
-        params = body.params
-        logger.info(f"Destroy {workspace}: no cached run for "
-                    f"{workspace}/{module}; using the request's params and "
-                    f"removing container {workspace}-{module}-{module}")
-        work_dir = None
+        if len(candidates) != 1:
+            return DestroyResponse(status="not_found",
+                                   error=f"No run found for workspace '{workspace}'")
+        # Only reachable when the caller named no module at all.
+        logger.warning(
+            f"Destroy {workspace}: the request named no module, falling "
+            f"back to the workspace's only cached run ({candidates[0][1]})")
+        key = candidates[0]
     else:
         return DestroyResponse(status="not_found",
                                error=f"No run found for workspace '{workspace}'")
 
-    # A cached run's work dir is kept on failure so a retry can reuse it. A fresh one (no
-    # cached run) is this call's alone and must not leak when any step fails.
-    cached = entry is not None
+    # Hold the per-run lock across the whole resolve-and-destroy, exactly as create_run
+    # does across resolve-and-apply. Without it a destroy resolves a work dir, a
+    # changed-params apply then replaces the run and removes that dir, and the destroy's
+    # remaining tofu calls run in a directory that no longer exists; the same lock also
+    # stops a destroy from popping the entry an apply just replaced (ADR 0023 debt 1;
+    # runner-workdir-leak review concern 2).
+    async with _run_lock(key):
+        with _runs_lock:
+            entry = _runs.get(key)
 
-    try:
-        if not cached:
-            work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
-            module_src = Path(MODULES_ROOT) / module
-            if not module_src.is_dir():
-                shutil.rmtree(work_dir, ignore_errors=True)
-                return DestroyResponse(status="error",
-                                       error=f"Module '{module}' not found")
-            for item in module_src.iterdir():
-                shutil.copy2(item, work_dir)
+        if entry:
+            work_dir = entry["dir"]
+            module = entry["module"]
+            params = entry.get("params", {})
+            logger.info(f"Destroy {workspace}: resolved from the cached run "
+                        f"({workspace}/{module}); removing container "
+                        f"{workspace}-{module}-{module}")
+        elif requested:
+            # No in-memory entry — use provided module/params. The work dir is created
+            # inside the try below so a failed module copy cannot escape as a 500 that
+            # leaks it.
+            module = requested
+            params = body.params
+            logger.info(f"Destroy {workspace}: no cached run for "
+                        f"{workspace}/{module}; using the request's params and "
+                        f"removing container {workspace}-{module}-{module}")
+            work_dir = None
+        else:
+            return DestroyResponse(status="not_found",
+                                   error=f"No run found for workspace '{workspace}'")
 
-        env = _tofu_env()
+        # A cached run's work dir is kept on failure so a retry can reuse it. A fresh one
+        # (no cached run) is this call's alone and must not leak when any step fails.
+        cached = entry is not None
 
-        # Safety: force-remove any existing container before destroy.
-        # This handles the case where the container exists but tofu state is stale.
-        container_name = f"{workspace}-{module}-{module}"
         try:
-            subprocess.run(
-                ["docker", "rm", "-f", container_name],
-                capture_output=True, timeout=30,
-            )
-        except Exception:
-            pass
-
-        # Build var args for destroy (same as apply)
-        var_args = _var_args(params)
-
-        # Init backend before destroy (required for fresh work dirs)
-        r = await _run_tofu_async(
-            ["tofu", "init",
-             "-backend-config", f"bucket={MINIO_BUCKET}",
-             "-backend-config", f"key={_state_key(workspace, module)}",
-             "-backend-config", f"endpoint={MINIO_ENDPOINT}",
-             "-backend-config", f"access_key={MINIO_ACCESS_KEY}",
-             "-backend-config", f"secret_key={MINIO_SECRET_KEY}",
-             "-backend-config", "region=us-east-1",
-             "-backend-config", "skip_credentials_validation=true",
-             "-backend-config", "skip_metadata_api_check=true",
-             "-backend-config", "force_path_style=true"]
-            + var_args,
-            work_dir, env,
-        )
-        if r.returncode != 0:
             if not cached:
-                shutil.rmtree(work_dir, ignore_errors=True)
-            return DestroyResponse(status="error",
-                                   error=f"tofu init failed: {r.stderr.strip()}")
+                work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
+                module_src = Path(MODULES_ROOT) / module
+                if not module_src.is_dir():
+                    shutil.rmtree(work_dir, ignore_errors=True)
+                    return DestroyResponse(status="error",
+                                           error=f"Module '{module}' not found")
+                for item in module_src.iterdir():
+                    shutil.copy2(item, work_dir)
 
-        # The postgres module manages databases as postgresql_* resources against
-        # the running server. DROP DATABASE fails while connections are open, and a
-        # refresh fails outright if the container is already gone, so drop those
-        # logical resources from state before destroy. The docker_volume resource is
-        # not in this list, so the volume still goes with its container (S17).
-        state = await _run_tofu_async(["tofu", "state", "list"], work_dir, env)
-        pg_resources = [
-            line.strip() for line in state.stdout.splitlines()
-            if line.strip().startswith("postgresql_")
-        ] if state.returncode == 0 else []
-        if pg_resources:
-            logger.info(
-                f"Destroy {workspace}/{module}: running 'tofu state rm' on "
-                f"{len(pg_resources)} postgresql_* resource(s) before destroy: "
-                f"{', '.join(pg_resources)}")
-            rm = await _run_tofu_async(
-                ["tofu", "state", "rm"] + pg_resources, work_dir, env)
-            if rm.returncode != 0:
+            env = _tofu_env()
+
+            # Safety: force-remove any existing container before destroy.
+            # This handles the case where the container exists but tofu state is stale.
+            container_name = f"{workspace}-{module}-{module}"
+            try:
+                subprocess.run(
+                    ["docker", "rm", "-f", container_name],
+                    capture_output=True, timeout=30,
+                )
+            except Exception:
+                pass
+
+            # Build var args for destroy (same as apply)
+            var_args = _var_args(params)
+
+            # Init backend before destroy (required for fresh work dirs)
+            r = await _run_tofu_async(
+                ["tofu", "init",
+                 "-backend-config", f"bucket={MINIO_BUCKET}",
+                 "-backend-config", f"key={_state_key(workspace, module)}",
+                 "-backend-config", f"endpoint={MINIO_ENDPOINT}",
+                 "-backend-config", f"access_key={MINIO_ACCESS_KEY}",
+                 "-backend-config", f"secret_key={MINIO_SECRET_KEY}",
+                 "-backend-config", "region=us-east-1",
+                 "-backend-config", "skip_credentials_validation=true",
+                 "-backend-config", "skip_metadata_api_check=true",
+                 "-backend-config", "force_path_style=true"]
+                + var_args,
+                work_dir, env,
+            )
+            if r.returncode != 0:
                 if not cached:
                     shutil.rmtree(work_dir, ignore_errors=True)
-                return DestroyResponse(
-                    status="error",
-                    error=f"tofu state rm failed: {rm.stderr.strip()}")
+                return DestroyResponse(status="error",
+                                       error=f"tofu init failed: {r.stderr.strip()}")
 
-        r = await _run_tofu_async(["tofu", "destroy", "-auto-approve"] + var_args, work_dir, env)
-        if r.returncode != 0:
-            if not cached:
-                shutil.rmtree(work_dir, ignore_errors=True)
-            return DestroyResponse(status="error",
-                                   error=f"tofu destroy failed: {r.stderr.strip()}")
+            # The postgres module manages databases as postgresql_* resources against
+            # the running server. DROP DATABASE fails while connections are open, and a
+            # refresh fails outright if the container is already gone, so drop those
+            # logical resources from state before destroy. The docker_volume resource is
+            # not in this list, so the volume still goes with its container (S17).
+            state = await _run_tofu_async(["tofu", "state", "list"], work_dir, env)
+            pg_resources = [
+                line.strip() for line in state.stdout.splitlines()
+                if line.strip().startswith("postgresql_")
+            ] if state.returncode == 0 else []
+            if pg_resources:
+                logger.info(
+                    f"Destroy {workspace}/{module}: running 'tofu state rm' on "
+                    f"{len(pg_resources)} postgresql_* resource(s) before destroy: "
+                    f"{', '.join(pg_resources)}")
+                rm = await _run_tofu_async(
+                    ["tofu", "state", "rm"] + pg_resources, work_dir, env)
+                if rm.returncode != 0:
+                    if not cached:
+                        shutil.rmtree(work_dir, ignore_errors=True)
+                    return DestroyResponse(
+                        status="error",
+                        error=f"tofu state rm failed: {rm.stderr.strip()}")
 
-        shutil.rmtree(work_dir, ignore_errors=True)
-        with _runs_lock:
-            _runs.pop(key, None)
+            r = await _run_tofu_async(["tofu", "destroy", "-auto-approve"] + var_args, work_dir, env)
+            if r.returncode != 0:
+                if not cached:
+                    shutil.rmtree(work_dir, ignore_errors=True)
+                return DestroyResponse(status="error",
+                                       error=f"tofu destroy failed: {r.stderr.strip()}")
 
-        return DestroyResponse(status="destroyed")
-
-    except Exception as e:
-        if work_dir:
             shutil.rmtree(work_dir, ignore_errors=True)
-        with _runs_lock:
-            _runs.pop(key, None)
-        return DestroyResponse(status="error", error=str(e))
+            with _runs_lock:
+                _runs.pop(key, None)
+
+            return DestroyResponse(status="destroyed")
+
+        except Exception as e:
+            if work_dir:
+                shutil.rmtree(work_dir, ignore_errors=True)
+            with _runs_lock:
+                _runs.pop(key, None)
+            return DestroyResponse(status="error", error=str(e))
 
 
 @app.get("/health")
