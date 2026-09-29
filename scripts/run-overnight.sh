@@ -136,23 +136,8 @@ finish() {
   exit "$rc"
 }
 
-# --- backfill: S22's findings already exist and say CLEAR -----------------------------
-backfill_review_only() {
-  local n="$1"
-  if [ "$n" = "22" ] && [ -f "$REVIEWS/S22-findings.md" ] && [ "$(verdict 22)" = "CLEAR" ]; then
-    log "S22: findings exist and say CLEAR - committing and ticking (backfill, no re-review)"
-    commit_paths "S22 review findings (autonomous backfill)" "$REVIEWS/S22-findings.md" || true
-    if tick_boxes 22; then commit_paths "S22: CLEAR - tick tracker (autonomous)" docs/todo.md || true; fi
-    printf -- "- S22: backfilled CLEAR (findings file was already on disk).\n" >>"$REPORT.tmp"
-    return 0
-  fi
-  return 1
-}
-
 run_step() {
   local n="$1" attempt=0 v="" correction=""
-
-  backfill_review_only "$n" && return 0
 
   log "=== S$n begin (implementer=$IMPL_MODEL, reviewer=$REVIEW_MODEL) ==="
 

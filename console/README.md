@@ -16,8 +16,8 @@ Ctrl-C stops it. Nothing is left running.
 |---|---|
 | `index.html` | the page. One file, no build step, no dependencies |
 | `serve.py` | serves the page, calls `make state`, runs an allowlist of make targets |
-| `state.py` | the read model — `make state` calls this to build the JSON the page polls |
-| `state.sh` | the shell read model — the original, used by `make state` and the checkpoints |
+| `state.py` | the superseded original read model, kept as a reference — `make state` no longer calls it |
+| `state.sh` | the shell read model — used by `make state` and the checkpoints |
 | `test_browser.py` | Playwright browser tests — renders every fixture state, asserts on every tab |
 | `test_console.py` | declaration/contract tests — the page's structural assertions against serve.py |
 | `test_serve.py` | proxy/unit tests — the allowlist, the SAFE regex, the /log tail, /claim |
