@@ -122,7 +122,7 @@ runner and guard frozen with them.
 - [x] check  - [ ] review  **S22** [build-plan.md](./build-plan.md) Stage H: every Stage-H checkpoint written in one pass, all failing readable *(docs/evidence/s22-all-fail.log — 7 FAIL, 0 syntax errors)*
 - [x] check  - [x] review  **S23** Spike: replace timings, vote loss, `call_runner` blocking verdict  ← decides redis `maxmemory` mutability
 - [x] check  - [x] review  **S24** Runner: params-keyed success cache; `tofu state rm postgresql_*` before destroy
-- [ ] check  - [ ] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server
+- [x] check  - [x] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server
 - [ ] check  - [ ] review  **S26** Controller core against the stub runner: resolution, contract, update flow, backfill, stale `Updating`  ← strongest model
 - [ ] check  - [ ] review  **S27** Postgres `databases` in place, settings allowlist, `service_url_<db>`; redis via contract
 - [ ] check  - [ ] review  **S28** Tenant migration (declarers/consumers) + the three design-doc amendments  ← strongest model
