@@ -545,7 +545,10 @@ def call_runner(module, version, workspace, params):
         "module": module,
         "version": version or "main",
         "workspace": workspace,
-        "params": {k: str(v) for k, v in params.items()},
+        # Structured values survive: the runner's `_var_args` JSON-encodes lists
+        # and objects for tofu, and a postgres `databases` list sent as its
+        # Python repr (`"['voting']"`) is not valid HCL.
+        "params": _normalize_params(params),
     }
     try:
         r = requests.post(url, json=body, timeout=600, headers=headers)
@@ -659,8 +662,22 @@ def list_referencing_deployments(namespace, module):
 
 
 def _normalize_params(params):
-    """Params are compared as strings, matching how they are sent to the runner."""
-    return {k: str(v) for k, v in (params or {}).items()}
+    """Params are compared as JSON-safe values.
+
+    Scalars stringify (that is what the retry hash and the runner's `-var`
+    transport have always compared), but lists and objects keep their shape:
+    postgres `databases` is a list and `settings` an object. Stringifying the
+    list to its Python repr hid the container from `validate_params`' removal
+    guard - `isinstance(applied["databases"], list)` was never true against the
+    stored status - and sent the runner a repr rather than a JSON value.
+    """
+    def norm(value):
+        if isinstance(value, dict):
+            return {k: norm(v) for k, v in value.items()}
+        if isinstance(value, list):
+            return [norm(v) for v in value]
+        return str(value)
+    return {k: norm(v) for k, v in (params or {}).items()}
 
 
 def _reference_declarers(namespace, module):
@@ -912,23 +929,32 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
 
     set_condition(ns, name, "ParamsConflict", "False", "DeclarersAgree", "")
 
-    desired_raw = declarers[0][1] or {}
-    _project_spec_params(api, ns, name, desired_raw)
+    # `resolve_desired` already normalized each declarer (rule 1). Use that one
+    # value throughout, so spec.params, appliedParams and validate_params cannot
+    # hold the same params in different shapes.
+    desired_norm = desired
+    # The backfill below adopts what the old controller had projected onto
+    # spec.params, so capture it before this reconcile overwrites it with the
+    # current desired. Adopting the current desired would record an annotation
+    # change made during the upgrade window as applied without a runner call.
+    spec_params_before = (obj.get("spec", {}) or {}).get("params") or {}
+    _project_spec_params(api, ns, name, desired_norm)
 
     applied_raw = status.get("appliedParams") or {}
     applied_norm = _normalize_params(applied_raw)
-    desired_norm = _normalize_params(desired_raw)
     provisioned = phase in ("Ready", "Orphaned")
 
     if provisioned and "appliedParams" not in status:
-        # Backfill on upgrade: a Ready claim with no appliedParams adopts its
-        # desired params without calling the runner, or the first resync after
-        # the upgrade would replace every live container. The key's *absence* is
-        # the test: an explicit `appliedParams: {}` is a real applied result, and
-        # a later non-empty desired must go through the update flow.
-        patch_status_fields(api, ns, name, {"appliedParams": desired_norm})
+        # Backfill on upgrade: a Ready claim with no appliedParams adopts the
+        # normalized spec.params it carried, without calling the runner, or the
+        # first resync after the upgrade would replace every live container. The
+        # key's *absence* is the test: an explicit `appliedParams: {}` is a real
+        # applied result, and a later non-empty desired must go through the
+        # update flow.
+        backfilled = _normalize_params(spec_params_before)
+        patch_status_fields(api, ns, name, {"appliedParams": backfilled})
         set_condition(ns, name, "UpdateRefused", "False", "Done", "")
-        logger.info(f"Backfilled appliedParams for {name}: {desired_norm}")
+        logger.info(f"Backfilled appliedParams for {name}: {backfilled}")
         return
 
     if provisioned and applied_norm == desired_norm:
@@ -941,7 +967,7 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
         set_condition(ns, name, "UpdateRefused", "False", "Done", "")
         return
 
-    ok, bad_key, reason = validate_params(module, desired_raw, applied_raw)
+    ok, bad_key, reason = validate_params(module, desired_norm, applied_raw)
     if not ok:
         set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
                       f"{bad_key}: {reason}")
@@ -1044,8 +1070,9 @@ def destroy_infra(namespace, module, allocated_ip="", extra_params=None):
     if RUNNER_TOKEN:
         headers["Authorization"] = f"Bearer {RUNNER_TOKEN}"
     # Module params first, then the mandatory vars, so a stale annotation cannot
-    # redirect the destroy at the wrong container.
-    params = {k: str(v) for k, v in (extra_params or {}).items()}
+    # redirect the destroy at the wrong container. Structured values survive the
+    # same way as the apply path: the runner JSON-encodes them for tofu.
+    params = _normalize_params(extra_params)
     params["name"] = f"{workspace}-{module}"
     params["network"] = DOCKER_NETWORK
     if allocated_ip:

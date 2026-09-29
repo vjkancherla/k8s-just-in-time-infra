@@ -16,7 +16,7 @@ from unittest.mock import MagicMock
 sys.modules.setdefault("kubernetes", MagicMock())
 sys.modules.setdefault("kubernetes.client", MagicMock())
 
-from main import params_hash, resolve_desired, validate_params
+from main import _normalize_params, params_hash, resolve_desired, validate_params
 
 
 class TestResolveDesired(unittest.TestCase):
@@ -124,12 +124,23 @@ class TestValidateParams(unittest.TestCase):
         self.assertEqual(key, "databases")
 
     def test_postgres_database_removal_is_refused(self):
+        # `applied` is what the controller actually stores and reads back:
+        # status.appliedParams is written through `_normalize_params`. Passing a
+        # raw list here is what let the dead removal guard pass the old suite
+        # while production stored the string "['voting', 'analytics']" and never
+        # refused the removal (S26 review, Blocker 1).
+        applied = _normalize_params({"databases": ["voting", "analytics"]})
         ok, key, reason = validate_params(
-            "postgres", {"databases": ["voting"]},
-            applied={"databases": ["voting", "analytics"]})
+            "postgres", {"databases": ["voting"]}, applied=applied)
         self.assertFalse(ok)
         self.assertEqual(key, "databases")
         self.assertIn("analytics", reason)
+
+    def test_postgres_database_addition_against_stored_applied_is_allowed(self):
+        applied = _normalize_params({"databases": ["voting"]})
+        ok, _, _ = validate_params(
+            "postgres", {"databases": ["voting", "analytics"]}, applied=applied)
+        self.assertTrue(ok)
 
     def test_postgres_settings_allowlist_and_types(self):
         ok, _, _ = validate_params(
@@ -148,6 +159,22 @@ class TestValidateParams(unittest.TestCase):
         ok, key, _ = validate_params("postgres", {"postgres_password": "hunter2"})
         self.assertFalse(ok)
         self.assertEqual(key, "postgres_password")
+
+
+class TestNormalizeParams(unittest.TestCase):
+    def test_preserves_list_and_object_shape(self):
+        norm = _normalize_params({
+            "databases": ["voting", "analytics"],
+            "settings": {"max_connections": 200},
+            "maxmemory": 128,
+        })
+        self.assertEqual(norm["databases"], ["voting", "analytics"])
+        self.assertEqual(norm["settings"], {"max_connections": "200"})
+        self.assertEqual(norm["maxmemory"], "128")
+
+    def test_stored_databases_stay_a_list_for_the_removal_guard(self):
+        applied = _normalize_params({"databases": ["voting", "analytics"]})
+        self.assertIsInstance(applied["databases"], list)
 
 
 class TestParamsHash(unittest.TestCase):
