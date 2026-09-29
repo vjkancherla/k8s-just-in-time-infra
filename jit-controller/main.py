@@ -762,21 +762,36 @@ _PG_SIZE = re.compile(r"^[0-9]+(kB|MB|GB|TB)?$")
 _PG_SETTINGS = ("max_connections", "shared_buffers", "work_mem")
 
 
-def validate_params(module, desired, applied=None):
-    """The per-module mutability contract. Returns `(ok, bad_key, reason)`.
+# The update contract (design §Mutability contract): which params may *change* on
+# a provisioned claim. pgadmin's params are refused on change in v1.
+_UPDATE_ALLOWED = {
+    "redis": {"maxmemory"},
+    "postgres": {"databases", "settings"},
+}
+# The create surface: the module's declared inputs, so a brand-new claim may carry
+# them without passing the change contract. It is the update allowlist plus
+# pgadmin's `http_port` - the module-declared port the voting-b overlay pins, the
+# case ADR 0020 hit. A key outside either surface (a typo, an identity key) is
+# refused on create too, so it is never silently recorded as applied.
+_CREATE_ALLOWED = {
+    "redis": {"maxmemory"},
+    "postgres": {"databases", "settings"},
+    "pgadmin": {"http_port"},
+}
 
-    Anything not in the v1 surface is refused, so a typo never reaches tofu
-    (which only warns on unknown `-var`s and would record it as applied). The
-    whole edit is refused, not just the offending key.
+
+def validate_params(module, desired, applied=None, on_create=False):
+    """The per-module param contract. Returns `(ok, bad_key, reason)`.
+
+    A provisioned claim is judged by the update contract (which params may
+    change); a brand-new claim by the create surface. Either way a key outside the
+    module's v1 surface is refused, so a typo never reaches tofu (which only warns
+    on unknown `-var`s and would record it as applied). The whole edit is refused,
+    not just the offending key.
     """
     desired = desired or {}
     applied = applied or {}
-    if module == "redis":
-        allowed = {"maxmemory"}
-    elif module == "postgres":
-        allowed = {"databases", "settings"}
-    else:
-        allowed = set()  # pgadmin and anything else: v1 refuses every param
+    allowed = (_CREATE_ALLOWED if on_create else _UPDATE_ALLOWED).get(module, set())
 
     for key in desired:
         if key in _IDENTITY_KEYS:
@@ -813,6 +828,14 @@ def validate_params(module, desired, applied=None):
                         return False, f"settings.{key}", "must be an integer"
                 elif not _PG_SIZE.match(str(value)):
                     return False, f"settings.{key}", "must be a Postgres size"
+
+    if module == "pgadmin" and "http_port" in desired:
+        try:
+            port = int(str(desired["http_port"]))
+        except (TypeError, ValueError):
+            return False, "http_port", "must be an integer"
+        if not 1 <= port <= 65535:
+            return False, "http_port", "must be a port (1-65535)"
     return True, "", ""
 
 
@@ -832,6 +855,30 @@ def patch_status_fields(api, namespace, name, fields):
         logger.warning(f"Failed to patch status {sorted(fields)} on {name}: {e}")
 
 
+def _merge_patch(old, new):
+    """A JSON merge patch that clears keys removed at any depth.
+
+    A JSON merge patch treats `{}` as "change nothing", so a nested dict that
+    dropped a key (e.g. `settings.work_mem`) survived a top-level-only clear: the
+    resync then saw applied `{"settings": {"work_mem": ...}}` != desired, and
+    re-applied on every tick (a container-replace loop). Null the removed keys at
+    every depth; a dict present in both recurses, everything else is set from
+    `new`.
+    """
+    if not isinstance(old, dict) or not isinstance(new, dict):
+        return new
+    patch = {}
+    for k, v in old.items():
+        if k not in new:
+            patch[k] = None
+        elif isinstance(v, dict) and isinstance(new[k], dict):
+            patch[k] = _merge_patch(v, new[k])
+    for k, v in new.items():
+        if k not in patch:
+            patch[k] = v
+    return patch
+
+
 def patch_applied_params(api, namespace, name, params):
     """Set status.appliedParams, clearing the keys the new params dropped.
 
@@ -840,7 +887,8 @@ def patch_applied_params(api, namespace, name, params):
     `appliedParams.maxmemory` survived, the resync saw desired `{}` != applied
     and re-applied forever (a container-replace loop), and a later edit to the
     old value was then judged "equal" and never applied. Null the removed keys in
-    the same patch, then set the new ones.
+    the same patch, then set the new ones - at every depth, so a dropped nested
+    `settings` key clears too.
     """
     try:
         obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
@@ -848,9 +896,7 @@ def patch_applied_params(api, namespace, name, params):
         logger.warning(f"Failed to read {name} before patching appliedParams: {e}")
         return
     old = (obj.get("status", {}) or {}).get("appliedParams") or {}
-    params = params or {}
-    patch = {k: None for k in old if k not in params}
-    patch.update(params)
+    patch = _merge_patch(old, params or {})
     try:
         api.patch_namespaced_custom_object_status(
             GROUP, VERSION, namespace, PLURAL, name,
@@ -878,10 +924,10 @@ def _project_spec_params(api, namespace, name, desired):
         return
     # A merge patch merges object keys: projecting {"b": "2"} onto {"a": "1"}
     # would leave "a" behind, and a refused key would then travel into the
-    # destroy call. Null the keys this projection removes; the desired keys are
-    # set in the same patch.
-    patch = {k: None for k in existing if k not in desired}
-    patch.update(desired)
+    # destroy call. Null the keys this projection removes - at every depth, so a
+    # dropped nested `settings` key clears too; the desired keys are set in the
+    # same patch.
+    patch = _merge_patch(existing, desired)
     try:
         api.patch_namespaced_custom_object(
             GROUP, VERSION, namespace, PLURAL, name, {"spec": {"params": patch}})
@@ -1040,19 +1086,20 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
         set_condition(ns, name, "UpdateRefused", "False", "Done", "")
         return
 
-    # The mutability contract guards a *change* to provisioned infra (design
-    # §Mutability contract, §Update flow). A brand-new claim has no applied state
-    # to change and rule 3 keeps create behaviour unchanged, so its module-declared
-    # params are applied as given - pgadmin's `http_port` is the one the demo needs
-    # (voting-b pins 5051 so two pgAdmins do not collide on 5050); only an edit to
-    # a provisioned claim goes through the contract.
-    if provisioned:
-        ok, bad_key, reason = validate_params(module, desired_norm, applied_raw)
-        if not ok:
-            set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
-                          f"{bad_key}: {reason}")
-            return
-        set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+    # Every path is validated: a provisioned claim against the update contract
+    # (which params may *change*, design §Mutability contract), a brand-new claim
+    # against the module's declared create surface. Create is not exempt any more
+    # - ADR 0020 left it unvalidated to let pgadmin's module-declared `http_port`
+    # through, and that also let an unknown/typo'd key be recorded as applied; the
+    # create allowlist admits `http_port` while still refusing a key the module
+    # does not declare.
+    ok, bad_key, reason = validate_params(module, desired_norm, applied_raw,
+                                          on_create=not provisioned)
+    if not ok:
+        set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
+                      f"{bad_key}: {reason}")
+        return
+    set_condition(ns, name, "UpdateRefused", "False", "Done", "")
 
     h = params_hash(module, ns, desired_norm)
     if (h == status.get("attemptedParamsHash")
