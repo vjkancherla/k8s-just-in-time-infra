@@ -79,8 +79,13 @@ scripts/checks/S26.sh
      or removed. `check_param_conflict` (first-writer-wins) was replaced by declarer
      resolution, which the design requires; it had no test of its own.
 4. Did it create or edit files outside the list above? Blocker.
-   - *S26 note:* `docs/decisions/0012-...md`, `docs/decisions/0013-...md` and
-     `scripts/checks/S26.sh` are on the list because the ADRs put them in S26's scope.
+   - *S26 note:* `docs/decisions/0012-...md`, `docs/decisions/0013-...md`,
+     `docs/decisions/0014-...md` and `scripts/checks/S26.sh` are on the list because
+     the ADRs put them in S26's scope.
+   - *S26 note:* `docs/reviews/S26-review-prompt.md` is review machinery, present in
+     the range because the prompt was emitted before ADR 0014 was recorded and
+     re-emitted after; it is exempt from rule 4's file list. Every implementation file
+     is on the list.
 5. Did it tick a box in `docs/todo.md`? The review box is not the implementer's to tick.
    Blocker.
 
