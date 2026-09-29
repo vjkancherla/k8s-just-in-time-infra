@@ -144,8 +144,8 @@ jq -e '[.namespaces[].claims[] | select(.phase == "Orphaned")] | length >= 1' <<
   || fail "no claim went Orphaned after demo-undeploy"
 jq -e '[.namespaces[].claims[] | select(.phase == "Orphaned" and .expiresAt != null)] | length >= 1' <<<"$soft" >/dev/null \
   || fail "an Orphaned claim has no expiresAt - the console has nothing to count down"
-jq -e '[.namespaces[].claims[] | select(.module == "redis" and .phase == "Ready")] | length == 1' <<<"$soft" >/dev/null \
-  || fail "redis did not stay Ready - worker still references it"
+jq -e '[.namespaces[].claims[] | select(.module == "redis" and .phase == "Orphaned")] | length == 1' <<<"$soft" >/dev/null \
+  || fail "redis did not go Orphaned after undeploy removed every reference"
 jq -e '[.containers[] | select(.running)] | length == 3' <<<"$soft" >/dev/null \
   || fail "a container stopped during the retention window - nothing should be destroyed yet"
 ok "demo-undeploy orphans with an expiry, keeps redis Ready, destroys nothing"
