@@ -115,7 +115,6 @@ stateDiagram-v2
     [*] --> Pending: annotation seen
     Pending --> Ready: apply succeeded
     Pending --> Failed: runner error
-    Failed --> Pending: retry with backoff
     Ready --> Orphaned: last reference gone
     Orphaned --> Ready: a reference returns
     Orphaned --> Deleting: TTL expired
@@ -130,6 +129,13 @@ Two transitions carry the design:
 - `Orphaned --> Ready` is resurrection. It is why a rollout costs nothing.
 - `Orphaned --> Deleting` on **namespace deleted** bypasses the TTL. Soft and hard paths
   converge on the same destroy, at different speeds.
+
+**Updates do not add a phase.** A create failure still moves `Pending → Failed` and stays
+there until the Deployment changes — there is no `Failed → Pending` retry transition,
+because the code has no backoff and the runner is re-called only when the desired params
+change. An update to an already-`Ready` claim never enters `Failed` at all: the infra is
+still running and the consumers still hold the lease, so progress and failure are
+conditions (`Updating`, `UpdateFailed`) on a `Ready` claim. See section 7.
 
 ---
 
@@ -188,3 +194,42 @@ flowchart LR
 
 Solid arrows are control flow, dotted are data. The controller never touches Docker and
 never holds state credentials - that separation is the point of the split-plane shape.
+
+---
+
+## 7. Update - a declarer edits a setting (update sequence)
+
+A settings change is one edit to the declaring Deployment's annotation. The controller
+compares the desired params resolved from the live declarers with `status.appliedParams`
+on every event and every resync tick, so a missed event, a second edit mid-apply and a
+controller restart all resolve the same way. Consumers never cause or block a change.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor T as Tenant
+    participant K as kube-apiserver
+    participant C as jit-controller
+    participant R as jit-runner
+
+    T->>K: edit the declarer's annotation (params)
+    C->>C: resolve desired params from live declarers
+    C->>C: compare desired with status.appliedParams
+    alt desired == applied
+        C->>C: stop - rollouts stay free
+    else refused key or invalid value
+        C->>K: condition UpdateRefused; nothing applied
+    else allowed change
+        C->>K: condition Updating, record attemptedParamsHash
+        C->>R: POST /v1/runs {tenant params + controller overlay}
+        C->>K: success -> appliedParams; failure -> UpdateFailed, phase stays Ready
+    end
+```
+
+Existing Secret keys never change value, so running pods, the Service and the
+EndpointSlice are untouched; a new database adds a new `service_url_<db>` key, which the
+consumer picks up by editing its own env (which rolls that Deployment as any env change
+does). A `maxmemory` or settings change replaces the container on the same IP — redis
+drops its queue, Postgres keeps its volume. See
+[declarers-and-consumers.md](./declarers-and-consumers.md) §Mutability contract and the
+[refusal list](jit-infra-poc.md#tenant-surface).

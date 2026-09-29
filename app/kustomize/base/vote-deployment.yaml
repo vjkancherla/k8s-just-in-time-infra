@@ -13,9 +13,15 @@ metadata:
     # Deployment that uses the module, or the last-reference rule can arm a
     # destroy clock under a pod that is still running.
     #
-    # vote consumes Redis and nothing else: it has no Postgres environment and
-    # no jit-postgres Secret reference. Postgres is leased by the two Deployments
-    # that actually read that database, worker and result.
+    # The presence of a `params` key declares the module; its absence consumes it.
+    # vote DECLARES redis (its enqueueing frontend owns the queue's settings) and
+    # DECLARES pgadmin. worker CONSUMES redis and DECLARES postgres; result
+    # CONSUMES postgres. Each shared module has exactly one declarer, so a settings
+    # change is one edit to one annotation.
+    #
+    # vote has no Postgres environment and no jit-postgres Secret reference.
+    # Postgres is leased and declared by worker, the Deployment that writes the
+    # votes table, and consumed by result.
     #
     # pgadmin has no consumer at all, so its lease holder is a deliberate demo
     # choice rather than a dependency: it lives here so the soft-delete path has

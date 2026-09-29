@@ -71,7 +71,7 @@ TTL comes from the annotation, defaulting to 30 days:
 
 ```yaml
 annotations:
-  jit.infra/redis: '{"maxmemory":"128mb","softDeleteTTL":"30d"}'
+  jit.infra/redis: '{"module":"redis","params":{"maxmemory":"128mb"},"softDeleteTTL":"30d"}'
 ```
 
 For the PoC, demos run with `2m` - a 30-day window is not a testable assertion.
@@ -118,19 +118,40 @@ Not simulated: IAM, network policy, approval gates, provisioning latency.
 
 ## Tenant surface
 
+A reference **declares** a module when its annotation carries a `params` key, and only
+**consumes** it when the key is absent. `params: {}` declares the module defaults; a
+missing `params` (with `softDeleteTTL` still present) consumes. Each shared claim has at
+most one declarer, so a settings change is one edit to one annotation — in this repo's
+base, `vote` declares redis and pgadmin, `worker` declares postgres and consumes redis,
+and `result` consumes postgres.
+
 ```yaml
 kind: Deployment
 metadata:
   name: vote
   namespace: voting-a
   annotations:
-    jit.infra/redis:    '{"maxmemory":"128mb"}'
-    jit.infra/postgres: '{"db":"voting"}'
-    jit.infra/pgadmin:  '{}'
+    jit.infra/redis:   '{"module":"redis","moduleVersion":"v1","params":{"maxmemory":"128mb"},"softDeleteTTL":"10m"}'
+    jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
 ```
 
 `kubectl apply` and three containers exist. The tenant never touches the Namespace, a
-CRD, or Terraform.
+CRD, or Terraform. A consumer names the module with no `params` key and keeps the lease
+without an opinion on the settings.
+
+**What tenants must know** (the module settings that change, and what is refused):
+
+| Module | Change | What happens |
+|---|---|---|
+| redis | `params.maxmemory` | The container is replaced on the same IP and **queued votes are lost** (measured ≤1s; [ADR 0007](../decisions/0007-maxmemory-mutable-despite-replace-cost.md)). Editing the annotation is the tenant's approval for that downtime |
+| postgres | `params.databases` (additive) | Databases are created in place against the running server; the container is not replaced |
+| postgres | `params.settings.{max_connections,shared_buffers,work_mem}` | The container is replaced; the managed volume survives with its data |
+| postgres | remove a database, change `postgres_db` | Refused (`UpdateRefused`): a removal destroys data, and a rename would leave the Secret lying about the database name |
+| postgres | change `postgres_password` | Refused: the controller owns the credential and Postgres reads it only at init |
+| pgadmin, `name`, `ip`, `network`, unknown keys | any change | Refused: pgadmin is not assessed in v1, an identity move breaks the EndpointSlice, and tofu only warns on unknown `-var`s, so a typo would be recorded as applied |
+
+The full table, with validation, is in
+[declarers-and-consumers.md](./declarers-and-consumers.md) §Mutability contract.
 
 **Postgres is on this path with no guardrail, deliberately.** The soft-delete window
 now covers the accident that mattered - `kubectl delete deploy` no longer destroys
@@ -145,9 +166,9 @@ Sequence and state diagrams: [jit-infra-flows.md](./jit-infra-flows.md).
 ```
   ┌─ k3d cluster "voting-app" ──────────────────────────────────┐
   │  Namespace voting-a          (platform-managed)             │
-  │    ├── vote  (annotations: redis, postgres, pgadmin)        │
-  │    ├── worker (annotation: redis)                           │
-  │    └── result                                               │
+  │    ├── vote   (declares: redis, pgadmin)                    │
+  │    ├── worker (declares: postgres; consumes: redis)         │
+  │    └── result (consumes: postgres)                          │
   │                                                             │
   │  jit-controller (kopf, 1 replica)                           │
   │    - Deployment annotations → claim per module               │
@@ -179,10 +200,12 @@ Re-applying a Deployment computes the same name; the create returns `AlreadyExis
 and the controller does nothing. `tofu apply` against existing state is a second
 no-op. Two guards, which is right for something that creates databases.
 
-**Conflicting params.** If `vote` asks for 128mb and `worker` asks for 512mb, first
-writer wins and the controller records a warning condition on the claim naming both
-Deployments. Silently flip-flopping the container between two sizes on every resync
-would be worse than an unresolved warning.
+**Conflicting params.** Superseded by
+[declarers-and-consumers.md](./declarers-and-consumers.md): only declarers (annotations
+with a `params` key) shape the infra, and disagreeing declarers set a `ParamsConflict`
+condition naming each declarer while nothing is applied. Consumers never conflict. The
+first-writer-wins behaviour described here is the pre-S26 rule and no longer runs; S14's
+design line is recorded as superseded without touching its frozen checkpoint.
 
 ## Networking
 

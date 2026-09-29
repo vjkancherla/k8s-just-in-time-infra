@@ -97,7 +97,7 @@ The guard that replaces "do nothing on re-apply" is a per-module table of which 
 
 A param is mutable only if both hold:
 
-1. **The change is tolerable:** it adds or tunes, never removes data, and never relies on an init-time setting.
+1. **The change is tolerable:** it adds or tunes, never removes data, and never relies on an init-time setting. *(Amended by [ADR 0007](../decisions/0007-maxmemory-mutable-despite-replace-cost.md): an annotation-driven change is explicit approval for the downtime it causes, so redis `maxmemory` is mutable even though replacing the container drops every queued vote — the literal "never removes data" reading is superseded for it only.)*
 2. **Existing outputs stay the same:** every Secret key that exists today keeps its value, so running pods, the Service and the EndpointSlice are untouched. New keys may be added.
 
 | Module | Param | Kind | On change | Downtime |
@@ -158,7 +158,7 @@ The CRD status is a closed list, so each field needs a schema entry or the API s
 
 - **Stale `Updating`.** The controller runs one replica. If `Updating=True` and this process does not hold that claim's lock, the flag is left over from a crash: clear it and re-evaluate.
 - **Runner cache.** Key the success cache on a hash of module, workspace and params. Ship this first; without it every update is a silent no-op recorded as applied.
-- **Handler blocking.** `call_runner` can block for up to 600s. If it is a synchronous call inside an `async` kopf handler, it blocks the event loop and the 30s resync stops with it. Run it with `asyncio.to_thread` (the step 0 spike confirms which case applies).
+- **Handler blocking.** `call_runner` can block for up to 600s. The S23 spike measured the case: it is a synchronous `requests.post` inside a synchronous kopf handler, and kopf runs sync handlers on an executor thread, so it does **not** block the event loop and `asyncio.to_thread` is not applied. The executor pool is shared and the resync queues behind it above the pool ceiling; that decision is S26's ([ADR 0014](../decisions/0014-s26-executor-pool-decision.md)).
 
 ## Postgres module changes
 

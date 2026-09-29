@@ -30,18 +30,37 @@ The readiness gate is the Secret: a pod that depends on `jit-redis` sits in
 
 Starting point: a tenant applies this to namespace `voting-a`. Each Deployment names the modules
 it **uses** — the annotation is a provisioning request *and* a keep-alive lease, not a dependency
-list the controller could derive — so the three keys below come from three Deployments:
+list the controller could derive. The presence of a `params` key makes a reference a **declarer**
+(it shapes the module's settings); its absence makes it a **consumer** (it holds the lease only).
+The three keys below therefore come from three Deployments, one declarer per module:
 
 ```yaml
-# app/kustomize/base/vote-deployment.yaml
+# app/kustomize/base/vote-deployment.yaml — redis and pgadmin declarer
 metadata:
   name: voting-app-vote
   annotations:
-    jit.infra/redis: '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+    jit.infra/redis:   '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
     jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
-# worker-deployment.yaml adds jit.infra/postgres (it writes the votes table);
-# result-deployment.yaml carries jit.infra/postgres and nothing else.
+# worker-deployment.yaml adds jit.infra/postgres with params (it declares and
+# writes the votes table) and jit.infra/redis without params (it only consumes
+# the queue vote declares).
+# result-deployment.yaml carries jit.infra/postgres without params — a consumer.
 ```
+
+### Declarers and consumers
+
+Only declarers set `spec.params`; consumers never do, so a consumer can be added,
+edited or removed without changing the infra. In the base today:
+
+| Module | Declarer | Consumers |
+|---|---|---|
+| `redis` | `voting-app-vote` | `voting-app-worker` |
+| `postgres` | `voting-app-worker` | `voting-app-result` |
+| `pgadmin` | `voting-app-vote` | none |
+
+A consumer that gains a `params` key becomes a declarer; disagreeing declarers set a
+`ParamsConflict` condition and change nothing. The full resolution and mutability rules
+are in [declarers-and-consumers.md](./declarers-and-consumers.md).
 
 The three keys become three claims, one per module, shared by every Deployment that names the
 module:

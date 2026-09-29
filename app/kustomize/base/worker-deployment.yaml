@@ -13,11 +13,14 @@ metadata:
     # and it must name every module the pod uses: a module that is read but not
     # named has no lease on it.
     #
-    # postgres is leased here and on result, the two readers of that database,
-    # which is what keeps jit-postgres Ready while vote is deleted. This
-    # supersedes build-plan S15's vote-centric split (vote: redis, postgres,
+    # The presence of a `params` key declares the module; its absence consumes it.
+    # worker CONSUMES redis (no params key - vote declares the queue) and DECLARES
+    # postgres (it writes the votes table). result consumes postgres and need not
+    # carry params. Each shared module has exactly one declarer.
+    #
+    # This supersedes build-plan S15's vote-centric split (vote: redis, postgres,
     # pgadmin; worker: redis), which left both Postgres readers unrepresented.
-    jit.infra/redis: '{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+    jit.infra/redis: '{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m"}'
     jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
 spec:
   replicas: 1

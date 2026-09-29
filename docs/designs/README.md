@@ -12,7 +12,7 @@ flowchart TD
     ROOT["jit-infra-poc.md — the root design<br/>(current, built, verified)"]
     ADR["ADRs 0001–0004<br/>(accepted decisions)"]
     ROOT --> BUILT["Built on top of it:<br/>flows, annotation-to-state,<br/>deletion-lifecycle, demo app,<br/>runner API, console"]
-    ROOT --> S22["S22 — declarers and consumers<br/>(declarers-and-consumers.md, 2026-09-28)<br/>the latest change, designed not built"]
+    ROOT --> S22["S22 — declarers and consumers<br/>(declarers-and-consumers.md, 2026-09-28)<br/>built in S24–S28; U1–U13 gate is S29"]
     style ROOT fill:#fff9c4,stroke:#f9a825
     style S22 fill:#e8f5e9,stroke:#66bb6a
 ```
@@ -21,7 +21,7 @@ flowchart TD
 |---|---|---|---|
 | **Root design** | [jit-infra-poc.md](./jit-infra-poc.md) | **Built and verified** | Annotation on the Deployment (tenant-writable), claim owned by the Namespace (survives rollouts), two-speed cleanup: soft (Orphaned + TTL) and hard (namespace delete). |
 | **Built around it** | Explainers, reference and process docs below | Current | No decisions of their own; they diagram, explain or verify the root design. |
-| **Latest change** | [declarers-and-consumers.md](./declarers-and-consumers.md) | **Designed, not built** | Of the Deployments sharing a claim, those with a `params` key *declare* the infra; the rest only consume it. Replaces "re-apply is a no-op" with a per-module mutability contract. |
+| **Latest change** | [declarers-and-consumers.md](./declarers-and-consumers.md) | **Built (S24–S28); S29 gate pending** | Of the Deployments sharing a claim, those with a `params` key *declare* the infra; the rest only consume it. Replaces "re-apply is a no-op" with a per-module mutability contract. |
 
 ## What each document is
 
@@ -62,13 +62,13 @@ The ADRs record the choices the root design stands on (annotation surface and tw
 cleanup, runner as a separate HTTP service, per-namespace IP blocks, console as derived
 state): see `docs/decisions/`. ADRs hold the *why*; the design notes hold the *what*.
 
-## Where we are now (2026-09-28)
+## Where we are now (2026-09-29)
 
 - The root design is implemented and verified (J1–J11 green; see `docs/evidence/`).
-- S22 (declarers and consumers) is **designed, not built**. Next concrete step is its
-  half-day spike (does `call_runner` block the kopf event loop; how much a container
-  replace costs), then build order steps 2–7 in
-  [declarers-and-consumers.md §Build order](./declarers-and-consumers.md#build-order-and-effort).
+- S22's design is built: the params-keyed declarer/consumer split, the per-module
+  mutability contract and the update flow landed in S26 (controller) and S27 (modules),
+  and S28 migrated the tenant manifests to one declarer per module. The U1–U13 gate
+  (`scripts/checks/S29.sh`) is the remaining step.
 - [declarers-and-consumers.md](./declarers-and-consumers.md) answers the root design's
   first open question (annotation edits); the root design still carries four open
   questions (orphan visibility, IP reuse, scale-to-zero, prod version gaps).

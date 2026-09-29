@@ -1,9 +1,11 @@
 # S28 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:50Z
-# commit   e8ab404
-# pending  9 uncommitted change(s)
+# started  2026-09-29T03:49:49Z
+# commit   ce43c87
+# pending  8 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S28.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: worker must CONSUME redis (no params key) - actual: declarer
-# exit     1
+3 ok base annotations: one declarer per module, consumers carry none
+4 ok design docs: flows sequence present, poc answered, role rule recorded
+PASS S28: migration shape asserted; three design docs amended; modules formatted
+# exit     0
