@@ -11,6 +11,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -65,6 +66,32 @@ def _run_lock(key: tuple) -> asyncio.Lock:
             lock = asyncio.Lock()
             _run_locks[key] = lock
         return lock
+
+
+# A resource address in `tofu state list` output: the type segment of a managed
+# resource, at the start or dot-qualified (`postgresql_database.voting`,
+# `module.pg.postgresql_database.voting`). Matching the type segment rather than a
+# `postgresql_`-prefixed line is what lets a module-scoped address be dropped.
+_PG_RESOURCE_RE = re.compile(r"(?:^|\.)postgresql_[A-Za-z0-9_]+\.")
+
+
+def _rmtree(path: Optional[str]) -> None:
+    """Remove a work dir, logging a failure instead of swallowing it.
+
+    Every caller treats removal as best-effort, but `ignore_errors=True` let a
+    ~61 MB copy leak with no trace; the entry has already been replaced or the
+    run popped, so nothing ever comes back for it (ADR 0023 debt 1, "every
+    cleanup uses `ignore_errors=True`"). Logging makes a leak visible without
+    turning a cleanup failure into a 500 on an otherwise successful run.
+    """
+    if not path:
+        return
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
+    except OSError as e:
+        logger.warning(f"Could not remove work dir {path}: {e}")
 
 # ---------------------------------------------------------------------------
 # App
@@ -311,7 +338,7 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
     try:
         module_src = Path(MODULES_ROOT) / req.module
         if not module_src.is_dir():
-            shutil.rmtree(work_dir, ignore_errors=True)
+            _rmtree(work_dir)
             return RunResponse(status="error",
                                error=f"Module '{req.module}' not found at {MODULES_ROOT}/{req.module}")
 
@@ -336,7 +363,7 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
             work_dir, env,
         )
         if r.returncode != 0:
-            shutil.rmtree(work_dir, ignore_errors=True)
+            _rmtree(work_dir)
             return RunResponse(status="error", error=f"tofu init failed: {r.stderr.strip()}")
 
         r = await _run_tofu_async(["tofu", "apply", "-auto-approve"] + var_args, work_dir, env)
@@ -353,7 +380,7 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
                     r = await _run_tofu_async(
                         ["tofu", "apply", "-auto-approve"] + var_args, work_dir, env)
             if r.returncode != 0:
-                shutil.rmtree(work_dir, ignore_errors=True)
+                _rmtree(work_dir)
                 return RunResponse(status="error", error=f"tofu apply failed: {r.stderr.strip()}")
 
         outputs = _get_outputs(work_dir, env)
@@ -370,12 +397,19 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
                           "status": "success", "outputs": outputs,
                           "params": req.params, "params_hash": params_hash}
         if stale_dir:
-            shutil.rmtree(stale_dir, ignore_errors=True)
+            _rmtree(stale_dir)
 
         return RunResponse(status="success", outputs=outputs)
 
+    except asyncio.CancelledError:
+        # CancelledError is a BaseException, so the handler below never sees it:
+        # without this a cancelled apply leaks its fresh work dir. There is no
+        # await between the entry swap and the return, so a cancellation here can
+        # only precede the swap; removing this call's own dir is always safe.
+        _rmtree(work_dir)
+        raise
     except Exception as e:
-        shutil.rmtree(work_dir, ignore_errors=True)
+        _rmtree(work_dir)
         return RunResponse(status="error", error=str(e))
 
 
@@ -445,7 +479,7 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
                 work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
                 module_src = Path(MODULES_ROOT) / module
                 if not module_src.is_dir():
-                    shutil.rmtree(work_dir, ignore_errors=True)
+                    _rmtree(work_dir)
                     return DestroyResponse(status="error",
                                            error=f"Module '{module}' not found")
                 for item in module_src.iterdir():
@@ -484,7 +518,7 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             )
             if r.returncode != 0:
                 if not cached:
-                    shutil.rmtree(work_dir, ignore_errors=True)
+                    _rmtree(work_dir)
                 return DestroyResponse(status="error",
                                        error=f"tofu init failed: {r.stderr.strip()}")
 
@@ -494,10 +528,30 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             # logical resources from state before destroy. The docker_volume resource is
             # not in this list, so the volume still goes with its container (S17).
             state = await _run_tofu_async(["tofu", "state", "list"], work_dir, env)
-            pg_resources = [
-                line.strip() for line in state.stdout.splitlines()
-                if line.strip().startswith("postgresql_")
-            ] if state.returncode == 0 else []
+            if state.returncode != 0:
+                # A workspace with no state file yet (never applied, or already
+                # destroyed) is empty, not a read failure: there is nothing to rm
+                # and `tofu destroy` is a harmless no-op. Any other failure is a
+                # real read error, and proceeding would skip the `state rm` below
+                # on a state we could not read - exactly the stale-postgres
+                # destroy S24 exists to prevent. Refuse instead (ADR 0023 debt 1,
+                # "a `state list` failure silently degrades to no postgresql_*").
+                if "No state file was found" not in state.stderr:
+                    if not cached:
+                        _rmtree(work_dir)
+                    return DestroyResponse(
+                        status="error",
+                        error=("tofu state list failed - refusing to destroy on "
+                               f"an unreadable state: {state.stderr.strip()}"))
+                pg_resources = []
+            else:
+                # `state list` prints one address per resource; match the resource
+                # *type* segment so a qualified or module-scoped address is dropped
+                # too, not only a line that starts with `postgresql_`.
+                pg_resources = [
+                    line.strip() for line in state.stdout.splitlines()
+                    if _PG_RESOURCE_RE.search(line.strip())
+                ]
             if pg_resources:
                 logger.info(
                     f"Destroy {workspace}/{module}: running 'tofu state rm' on "
@@ -507,7 +561,7 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
                     ["tofu", "state", "rm"] + pg_resources, work_dir, env)
                 if rm.returncode != 0:
                     if not cached:
-                        shutil.rmtree(work_dir, ignore_errors=True)
+                        _rmtree(work_dir)
                     return DestroyResponse(
                         status="error",
                         error=f"tofu state rm failed: {rm.stderr.strip()}")
@@ -515,19 +569,25 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             r = await _run_tofu_async(["tofu", "destroy", "-auto-approve"] + var_args, work_dir, env)
             if r.returncode != 0:
                 if not cached:
-                    shutil.rmtree(work_dir, ignore_errors=True)
+                    _rmtree(work_dir)
                 return DestroyResponse(status="error",
                                        error=f"tofu destroy failed: {r.stderr.strip()}")
 
-            shutil.rmtree(work_dir, ignore_errors=True)
+            _rmtree(work_dir)
             with _runs_lock:
                 _runs.pop(key, None)
 
             return DestroyResponse(status="destroyed")
 
+        except asyncio.CancelledError:
+            # BaseException: remove only a fresh (uncached) dir. A cached one and
+            # its entry are kept so a retry can still destroy it, then re-raise so
+            # the cancellation still propagates.
+            if not cached:
+                _rmtree(work_dir)
+            raise
         except Exception as e:
-            if work_dir:
-                shutil.rmtree(work_dir, ignore_errors=True)
+            _rmtree(work_dir)
             with _runs_lock:
                 _runs.pop(key, None)
             return DestroyResponse(status="error", error=str(e))
