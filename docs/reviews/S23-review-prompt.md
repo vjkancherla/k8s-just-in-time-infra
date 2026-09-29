@@ -3,11 +3,12 @@
 Copy the text between the markers **verbatim** from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md`
 and substitute exactly six slots: the step (S23), the step number (23), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from `docs/build-plan.md`
-S23), the commit range (`4fd26b9..6fa2dcc`), and the files the step named as its scope (one
+S23), the commit range (`4fd26b9..b7c6650`), and the files the step named as its scope (one
 path per line), plus the ADR-0007 note sanctioned by the human directive of 2026-09-28.
 Deviations, marked inline: the ADR-0007 note on Q6/Q7 (with a pointer to the ADR in "What to
-read") and the rule-4 exemption for the two review-machinery files in the range. Add
-nothing else.
+read"), the Q6 note that the committed spike log predates the probe hardening the human
+directive says to keep as measured, and the rule-4 exemption for the review-machinery files
+in the range. Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -46,7 +47,7 @@ docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S23, its checkpoint, its gate
-- `git diff 4fd26b9..6fa2dcc` - what was actually done
+- `git diff 4fd26b9..b7c6650` - what was actually done
 - `scripts/checks/S23.sh` - the assertion that passed
 - `docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md` - the human decision
   this review must assess
@@ -59,11 +60,11 @@ docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md
 2. Did it add a dependency the step did not name? Blocker.
 3. Did it delete or weaken an existing test or assertion? Blocker.
 4. Did it create or edit files outside the list above? Blocker.
-   - *S23 note:* the range contains two review-machinery files, not implementation:
-     `docs/reviews/S23-findings.md` (the previous reviewer's findings) and
+   - *S23 note:* the range contains review-machinery files, not implementation:
+     `docs/reviews/S23-findings.md` (the reviewer's findings) and
      `docs/reviews/S23-review-prompt.md` (the prompt re-emitted during the review cycle -
      acts of review, not of implementation). Every implementation file in the range is on
-     the list above; treat the two review files as exempt from rule 4.
+     the list above; treat the review files as exempt from rule 4.
 5. Did it tick a box in `docs/todo.md`? The review box is not the implementer's to tick.
    Blocker.
 
@@ -77,6 +78,12 @@ docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md
      `voting-a`) was satisfied when the human ran the probe protocol; `S23.sh` itself reads
      only `docs/evidence/s23-spike.log`, so it re-runs without a live cluster. That is by
      design - see the Q7 note.
+   - *S23 note:* `docs/evidence/s23-spike.log` is the measurement kept as-is under the
+     human directive of 2026-09-28, so it predates the probe hardening in this range
+     (rerun-overwrite guard, reconnect rc-checks). Those assertions were re-validated end
+     to end on a `/tmp` copy via `S23_SPIKE_LOG` with the committed log untouched; the
+     committed numbers (redis 0.81s, postgres 0.85s, 50/50 lost, both reconnects OK) were
+     reproduced.
 7. **Now read the checkpoint.** Would it still pass if the core logic of this step were
    deleted or stubbed out? If yes it is asserting nothing - **blocker**.
    - *S23 note (ADR 0007):* Do **not** turn the Q7 stub-test into a blocker here. S23's
