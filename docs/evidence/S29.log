@@ -1,9 +1,24 @@
 # S29 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:50Z
-# commit   e8ab404
+# started  2026-09-29T05:38:53Z
+# commit   346a9ad
 # pending  10 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S29.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: make state did not report up=True (got 'False') - run 'make demo-up' before this checkpoint
-# exit     1
+U1 ok: maxmemory 128mb applied, IP unchanged
+U2 ok analytics created in place, container kept, service_url_analytics added, keys unchanged
+U3 ok consumer edit: no runner call, container untouched
+U4 ok consumer declares params: conflict named, locked, container kept
+U7 ok database removal refused: named key, nothing applied
+U8 ok invalid value refused, no runner call
+U5 ok declarer gone: Ready held, NoDeclarer set, nothing re-applied
+U6 ok consumer-first namespace: Pending + AwaitingDeclarer, Ready once declared
+U9 ok runner down: Ready kept, one attempt, and convergence after re-edit
+U10 ok crash recovered: Updating cleared, update converged
+U11 ok backfill: adopted spec.params without a runner call, no container churn
+U13 ok TTL maximum taken from a consumer, no runner call
+gate ok: make jit-verify reports J1-J11 all PASS
+gate ok: make verify NS=voting-a reports 17 PASS, 0 FAIL
+U12 ok namespace delete: destroyed, finalizer released, gone
+PASS S29: U1-U13 asserted live
+# exit     0

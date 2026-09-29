@@ -97,7 +97,13 @@ class DestroyRequest(BaseModel):
     # "single remaining candidate" fallback resolved the postgres retry to redis and
     # removed a container that was still referenced and Ready. Found by S17's J6.
     module: Optional[str] = None
-    params: Dict[str, str] = {}
+    # Same as POST (design runner-api.md): the surface includes lists
+    # (`databases`) and objects (`settings`). Typed `Dict[str, str]`, a cold
+    # destroy carrying `databases` was rejected with 422 before the handler ran -
+    # the stale state then survived and the next apply failed refreshing a
+    # `postgresql_*` resource whose container was gone (found by S29's J-suite;
+    # predicted by S24's review concern 1).
+    params: Dict[str, Any] = {}
 
 
 class DestroyResponse(BaseModel):

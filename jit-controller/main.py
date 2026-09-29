@@ -396,7 +396,7 @@ def _apply_via_runner(api, ns, name, module, spec, tenant_params, allocated_ip, 
         # Runner URL not configured — pretend success (fake mode, S8-S12 compat).
         logger.info(f"No runner URL, using fake provisioning for {name}")
         _provision_fake(api, ns, name, module)
-        patch_status_fields(api, ns, name, {"appliedParams": tenant_params})
+        patch_applied_params(api, ns, name, tenant_params)
         set_condition(ns, name, "Updating", "False", "Done", "")
         return
 
@@ -431,7 +431,7 @@ def _apply_via_runner(api, ns, name, module, spec, tenant_params, allocated_ip, 
 
     # appliedParams carries tenant params only - never the password the overlay
     # just added - because claim status is readable by anyone who can get claims.
-    patch_status_fields(api, ns, name, {"appliedParams": tenant_params})
+    patch_applied_params(api, ns, name, tenant_params)
     set_condition(ns, name, "Updating", "False", "Done", "")
     if is_update:
         set_condition(ns, name, "UpdateFailed", "False", "Done", "")
@@ -661,6 +661,35 @@ def list_referencing_deployments(namespace, module):
     return [name for name, _ in list_referencing_deployments_with_params(namespace, module)]
 
 
+def _max_reference_ttl(namespace, module):
+    """The largest `softDeleteTTL` declared by any reference, by duration (rule 7).
+
+    TTL is lifecycle data, not a setting, so it may appear on declarers and
+    consumers alike; the maximum errs in the safe direction once no references
+    remain. Returns the raw string of the longest window, or None when no
+    reference declares a parseable one.
+    """
+    apps = client.AppsV1Api()
+    best = None
+    best_seconds = None
+    for d in apps.list_namespaced_deployment(namespace).items:
+        raw = (d.metadata.annotations or {}).get(f"jit.infra/{module}")
+        if raw is None:
+            continue
+        try:
+            data = json.loads(raw) or {}
+        except Exception:
+            data = {}
+        ttl = data.get("softDeleteTTL")
+        m = re.match(r"^(\d+)(s|m|h|d)$", (ttl or "").strip())
+        if not m:
+            continue
+        seconds = int(m.group(1)) * {"s": 1, "m": 60, "h": 3600, "d": 86400}[m.group(2)]
+        if best_seconds is None or seconds > best_seconds:
+            best, best_seconds = ttl, seconds
+    return best
+
+
 def _normalize_params(params):
     """Params are compared as JSON-safe values.
 
@@ -803,6 +832,33 @@ def patch_status_fields(api, namespace, name, fields):
         logger.warning(f"Failed to patch status {sorted(fields)} on {name}: {e}")
 
 
+def patch_applied_params(api, namespace, name, params):
+    """Set status.appliedParams, clearing the keys the new params dropped.
+
+    A JSON merge patch treats `{}` as "change nothing", so patching the new,
+    smaller dict left every removed key behind: after a change back to defaults
+    `appliedParams.maxmemory` survived, the resync saw desired `{}` != applied
+    and re-applied forever (a container-replace loop), and a later edit to the
+    old value was then judged "equal" and never applied. Null the removed keys in
+    the same patch, then set the new ones.
+    """
+    try:
+        obj = api.get_namespaced_custom_object(GROUP, VERSION, namespace, PLURAL, name)
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to read {name} before patching appliedParams: {e}")
+        return
+    old = (obj.get("status", {}) or {}).get("appliedParams") or {}
+    params = params or {}
+    patch = {k: None for k in old if k not in params}
+    patch.update(params)
+    try:
+        api.patch_namespaced_custom_object_status(
+            GROUP, VERSION, namespace, PLURAL, name,
+            {"status": {"appliedParams": patch}})
+    except client.exceptions.ApiException as e:
+        logger.warning(f"Failed to patch appliedParams on {name}: {e}")
+
+
 def _condition_status(status, cond_type):
     for c in (status.get("conditions") or []):
         if c.get("type") == cond_type:
@@ -895,6 +951,23 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
     patch_status_fields(api, ns, name,
                         {"referencedBy": ref_names, "declaredBy": declarer_names})
 
+    # Rule 7: `spec.softDeleteTTL` is the maximum declared across all references,
+    # declarers and consumers alike. It is a spec patch only - never a runner call.
+    # Compare against the claim's own spec, not the caller's event copy: on the
+    # Deployment-event path `spec` is that Deployment's annotation, not the claim's.
+    max_ttl = _max_reference_ttl(ns, module)
+    claim_ttl = (obj.get("spec", {}) or {}).get("softDeleteTTL") or ""
+    if max_ttl and max_ttl != claim_ttl:
+        try:
+            api.patch_namespaced_custom_object(
+                GROUP, VERSION, ns, PLURAL, name,
+                {"spec": {"softDeleteTTL": max_ttl}})
+            logger.info(f"softDeleteTTL for {name}: "
+                        f"{claim_ttl} -> {max_ttl} (max over references)")
+        except client.exceptions.ApiException as e:
+            logger.warning(f"Failed to patch softDeleteTTL on {name}: {e}")
+        spec = dict(spec, softDeleteTTL=max_ttl)
+
     if not ref_names:
         return  # orphan/TTL handling lives in the resync branch
 
@@ -952,7 +1025,7 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
         # applied result, and a later non-empty desired must go through the
         # update flow.
         backfilled = _normalize_params(spec_params_before)
-        patch_status_fields(api, ns, name, {"appliedParams": backfilled})
+        patch_applied_params(api, ns, name, backfilled)
         set_condition(ns, name, "UpdateRefused", "False", "Done", "")
         logger.info(f"Backfilled appliedParams for {name}: {backfilled}")
         return
@@ -967,12 +1040,19 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
         set_condition(ns, name, "UpdateRefused", "False", "Done", "")
         return
 
-    ok, bad_key, reason = validate_params(module, desired_norm, applied_raw)
-    if not ok:
-        set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
-                      f"{bad_key}: {reason}")
-        return
-    set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+    # The mutability contract guards a *change* to provisioned infra (design
+    # §Mutability contract, §Update flow). A brand-new claim has no applied state
+    # to change and rule 3 keeps create behaviour unchanged, so its module-declared
+    # params are applied as given - pgadmin's `http_port` is the one the demo needs
+    # (voting-b pins 5051 so two pgAdmins do not collide on 5050); only an edit to
+    # a provisioned claim goes through the contract.
+    if provisioned:
+        ok, bad_key, reason = validate_params(module, desired_norm, applied_raw)
+        if not ok:
+            set_condition(ns, name, "UpdateRefused", "True", "RefusedKey",
+                          f"{bad_key}: {reason}")
+            return
+        set_condition(ns, name, "UpdateRefused", "False", "Done", "")
 
     h = params_hash(module, ns, desired_norm)
     if (h == status.get("attemptedParamsHash")
