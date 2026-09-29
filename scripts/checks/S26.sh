@@ -16,12 +16,13 @@ cleanup() { rc=$?; set +e
   [ -z "${CTRL_PID:-}" ] || kill "$CTRL_PID" 2>/dev/null
   [ -z "${STUB_PID:-}" ] || kill "$STUB_PID" 2>/dev/null
   kk scale deploy/jit-controller -n default --replicas=1 >/dev/null 2>&1
-  kk delete ns "$NS" --wait=false --ignore-not-found >/dev/null 2>&1
+  kk delete ns jit-stub jit-stub-consumer --wait=false --ignore-not-found >/dev/null 2>&1
   [ -z "${CTRL_PID:-}" ] || wait "$CTRL_PID" 2>/dev/null
   exit "$rc"; }
 trap cleanup EXIT
 
 NS=jit-stub
+NS2=jit-stub-consumer
 STUB_LOG="$(mktemp /tmp/s26-stub-XXXX.log)"
 STOPFILE="$(mktemp)"
 
@@ -34,15 +35,16 @@ kk get crd infraclaims.jit.io >/dev/null 2>&1 \
 # silence the in-cluster controller so its handlers cannot fight the local one
 kk scale deploy/jit-controller -n default --replicas=0 >/dev/null \
   || fail "could not scale in-cluster controller to 0"
-kk delete ns "$NS" --ignore-not-found >/dev/null 2>&1 || true
+kk delete ns "$NS" "$NS2" --ignore-not-found >/dev/null 2>&1 || true
 kk create ns "$NS" >/dev/null || fail "scratch namespace creation failed"
+kk create ns "$NS2" >/dev/null || fail "scratch namespace creation (2) failed"
 
 # --- start the stub runner and a local controller ------------------------------
 STUB_LOG="$STUB_LOG" python3 jit-controller/stub_runner.py &
 STUB_PID=$!
 sleep 1
 kill -0 "$STUB_PID" 2>/dev/null || fail "stub runner did not start"
-RUNNER_URL=http://127.0.0.1:8999 WATCH_NAMESPACES="$NS" python3 jit-controller/main.py >/tmp/s26-controller.log 2>&1 &
+RUNNER_URL=http://127.0.0.1:8999 WATCH_NAMESPACES="$NS,$NS2" python3 jit-controller/main.py >/tmp/s26-controller.log 2>&1 &
 CTRL_PID=$!
 
 annot() { kk annotate deploy "voting-app-$1" -n "$NS" --overwrite "$2"; }
@@ -168,12 +170,13 @@ echo "7 ok NoDeclarer: lease held, nothing re-applied"
 
 # --- 8. new claim with only consumers -> Pending + AwaitingDeclarer ------------
 # A genuinely consumer-only *new* claim needs a clean namespace: an existing
-# claim that has lost its declarers stays Ready + NoDeclarer (group 7). The
-# frozen script waited on `$NS-redis-c2`, a claim no design-conforming
-# controller creates (claim identity is <namespace>-<module>). See ADR 0012.
-kk delete ns "$NS" --wait=true --timeout=60s >/dev/null 2>&1 || true
-for i in $(seq 1 30); do kk get ns "$NS" >/dev/null 2>&1 || break; sleep 2; done
-kk create ns "$NS" >/dev/null || fail "scratch namespace recreation failed"
+# claim that has lost its declarers stays Ready + NoDeclarer (group 7), and the
+# frozen script's `$NS-redis-c2` is a claim no design-conforming controller
+# creates (claim identity is <namespace>-<module>). A second scratch namespace
+# was chosen over recreating the first: a namespace-scoped watch does not run
+# the claim's delete handler while the namespace terminates, so the finalizer,
+# and the re-create, can hang (ADR 0013). See ADR 0012 for the locator.
+NS="$NS2"
 make c2 "redis" '{"module":"redis"}'
 waitcond "$NS-redis" "AwaitingDeclarer" "True" \
   || fail "consumer-created claim did not wait with AwaitingDeclarer"
