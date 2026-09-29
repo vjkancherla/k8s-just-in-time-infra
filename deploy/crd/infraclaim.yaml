@@ -50,6 +50,15 @@ spec:
                 type: string
               allocatedIP:
                 type: string
+              appliedParams:
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+              attemptedParamsHash:
+                type: string
+              declaredBy:
+                type: array
+                items:
+                  type: string
               conditions:
                 type: array
                 items:
@@ -58,6 +67,14 @@ spec:
                   properties:
                     type:
                       type: string
+                      enum:
+                      - ParamsConflict
+                      - AwaitingDeclarer
+                      - NoDeclarer
+                      - UpdateRefused
+                      - Updating
+                      - UpdateFailed
+                      - OutputsChanged
                     status:
                       type: string
                     reason:
@@ -78,5 +95,8 @@ spec:
     - name: REFS
       type: string
       jsonPath: .status.referencedBy
+    - name: DECLARED
+      type: string
+      jsonPath: .status.declaredBy
   conversion:
     strategy: None

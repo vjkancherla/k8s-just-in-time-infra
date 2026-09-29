@@ -1,9 +1,9 @@
 # S25 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:49Z
-# commit   e8ab404
-# pending  6 uncommitted change(s)
+# started  2026-09-29T01:16:26Z
+# commit   3c92691
+# pending  1 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S25.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: CRD not present in the cluster - run 'make jit-up' before this checkpoint
-# exit     1
+PASS S25: schema fields survive pruning; DECLARED printer column present
+# exit     0
