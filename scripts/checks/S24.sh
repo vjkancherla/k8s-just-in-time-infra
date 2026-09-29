@@ -26,6 +26,11 @@ resp2="$(post '{"module":"redis","version":"v1","workspace":"s24-check","params"
   || fail "identical re-POST did not succeed"
 n_cont="$(docker ps --format '{{.Names}}' | grep -c "$WS")"
 [ "$n_cont" -eq 1 ] || fail "expected exactly one cached container, found $n_cont"
+# The cache-hit half of the goal: an identical re-POST is a no-op, not a re-apply.
+# Without this, deleting the success cache entirely still passes every assertion.
+created_after_identical="$(docker inspect -f '{{.Created}}' "$c")"
+[ "$created_after_identical" = "$created1" ] \
+  || fail "identical params replaced the container - the cached success was not returned (the cache must key on module+workspace+params and be a no-op for an identical hash)"
 
 # --- 2. changed params: a REAL re-apply, not the cached no-op ----------------
 post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","ip":"172.19.0.192","maxmemory":"128mb"}}' >/dev/null \
