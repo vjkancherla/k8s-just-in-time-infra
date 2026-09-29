@@ -13,12 +13,15 @@ kk() { kubectl --request-timeout=5s "$@"; }
 cleanup() { rc=$?; set +e
   docker start jit-runner >/dev/null 2>&1
   kk scale deploy/jit-controller -n default --replicas=1 >/dev/null 2>&1
+  # Restore the S28 tenant shape: vote and worker are the declarers, so their
+  # annotations keep the `params` key (a missing key would make them consumers).
   kk annotate deploy voting-app-vote -n voting-a --overwrite \
-    jit.infra/redis='{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m"}' >/dev/null 2>&1
+    jit.infra/redis='{"module":"redis","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}' >/dev/null 2>&1
   kk annotate deploy voting-app-worker -n voting-a --overwrite \
-    jit.infra/postgres='{"module":"postgres","moduleVersion":"v1","softDeleteTTL":"10m"}' >/dev/null 2>&1
+    jit.infra/postgres='{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}' >/dev/null 2>&1
   kk scale deploy voting-app-vote voting-app-worker voting-app-result \
     -n voting-a --replicas=1 >/dev/null 2>&1
+  kk set env deploy voting-app-vote -n voting-a ALLOW_MULTIPLE_VOTES=true >/dev/null 2>&1
   kk delete ns voting-c --ignore-not-found >/dev/null 2>&1
   exit "$rc"; }
 trap cleanup EXIT
@@ -63,7 +66,7 @@ u1check() { docker exec "$(redis_c)" redis-cli CONFIG GET maxmemory 2>/dev/null 
 tick u1check || fail "U1: redis did not take --maxmemory 128mb within one tick"
 [ "$(field redis '{.status.appliedParams.maxmemory}')" = "128mb" ] \
   || fail "U1: appliedParams.maxmemory not $(field redis '{.status.appliedParams.maxmemory}')"
-[ "$(docker inspect -f '{{.NetworkSettings.IPAddress}}' "$(redis_c)")" = "$(kk get infraclaim voting-a-redis -n voting-a -o jsonpath='{.status.endpoint}')" ] \
+[ "$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$(redis_c)")" = "$(kk get infraclaim voting-a-redis -n voting-a -o jsonpath='{.status.allocatedIP}')" ] \
   || fail "U1: the redis container moved off its allocated IP"
 echo "U1 ok: maxmemory 128mb applied, IP unchanged"
 
@@ -148,6 +151,11 @@ echo "U8 ok invalid value refused, no runner call"
 # ================================================================== U5 declarer deleted, consumers keep the claim
 sleep 20
 posts0="$(posts)"
+# U5 deletes the redis declarer for real, but U9-U11 and the suite gate below still
+# drive voting-app-vote; snapshot it first and restore it after the assertion (the
+# EXIT trap's annotate/scale cannot bring a deleted Deployment back).
+kk get deploy voting-app-vote -n voting-a -o json > /tmp/s29-vote.json \
+  || fail "U5: could not snapshot the declarer before deleting it"
 kk delete deploy voting-app-vote -n voting-a >/dev/null \
   || fail "U5: could not delete the redis declarer"
 u5check() { [ "$(cond redis NoDeclarer)" = "True" ]; }
@@ -157,6 +165,21 @@ ap="$(field redis '{.status.appliedParams.maxmemory}')"
 [ -n "$ap" ] || fail "U5: appliedParams vanished with the declarer"
 posts1="$(posts)"
 [ "$posts1" = "$posts0" ] || fail "U5: a declarer deletion triggered a runner call"
+# Restore the declarer for U9-U11 and the gate. `kubectl apply` of the
+# get-exported object, with the server-side fields stripped so the create is clean;
+# its annotation is the U1 one (maxmemory 128mb), which equals appliedParams, so the
+# restore makes no runner call.
+python3 - <<'PY'
+import json
+d = json.load(open('/tmp/s29-vote.json'))
+for k in ('resourceVersion', 'uid', 'creationTimestamp', 'generation',
+          'managedFields', 'selfLink'):
+    d.setdefault('metadata', {}).pop(k, None)
+d.pop('status', None)
+json.dump(d, open('/tmp/s29-vote-create.json', 'w'))
+PY
+kk apply -f /tmp/s29-vote-create.json >/dev/null \
+  || fail "U5: could not restore the redis declarer after the deletion assertion"
 echo "U5 ok declarer gone: Ready held, NoDeclarer set, nothing re-applied"
 
 # ================================================================== U6 consumer-first namespace
@@ -194,7 +217,7 @@ metadata:
   name: declarer-comes
   namespace: voting-c
   annotations:
-    jit.infra/redis: '{"module":"redis","softDeleteTTL":"10m"}'
+    jit.infra/redis: '{"module":"redis","params":{},"softDeleteTTL":"10m"}'
   labels: {app: declarer-comes}
 spec:
   replicas: 1
@@ -291,6 +314,13 @@ echo "U13 ok TTL maximum taken from a consumer, no runner call"
 # root or under app/ depending on the target; both are accepted, and a stale artifact is
 # removed first so it cannot pass the gate. Never trust `make verify`'s exit code for the
 # count - verify.sh exits 0 even when checks fail - so parse the summary line.
+# demo-up leaves ALLOW_MULTIPLE_VOTES=true for the click-the-demo mode; R3 asserts
+# the one-vote-per-browser behaviour, so disable it for the R-suite and restore it
+# afterwards (the R-suite is what must survive, not the demo toggle).
+kk set env deploy/voting-app-vote -n voting-a ALLOW_MULTIPLE_VOTES=false >/dev/null \
+  || fail "the S29 gate: could not disable demo mode for the R-suite"
+kk rollout status deploy/voting-app-vote -n voting-a --timeout=180s >/dev/null \
+  || fail "the S29 gate: vote did not roll after disabling demo mode"
 rm -f .workflow/verify.md app/.workflow/verify.md
 if ! make verify NS=voting-a >/tmp/s29-verify.log 2>&1; then
   tail -5 /tmp/s29-verify.log | sed 's/^/  /'
@@ -302,6 +332,8 @@ verify_sum="$(grep -E '^===== [0-9]+ PASS, [0-9]+ FAIL =====$' "$verify_md" | ta
 [ "$verify_sum" = "===== 17 PASS, 0 FAIL =====" ] \
   || fail "the S29 gate: make verify did not report '17 PASS, 0 FAIL' (got '${verify_sum:-no summary line}') - see $verify_md"
 echo "gate ok: make verify NS=voting-a reports 17 PASS, 0 FAIL"
+kk set env deploy/voting-app-vote -n voting-a ALLOW_MULTIPLE_VOTES=true >/dev/null 2>&1 || true
+kk rollout status deploy/voting-app-vote -n voting-a --timeout=180s >/dev/null 2>&1 || true
 
 rm -f .workflow/verify-jit.md app/.workflow/verify-jit.md
 if ! make jit-verify >/tmp/s29-jit.log 2>&1; then
