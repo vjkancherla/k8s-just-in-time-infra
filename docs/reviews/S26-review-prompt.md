@@ -3,10 +3,12 @@
 Copied from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` with the six slots substituted
 verbatim: the step (S26), the step number (26), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from
-`docs/build-plan.md` S26), the commit range (`dd49333..5b973d1`), and the files the
+`docs/build-plan.md` S26), the commit range (`dd49333..03bbc96`), and the files the
 step named as its scope (one path per line), plus the ADR-sanctioned files below.
 Deviations, marked inline: the ADR-0012 and ADR-0013 notes on Q1/Q3/Q4/Q6/Q7 (the
-two checkpoint amendments, with pointers in "What to read"). Add nothing else.
+two checkpoint amendments, with pointers in "What to read"), and ADR 0014, which
+records ADR 0007's delegated executor-pool decision (What to read / Q9). Add
+nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -36,6 +38,7 @@ jit-controller/test_declarers.py
 docs/evidence/S26.log
 docs/decisions/0012-s26-checkpoint-harness-fixes.md
 docs/decisions/0013-s26-group8-second-namespace.md
+docs/decisions/0014-s26-executor-pool-decision.md
 scripts/checks/S26.sh
 
 ## What to read
@@ -49,6 +52,9 @@ scripts/checks/S26.sh
   amendments this review must assess
 - `docs/decisions/0007-maxmemory-mutable-despite-replace-cost.md` - the step's
   binding context: redis `maxmemory` is mutable, so an edit to it must apply
+- `docs/decisions/0014-s26-executor-pool-decision.md` - ADR 0007's delegated
+  executor-pool decision: the sync handlers are kept and the 6-worker bound is
+  documented, not changed. Judge it as a decision (Q9).
 
 ## First, mechanically
 
@@ -107,6 +113,10 @@ scripts/checks/S26.sh
 
 8. **Where does the implementation disagree with the design?** Quote both.
 9. **What does the design require that the diff does not do?**
+   - *S26 note:* ADR 0007 delegates the executor-pool ceiling to S26; ADR 0014
+     resolves it by keeping the synchronous handlers and recording the bound
+     (Q9 in this prompt is about the design, not ADR 0007's delegation, so treat
+     ADR 0014 as the answer to that delegation and judge its reasoning).
 10. **What does the diff do that the design does not mention?** Scope creep is a finding
     even when the code is good.
 11. **What are the failure modes of this code that neither the design nor the checkpoint
