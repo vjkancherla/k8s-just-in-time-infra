@@ -124,7 +124,7 @@ runner and guard frozen with them.
 - [x] check  - [x] review  **S24** Runner: params-keyed success cache; `tofu state rm postgresql_*` before destroy
 - [x] check  - [x] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server
 - [x] check  - [x] review  **S26** Controller core against the stub runner: resolution, contract, update flow, backfill, stale `Updating`  ← strongest model
-- [ ] check  - [ ] review  **S27** Postgres `databases` in place, settings allowlist, `service_url_<db>`; redis via contract
+- [x] check  - [x] review  **S27** Postgres `databases` in place, settings allowlist, `service_url_<db>`; redis via contract
 - [ ] check  - [ ] review  **S28** Tenant migration (declarers/consumers) + the three design-doc amendments  ← strongest model
 - [ ] check  - [ ] review  **S29** The gate: U1-U13 live, plus `make verify` 17 PASS and `make jit-verify` 11 PASS  ← strongest model
 
