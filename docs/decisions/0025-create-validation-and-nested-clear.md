@@ -54,9 +54,16 @@ tenant settings - only the tenant-settable subset.
   `RefusedKey`) instead of being recorded as applied. pgadmin's `http_port` still
   provisions, so `voting-b` and the J-suite's J8 are unaffected. Changing `http_port` on a
   provisioned pgadmin claim remains refused (the update contract is unchanged).
-- A refused create projects nothing onto `spec.params`, so teardown's `appliedParams or
-  spec.params` fallback cannot send the refused key to the module (which would fail the
-  destroy and retry every tick).
+- A refused create no longer has its desired *projected* onto `spec.params` by
+  `reconcile_claim`, but that does **not** close the teardown leak: `ensure_claim` seeds
+  `spec.params` from the annotation at claim creation (`main.py` ~154-160, ~210), before any
+  validation, and no `appliedParams` is ever written, so `_destroy_params`
+  (`appliedParams or spec.params`) still returns the refused key and the destroy retries
+  every tick while the claim holds its IP. This matches the pre-diff behaviour (a typo'd
+  create always ended this way), so it is pre-existing debt, not a regression; the real fix
+  is to sanitise `_destroy_params` against `validate_params`, which is not done here. The
+  cumulative review (`docs/reviews/session-debt-cumulative-findings.md`) found this claim
+  false; this bullet is the correction.
 - A nested `settings` key that is dropped now clears from `appliedParams` and
   `spec.params`, so the resync stops re-applying and a later re-add is a real change.
 - `S26` (controller core, stub runner) is the gate: it creates redis claims with

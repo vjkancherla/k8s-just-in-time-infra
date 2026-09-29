@@ -37,8 +37,13 @@ unit-test claim, S27's `service_url` helpers, and one cumulative review of the s
 
 ## Checkpoints
 
-- Live this session: S24, S25, S26, S27, S29 all PASS on the current tree. S18 was amended
-  but **not re-run** (needs `make demo-up`; the stack had no tenants after the gate).
+- Live this session, each on the tree current at the time: S24 and S27 (`d917804`), S26
+  (`a0b1f95`), the S29 gate (`e1191ea`, clean tree), S25 (`017bce0`). Only S25 ran after the
+  final controller commit `9bffd7e`; the others ran before it. The cumulative review
+  (`docs/reviews/session-debt-cumulative-findings.md`) notes S26/S29 never saw the final
+  controller code (the `_CONDITION_TYPES` guard is inert, so the risk is low).
+- S18 was amended but **not re-run** (needs `make demo-up`; the stack had no tenants after
+  the gate).
 
 ## Next step
 
