@@ -44,6 +44,15 @@ is sound and correctly scoped - and raised twelve concerns.
   S24 exists to prevent; the `postgresql_` filter is prefix-only; `delete_run` is unlocked;
   `runner-api.md` documents neither the params-keyed cache nor the destroy-params type.
   *(attack #1/#2)*
+
+  > **Status (2026-09-29, after the stage was accepted).** All five sub-defects in this
+  > bullet are closed: the work-dir leak by `7a15db8` (gated in S24 by ADR 0024); the
+  > unlocked `delete_run` by `f8bf679` (review
+  > `docs/reviews/runner-delete-run-lock-findings.md`); the silent `state list` skip, the
+  > prefix-only filter, the silent cleanup and the cancelled-handler leak by `6105ce2`
+  > (review `docs/reviews/runner-r1-robustness-findings.md`); and the stale `runner-api.md`
+  > plus the restart orphan-dir sweep by the commit that carries this note. The bullet is
+  > kept as the record of what the stage review found, not as open debt.
 - **Controller (concern 3):** `patch_applied_params` clears only top-level removed keys, so a
   dropped nested `settings` key survives and the resync re-applies every tick.
 - **Controller (concern 2):** the create path provisions unvalidated, so an unknown/typo'd

@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import tempfile
 import threading
+from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any, Dict, Optional
 
@@ -68,11 +69,13 @@ def _run_lock(key: tuple) -> asyncio.Lock:
         return lock
 
 
-# A resource address in `tofu state list` output: the type segment of a managed
-# resource, at the start or dot-qualified (`postgresql_database.voting`,
-# `module.pg.postgresql_database.voting`). Matching the type segment rather than a
-# `postgresql_`-prefixed line is what lets a module-scoped address be dropped.
-_PG_RESOURCE_RE = re.compile(r"(?:^|\.)postgresql_[A-Za-z0-9_]+\.")
+# A resource address in `tofu state list`: the address must begin with the type
+# segment `postgresql_*`, optionally behind `module.<name>.` prefixes. Anchoring at
+# the start (rather than matching `postgresql_` anywhere) drops a module-scoped or
+# for_each address without also matching a *name* such as
+# `docker_container.postgresql_mirror` or a `data.postgresql_*` data source, whose
+# `state rm` would orphan the mirror-image resource S24 guards against.
+_PG_RESOURCE_RE = re.compile(r"^(?:module\.[^.]+\.)*postgresql_[^.]+?\.")
 
 
 def _rmtree(path: Optional[str]) -> None:
@@ -93,11 +96,39 @@ def _rmtree(path: Optional[str]) -> None:
     except OSError as e:
         logger.warning(f"Could not remove work dir {path}: {e}")
 
+
+def _sweep_orphan_work_dirs() -> None:
+    """Remove work dirs a previous process left behind, at startup.
+
+    `_runs` is in-memory, so after a restart every `jit-*` dir under the temp
+    root is unreachable: the entry that pointed at it is gone, and a later
+    destroy for that key takes the cold path and builds a fresh dir. Without
+    this sweep they leak until the container is recreated (`make jit-up`), which
+    is the one case `deploy/runner.sh down`/`up` does not cover: a plain
+    `docker start` of a stopped runner keeps the container's `/tmp` but loses
+    `_runs` (ADR 0023 debt 1, "runner restart orphans dirs").
+    """
+    root = tempfile.gettempdir()
+    try:
+        orphans = [p for p in Path(root).glob("jit-*") if p.is_dir()]
+    except OSError as e:
+        logger.warning(f"Could not scan {root} for orphan work dirs: {e}")
+        return
+    for p in orphans:
+        _rmtree(str(p))
+        logger.info(f"Swept orphan work dir {p}")
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    _sweep_orphan_work_dirs()
+    yield
+
 # ---------------------------------------------------------------------------
 # App
 # ---------------------------------------------------------------------------
 
-app = FastAPI(title="jit-runner", version="0.1.0")
+app = FastAPI(title="jit-runner", version="0.1.0", lifespan=lifespan)
 
 
 class RunRequest(BaseModel):
@@ -405,7 +436,10 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
         # CancelledError is a BaseException, so the handler below never sees it:
         # without this a cancelled apply leaks its fresh work dir. There is no
         # await between the entry swap and the return, so a cancellation here can
-        # only precede the swap; removing this call's own dir is always safe.
+        # only precede the swap; no cached entry can point at work_dir. Cancelling
+        # asyncio.to_thread does not stop the worker, so the removal can race an
+        # in-flight tofu - the accepted cost of not leaking the dir, since there
+        # is no way to await a worker whose await was cancelled.
         _rmtree(work_dir)
         raise
     except Exception as e:
@@ -536,7 +570,12 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
                 # on a state we could not read - exactly the stale-postgres
                 # destroy S24 exists to prevent. Refuse instead (ADR 0023 debt 1,
                 # "a `state list` failure silently degrades to no postgresql_*").
-                if "No state file was found" not in state.stderr:
+                # The phrase is the pinned OpenTofu 1.8.1 message; strip ANSI and
+                # lower-case it so a colour prefix or re-casing does not turn a
+                # cold destroy into a refusal. A genuinely unreadable state says
+                # something else and is refused.
+                err_text = _strip_ansi(state.stdout + "\n" + state.stderr).lower()
+                if "no state file was found" not in err_text:
                     if not cached:
                         _rmtree(work_dir)
                     return DestroyResponse(
@@ -582,7 +621,8 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
         except asyncio.CancelledError:
             # BaseException: remove only a fresh (uncached) dir. A cached one and
             # its entry are kept so a retry can still destroy it, then re-raise so
-            # the cancellation still propagates.
+            # the cancellation still propagates. As in _apply_run, the cancellation
+            # does not stop the tofu thread, so the removal can race it.
             if not cached:
                 _rmtree(work_dir)
             raise
