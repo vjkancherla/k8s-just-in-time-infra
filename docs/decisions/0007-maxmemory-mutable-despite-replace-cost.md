@@ -23,6 +23,12 @@ measurement:
   recreated. `vote` stays up and reaches the new container through a **fresh per-request
   client** (`app/vote/app.py`) - reachability, not survival of a long-lived connection.
 
+Those are **container-replace wall times only** (tofu apply plus time until the service
+answers again on the same IP), measured on one warm host in one recorded run. They
+deliberately exclude the controller noticing the annotation (up to the 30s resync), runner
+queueing, and client retry - the parts a tenant actually waits through. Read the ADR as
+"seconds", not "a one-second outage", whenever U1's tolerance is quoted in S26/S29.
+
 The spike also settled the event-loop question: `call_runner` is a synchronous
 `requests.post` (timeout 600s) inside a synchronous kopf handler, and kopf runs sync
 handlers on an executor thread (the probe reports `separate executor thread: True`), so it
@@ -80,6 +86,22 @@ and the stale "the step 0 spike confirms which case applies" line at `:161`; the
 the module docs belongs to S28. The console is deliberately untouched by Stage H
 (`docs/build-plan.md` S28's row: "no change ... **Deliberately untouched**"), so this ADR
 creates **no** console obligation.
+
+The build plan's S26 **Read** list cites design §Mutability contract and not this ADR, and
+`docs/build-plan.md` is outside S23's named file list (rule 4), so S23 cannot wire the two
+together. Before S26 starts, ADR 0007 must be added to S26's reading: S26's contract
+otherwise codes criterion 1's literal "never removes data" (`declarers-and-consumers.md:100`)
+and would refuse `UpdateRefused` on exactly the key U1 requires to be applied. This is an
+orchestrator action on the plan, recorded here so it is not missed.
+
+**Side finding carried forward (S27, not measured for this decision).** The probe also
+recorded that every re-apply of the *stock* redis and postgres modules plans a container
+replacement even with unchanged params: `ports { external = 0 }` records the random host
+port in state and the next plan diffs `external = <assigned> -> 0 # forces replacement`
+(`docs/evidence/s23-spike.log`). This is not a `maxmemory` fact and was not measured for
+this decision, but it collides with S27/U2 ("`analytics` added ... container ID unchanged"):
+S27 must pin or ignore the host port in the module, or every apply replaces the container.
+It is recorded here because the 550-line spike log is where a later step will not look.
 
 The verdict is a recorded decision, so a reviewer must judge this ADR - whether its
 reasoning is sound and its scope correct - rather than re-derive mutability from the

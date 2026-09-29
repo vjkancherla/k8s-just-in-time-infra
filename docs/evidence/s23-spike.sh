@@ -17,7 +17,6 @@ set -uo pipefail
 ROOT=/Users/vkancherla/Downloads/Devops-Projects/k8s-just-in-time-infra
 cd "$ROOT"
 
-LOG=docs/evidence/s23-spike.log
 NS=voting-a
 REDIS=voting-a-redis-redis
 PG=voting-a-postgres-postgres
@@ -29,6 +28,15 @@ N=50
 MINIO_EP=http://127.0.0.1:9000
 export DOCKER_HOST="${DOCKER_HOST:-unix:///Users/vkancherla/.rd/docker.sock}"
 
+# The committed evidence lives at FINAL_LOG. The run writes to a sibling temp file
+# and moves it into place only after the last line, so a run that dies at preflight
+# or anywhere mid-protocol can never truncate or replace the evidence the frozen
+# checkpoint reads (docs/reviews/S23-findings.md, concern 4). Set S23_SPIKE_LOG to
+# send a validation run somewhere else and leave the committed log untouched.
+FINAL_LOG="${S23_SPIKE_LOG:-docs/evidence/s23-spike.log}"
+mkdir -p "$(dirname "$FINAL_LOG")"
+LOG="${FINAL_LOG}.tmp.$$"
+trap 'rm -f "$LOG"' EXIT
 : > "$LOG"
 log() { printf '%s\n' "$*" | tee -a "$LOG"; }
 sec() { log ""; log "=== $* ==="; }
@@ -171,28 +179,38 @@ log " not evidence that a long-lived client survives a replace; the in-place Red
 log " app/worker/app.py is not exercised here because the pod is recreated)"
 kubectl scale deploy voting-app-worker -n "$NS" --replicas=1 >>"$LOG" 2>&1 \
   || die "could not scale voting-app-worker back to 1"
-kubectl rollout status deploy/voting-app-worker -n "$NS" --timeout=120s >>"$LOG" 2>&1
+kubectl rollout status deploy/voting-app-worker -n "$NS" --timeout=120s >>"$LOG" 2>&1 \
+  || die "worker rollout did not finish within 120s - reconnect cannot be asserted"
 W_POD=$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=worker -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+[ -n "${W_POD:-}" ] || die "no worker pod found after the scale-up - reconnect cannot be asserted"
+# rc-checked: a FAILED reconnect must abort the run, never be logged green (concern 2).
 if kubectl exec -n "$NS" "$W_POD" -- python /app/app.py --healthcheck >>"$LOG" 2>&1; then
   log "reconnect (worker): fresh pod --healthcheck OK - it connected to the recreated redis and postgres"
 else
-  log "reconnect (worker): fresh pod --healthcheck FAILED"
+  die "reconnect (worker): fresh pod --healthcheck FAILED - refusing to record a green reconnect"
 fi
 V_POD=$(kubectl get pod -n "$NS" -l app.kubernetes.io/component=vote -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+[ -n "${V_POD:-}" ] || die "no vote pod found - reconnect cannot be asserted"
 if kubectl exec -n "$NS" "$V_POD" -- python -c 'import urllib.request; urllib.request.urlopen("http://localhost:80/healthz", timeout=5)' >>"$LOG" 2>&1; then
   log "reconnect (vote): vote was NOT restarted; /healthz OK - it reached the recreated redis. app/vote/app.py"
   log "builds a fresh Redis client per request, so this proves reachability of the new container, not"
   log "re-establishment of a long-lived connection."
 else
-  log "reconnect (vote): /healthz FAILED"
+  die "reconnect (vote): /healthz FAILED - refusing to record a green reconnect"
 fi
 FV=$(python3 -c 'import json; print(json.dumps({"voter_id": "s23-post-replace", "choice": "Dogs", "timestamp": 0}))')
 docker exec "$REDIS" redis-cli RPUSH votes "$FV" >/dev/null 2>&1
+drained=no
 for _ in $(seq 1 30); do
-  [ "$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r')" = "0" ] && break
+  llen=$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r')
+  if [ "${llen:-x}" = "0" ]; then drained=yes; break; fi
   sleep 1
 done
-log "reconnect (worker): the restarted worker drained a post-replace vote to postgres (LLEN votes=$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r'))"
+llen=$(docker exec "$REDIS" redis-cli LLEN votes 2>/dev/null | tr -d '\r')
+# rc-checked: a queue the restarted worker never drains is a failed reconnect (concern 2).
+[ "$drained" = "yes" ] \
+  || die "the restarted worker did not drain the post-replace vote within 30s (LLEN votes=${llen:-?}) - reconnect not proven"
+log "reconnect (worker): the restarted worker drained a post-replace vote to postgres (LLEN votes=$llen)"
 
 log "restore maxmemory to 256mb so the demo stack keeps its declared defaults"
 t0=$(now)
@@ -290,3 +308,8 @@ log "ports { external = 0 } records the random host port in state and the next p
 log "(external = <assigned> -> 0 # forces replacement). S27's databases-only update (U2: container ID"
 log "unchanged) needs this addressed in the module, or the container is replaced on every apply."
 log "done"
+
+# Publish only a run that reached this line; die() leaves the committed log untouched.
+mv "$LOG" "$FINAL_LOG"
+trap - EXIT
+echo "spike log written: $FINAL_LOG"
