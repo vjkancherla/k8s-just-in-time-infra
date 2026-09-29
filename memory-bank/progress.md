@@ -1,61 +1,65 @@
-Updated: 2026-09-29
+# Progress
+
+Updated: 2026-09-29 (HANDOFF debt session)
 
 ## Working
-Nothing is being built. Stage H (S23-S29) is implemented, ticked, and accepted by decision
-(`docs/decisions/0023-*`); the open work is the accepted debt, not implementation.
 
-## Done (verified)
-- S23-S29 done (both boxes ticked). Overnight run exit 0 at 07:56; 49 commits on `main`
-  since `f39fb33`, tree clean.
-- S29 gate green (`docs/evidence/S29.log`): U1-U13 live, `make jit-verify` J1-J11 PASS,
-  `make verify NS=voting-a` 17 PASS / 0 FAIL.
-- S23 spike measured (ADR 0007): replaces <=1s both modules, 50/50 queued votes lost on a
-  redis replace, vote/worker reconnect, `call_runner` off-loaded by kopf. Verdict
-  `maxmemory mutable` by human decision.
-- Autonomy harness committed: `scripts/run-overnight.sh` (self-`caffeinate`, PASS/verdict
-  gating, ADR-checkpoint enforcement, `IMPL_EXTRA` directives, morning report) and the two
-  agent definitions.
-- Cumulative stage review by an independent model (Muse Spark): BLOCKED on process only -
-  the tracker ticked `review` boxes on CONCERNS while the plan demands CLEAR. ADR 0023
-  resolves it (records the "no blockers" bar, ticks S22, corrects `build-plan.md:1002`,
-  accepts 12 concerns as debt). The review found no technical blocker and confirmed all 10
-  checkpoint amendments fix real bugs.
+Nothing is being built. The HANDOFF debt list is cleared through P0.5 and the
+runner/controller/S25 parts of P0.6, plus P1 S18; the low-value tail (S26 coverage gaps,
+S27 `service_url`, cumulative review) is deferred by the human's "stop the bleed" call.
+
+## Done (verified, on `main` since `a374e21`)
+
+- `delete_run` locked (`f8bf679`); runner robustness (`6105ce2`); runner ops/docs + sweep
+  (`d917804`); controller create-validation + nested clear (ADR 0025, `b4e7a7c`/`a0b1f95`).
+- `S29.sh` U13 both halves assert the TTL maximum (ADR 0026); the gate passes on a clean
+  tree (`docs/evidence/S29.log`, pending 0).
+- Design prose `:170` is `setsubtract` (ADR 0016); deleted-transcript refs fixed.
+- `S25.sh` restores its probe and couples the controller's condition list to the CRD
+  (ADR 0027).
+- `S18.sh` post-undeploy redis assertion now expects `Orphaned` (ADR 0028).
+- Four different-model reviews, all `CONCERNS` with empty Blockers.
+- Ponytail audit of the diff named four deferrable additions (sweep, condition guard,
+  module-qualified regex, create validation).
 
 ## Broken (confirmed by execution)
-- `scripts/checks/S18.sh:147` - "redis did not stay Ready - worker still references it"
-  cannot pass while undeploy removes all three Deployments. It is frozen, so amending it
-  needs the human's approval. (Unchanged since S22.)
+
+- None known. All live checkpoints run this session passed (S24, S25, S26, S27, S29).
+
+## Corrected but unconfirmed
+
+- **S18 (ADR 0028).** The amendment is committed but was not re-run for evidence: S18 needs
+  `make demo-up`, and the stack had no tenants after the S29 gate. The next live S18 run is
+  the confirmation.
 
 ## Suspected (read, not reproduced)
+
 - The three carried from 2026-09-13 stand: postgres's password can disagree across its data
   directory, container and Secret; `app/scripts/verify.sh` returns 0 however many R-checks
   fail; `ipam.py` has no lock.
-- No gate covers volume removal on destroy any more; J6 asserts the volume stays.
-
-## In progress
-Nothing.
+- Still deferred: S26's coverage gaps (new-declarer-after-a-gap, simultaneous disagreeing
+  declarers, the "consumer adds agreeing params" half) and ADR 0012's false claim that unit
+  tests cover them; S27's double-produced `service_url`, unencoded `service_url_<db>`, and
+  `_flatten_outputs_json`'s magic `service_urls` collision.
 
 ## Blocked
-- The S18 redis assertion (see Broken) - awaiting the human.
+
+- Nothing hard-blocked.
 
 ## Learnings
-- An epic can be driven to green overnight by a shell orchestrator that gates on artefacts
-  (evidence log PASS, findings verdict) rather than on a model's claim. The two-model split
-  (implementer must differ from reviewer) is the part that catches real defects.
-- The gate that matters is the reviewer's mutation test, not the checkpoint alone: it found
-  a hand-written verdict and a stubbed-checkpoint hole that the checkpoint could not.
-- A frozen checkpoint that only greps a log cannot prove the log was measured; a human
-  decision (maxmemory mutable) is therefore recorded as an ADR, not as a measured verdict.
-- 15 ADRs in one run is a smell: 10 were checkpoint amendments. `ADR 0005/0006` fixed four
-  contract bugs in S22; the run found ~10 more, which says the Stage-H checkpoints were
-  under-specified before the code existed.
-- All verdicts were CONCERNS, never CLEAR. CONCERNS-with-no-blockers is a usable pass bar
-  for an experiment but weaker than the build plan's "CLEAR only"; the cumulative stage
-  review blocked on exactly that mismatch until ADR 0023 recorded the deviation. Lowering a
-  gate's accepted verdict is a decision that needs an ADR at the time, not a script change.
-- A cumulative stage review by a model that did neither the implementation nor the per-step
-  reviews found no technical blocker, but caught two things the per-step pass could not: the
-  tracker asserting an unsanctioned state, and a build-plan row inverted against the design
-  (`build-plan.md:1002`). Per-step review cannot see either.
-- gnhf is a good engine but a poor fit here: its per-iteration contract requires a strict
-  JSON final message, which a heavy OpenCode objective did not produce.
+
+- **The code fixes were trivial; the process was the cost.** Each debt item is a handful of
+  lines, but the repo's per-step apparatus (image rebuild, live checkpoint, an independent
+  model that re-runs the checkpoint and explores the tree, an ADR per frozen-checkpoint
+  edit) is minutes-to-tens-of-minutes each. A ~20-item list therefore does not fit an hour.
+- **A literal "do everything" reading was wrong.** Several handoff items are latent
+  design/coverage debt, not defects. A lazy pass (the concrete defects only) is ~40 lines;
+  the recommendation to defer the speculative half came only after the ponytail audit,
+  which should have run first.
+- **The reviewer's independent run is the expensive part.** S26 ~5-8 min, S27 ~3 min, the
+  S29 gate 20+ min, and a broad-exploration review can exceed a 30-min tool timeout (one
+  did, wasting the run). Bound the prompt and the reviewer's scope.
+- **Frozen-checkpoint edits need their ADR committed first** - `checkpoint.sh` refuses an
+  uncommitted check, so the amendment commit precedes the evidence commit.
+- **A gate half that cannot fail asserts nothing** (U13's `|| true`); the fix is one
+  assertion, and it caught the rule-7 per-claim scoping.
