@@ -3,11 +3,11 @@
 Copied from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` with the six slots substituted
 verbatim: the step (S27), the step number (27), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from
-`docs/build-plan.md` S27), the commit range (`48b7ee5..dca694a`), and the files the
+`docs/build-plan.md` S27), the commit range (`48b7ee5..b7fc0cc`), and the files the
 step named as its scope (one path per line), plus the ADR-sanctioned files below.
 Deviations, marked inline: ADR 0015 and ADR 0017 notes on Q1 (two checkpoint
-amendments), and ADR 0016 on Q8/Q9 (the design's initial-database import). Add nothing
-else.
+amendments), ADR 0016 on Q8/Q9 (the design's initial-database import), and a Q10 note
+on `b7fc0cc` (the post-fix `service_urls` output). Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -43,11 +43,15 @@ docs/decisions/0016-postgres-initial-database-managed-additively.md
 docs/decisions/0017-s27-checkpoint-service-url-word-match.md
 scripts/checks/S27.sh
 
+`docs/reviews/S27-review-prompt.md` is review machinery (it is the file you are reading);
+it appears in the range because the prompt is regenerated after the code commit and does
+not count against Q4.
+
 ## What to read
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S27, its checkpoint, its gate
-- `git diff 48b7ee5..dca694a` - what was actually done
+- `git diff 48b7ee5..b7fc0cc` - what was actually done
 - `scripts/checks/S27.sh` - the assertion that passed
 - `docs/decisions/0015-s27-checkpoint-mechanics-fixes.md` and
   `docs/decisions/0017-s27-checkpoint-service-url-word-match.md` - the two checkpoint
@@ -95,7 +99,8 @@ scripts/checks/S27.sh
    - *S27 note:* the stated precondition is the runner container up (`make jit-up`) and
      docker reachable; no tenants and no cluster work is needed. It drives the runner at
      `127.0.0.1:8100` and creates a fresh `s27-check` workspace, so a clean run needs no
-     leftover state.
+     leftover state. Run it with a private log:
+     `scripts/checkpoint.sh 27 /tmp/S27-review.log`.
 7. **Now read the checkpoint.** Would it still pass if the core logic of this step were
    deleted or stubbed out? If yes it is asserting nothing - **blocker**.
    - *S27 note:* the four groups assert a database added in place with the container id
@@ -123,7 +128,12 @@ scripts/checks/S27.sh
     - *S27 note:* the runner switched to `tofu output -json` and flattens a map output to
       `service_url_<db>`. The design names the Secret keys but not the mechanism; Terraform
       cannot name outputs dynamically, so the runner is the adapter. Judge whether that is
-      in-scope and correct.
+      in-scope and correct. Commit `b7fc0cc` narrows `service_urls` to
+      `setsubtract(var.databases, [var.postgres_db])`, so the initial database is exposed
+      only as the separate `service_url` key and no redundant
+      `service_url_<postgres_db>` is added — matching the design's "existing keys,
+      including `service_url` for the initial database" (`:172`) and the checkpoint's
+      U2 shape. Judge that too.
 11. **What are the failure modes of this code that neither the design nor the checkpoint
     covers?** And what would you attack first, if you wanted this to misbehave?
 12. **Would you be able to maintain this?** One line. Not style preferences - whether the
