@@ -11,6 +11,9 @@
 # carries Content-Type: application/json, and the postgres container/volume are
 # named "<name>-postgres"/"<name>-postgres-data" as the module and every other
 # consumer spells them (runner-api.md:154, S24.sh:97,110). No assertion changed.
+#
+# Amended by ADR 0017: the output key list is built one key per line, so the
+# existing `grep -qx "service_url"` can match a whole line. No assertion changed.
 set -euo pipefail
 fail() { echo "FAIL: $1"; exit 1; }
 
@@ -45,7 +48,7 @@ created2="$(docker inspect -f '{{.Created}}' "$c")"
   || fail "adding a database replaced the - in place means no new container"
 docker exec "$PG" sh -c 'psql -U postgres -l' 2>/dev/null | grep -qw analytics \
   || fail "database 'analytics' was not created in place"
-urls="$(echo "$resp" | python3 -c 'import sys,json;print(" ".join((json.load(sys.stdin).get("outputs") or {}).keys()))')"
+urls="$(echo "$resp" | python3 -c 'import sys,json;print("\n".join((json.load(sys.stdin).get("outputs") or {}).keys()))')"
 echo "$urls" | grep -q service_url_analytics \
   || fail "runner output has no service_url_analytics (got: $urls)"
 echo "$urls" | grep -qx "service_url" \
