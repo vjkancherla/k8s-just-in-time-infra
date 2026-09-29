@@ -11,24 +11,24 @@ docker ps --format '{{.Names}}' | grep -qx jit-runner \
 
 TOKEN="$(grep -E '^JIT_RUNNER_TOKEN=' deploy/.env 2>/dev/null | cut -d= -f2- || true)"
 : "${TOKEN:=s6-secret-token-2026}"
-RUNNER=172.19.0.10:8080
+RUNNER=127.0.0.1:8100
 WS=s24-check
 post() { curl -s -X POST "http://$RUNNER/v1/runs" -H "Authorization: Bearer $TOKEN" -d "$1"; }
 
 # --- 1. identical params twice: cached success, one container ----------------
-post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","maxmemory":"256mb"}}' >/dev/null \
+post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","ip":"172.19.0.192","maxmemory":"256mb"}}' >/dev/null \
   || fail "first redis create did not succeed"
 c="$(docker ps --format '{{.Names}}' | grep "$WS" | head -1)"
 [ -n "$c" ] || fail "no container for workspace $WS after first create"
 created1="$(docker inspect -f '{{.Created}}' "$c")"
-resp2="$(post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","maxmemory":"256mb"}}')"
+resp2="$(post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","ip":"172.19.0.192","maxmemory":"256mb"}}')"
 [ "$(echo "$resp2" | python3 -c 'import sys,json;print(json.load(sys.stdin)["status"])')" = "success" ] \
   || fail "identical re-POST did not succeed"
 n_cont="$(docker ps --format '{{.Names}}' | grep -c "$WS")"
 [ "$n_cont" -eq 1 ] || fail "expected exactly one cached container, found $n_cont"
 
 # --- 2. changed params: a REAL re-apply, not the cached no-op ----------------
-post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","maxmemory":"128mb"}}' >/dev/null \
+post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","ip":"172.19.0.192","maxmemory":"128mb"}}' >/dev/null \
   || fail "changed-params re-POST failed"
 created2="$(docker inspect -f '{{.Created}}' "$c")"
 [ "$created2" != "$created1" ] \
