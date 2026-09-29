@@ -302,7 +302,13 @@ posts0="$(posts)"
 kk annotate deploy voting-app-vote -n voting-b --overwrite \
   jit.infra/redis='{"module":"redis","softDeleteTTL":"45m"}' >/dev/null \
   || fail "U13: could not set a consumer TTL in voting-b"
-u13check() { ttl="$(kk get infraclaim voting-b-postgres -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ "$ttl" = "45m" ] || true; ttl="$(kk get infraclaim voting-b-redis -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"; [ -n "$ttl" ] && [ "$ttl" = "45m" ]; }
+u13check() { # ADR 0026: both halves assert rule 7, not redis alone.
+  # The postgres claim's own references (worker, result) are both 10m, so its max
+  # must stay 10m - the redis consumer's 45m must not leak across claims.
+  pgttl="$(kk get infraclaim voting-b-postgres -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"
+  [ "$pgttl" = "10m" ] || return 1
+  ttl="$(kk get infraclaim voting-b-redis -n voting-b -o jsonpath='{.spec.softDeleteTTL}')"
+  [ "$ttl" = "45m" ]; }
 tick u13check || fail "U13: spec.softDeleteTTL is not the maximum (45m) across references"
 posts1="$(posts)"; sleep 32
 [ "$posts1" = "$posts0" ] || fail "U13: a TTL-only patch triggered a runner call"
