@@ -27,13 +27,20 @@ grep -q 'DECLARED' "$CRD" || fail "no DECLARED printer column in $CRD"
 # --- 2. round-trip: the API server must not prune them ------------------------
 existing="$(kk get infraclaims -A -o name 2>/dev/null | head -1 || true)"
 [ -n "$existing" ] || fail "no InfraClaim exists to test the round-trip on - deploy the demo first"
-kk patch "$existing" --type=merge --subresource=status -p '
+# `kubectl get -o name` does not carry the namespace (kubectl v1.36); resolve it
+# separately and name it on every call, or the patch lands in the current namespace
+# and misses the claim (ADR 0011).
+claim_ns="$(kk get infraclaims -A -o jsonpath='{.items[0].metadata.namespace}' 2>/dev/null || true)"
+claim_name="${existing##*/}"
+[ -n "$claim_ns" ] && [ -n "$claim_name" ] \
+  || fail "could not resolve the namespace/name of the round-trip claim ($existing)"
+kk patch infraclaim "$claim_name" -n "$claim_ns" --type=merge --subresource=status -p '
   {"status":{"appliedParams":{"probe":"s25"},"attemptedParamsHash":"s25-probe-hash",
              "declaredBy":["probe-s25"]}}' >/dev/null \
   || fail "could not patch status - fields missing from the schema or the patch rejected"
 sleep 2
 for f in appliedParams attemptedParamsHash declaredBy; do
-  kk get "$existing" -o jsonpath="{.status.$f}" | grep -q "probe" \
+  kk get infraclaim "$claim_name" -n "$claim_ns" -o jsonpath="{.status.$f}" | grep -q "probe" \
     || fail "status.$f was pruned by the API server (add it to the CRD schema)"
 done
 echo "PASS S25: schema fields survive pruning; DECLARED printer column present"
