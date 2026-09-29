@@ -51,17 +51,55 @@ echo "$new_logs" | grep -qi 'state rm' \
 # --- 4. the conditional's positive side: postgres in state, container pre-removed.
 # destroy must still succeed (the deleted container would fail the refresh if the
 # postgresql_* resources were still in state), and the volume goes with the container.
+#
+# The postgres module does not create postgresql_* resources until S27, so this
+# checkpoint injects one into the workspace's state itself: without it the refresh
+# succeeds whether or not the runner runs `state rm`, and the positive side asserts
+# nothing. The injected resource is a real state entry of the type S27 will manage.
 PGWS=s24-pg
 resp="$(post "{\"module\":\"postgres\",\"version\":\"v1\",\"workspace\":\"$PGWS\",\"params\":{\"name\":\"$PGWS\",\"network\":\"k3d-voting-app\",\"ip\":\"172.19.0.191\",\"databases\":[\"voting\"],\"postgres_password\":\"s24-probe\"}}")"
 [ "$(echo "$resp" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("status"))')" = "success" ] \
   || fail "postgres workspace create failed: $resp"
+docker exec jit-runner sh -lc "
+set -e
+d=\$(mktemp -d)
+cp -r /opt/jit-modules/modules/postgres/. \"\$d/\"
+cd \"\$d\"
+export AWS_ACCESS_KEY_ID=jit-state AWS_SECRET_ACCESS_KEY=jit-state-secret-2026 AWS_DEFAULT_REGION=us-east-1
+tofu init -input=false \
+  -backend-config bucket=jit-state -backend-config key=ns/$PGWS/postgres/terraform.tfstate \
+  -backend-config endpoint=http://172.19.0.11:9000 -backend-config access_key=jit-state \
+  -backend-config secret_key=jit-state-secret-2026 -backend-config region=us-east-1 \
+  -backend-config skip_credentials_validation=true -backend-config skip_metadata_api_check=true \
+  -backend-config force_path_style=true >/dev/null 2>&1
+tofu state pull > /tmp/s24-st.json
+python3 - <<'PY'
+import json
+d = json.load(open('/tmp/s24-st.json'))
+d['serial'] = d.get('serial', 1) + 1
+d.setdefault('resources', []).append({
+    'mode': 'managed', 'type': 'postgresql_database', 'name': 'voting',
+    'provider': 'provider[\"registry.opentofu.org/cyrilgdn/postgresql\"]',
+    'instances': [{'schema_version': 0,
+                   'attributes': {'id': 'voting', 'name': 'voting', 'owner': 'postgres'},
+                   'sensitive_attributes': []}],
+})
+json.dump(d, open('/tmp/s24-st2.json', 'w'))
+PY
+tofu state push /tmp/s24-st2.json
+tofu state list | grep -q '^postgresql_' || { echo 'inject failed'; exit 1; }
+" || fail "could not inject a postgresql_* resource into $PGWS state"
 docker rm -f "$PGWS-postgres" >/dev/null 2>&1 \
   || fail "pre-removal of the postgres container failed"
+log_before="$(docker logs jit-runner 2>&1 | wc -l)"
 del="$(curl -s -X DELETE "http://$RUNNER/v1/runs/$PGWS" -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d "{\"module\":\"postgres\",\"params\":{\"name\":\"$PGWS\",\"network\":\"k3d-voting-app\",\"postgres_password\":\"s24-probe\"}}")"
-echo "$del" | grep -qi success \
+echo "$del" | grep -qiE 'success|destroyed' \
   || fail "destroy after container pre-removal failed (state rm must drop postgresql_* from state first) - $del"
+new_logs="$(docker logs jit-runner 2>&1 | tail -n +$((log_before+1)))"
+echo "$new_logs" | grep -qi 'state rm' \
+  || fail "the destroy of a workspace whose state holds postgresql_* did not run 'tofu state rm' - $new_logs"
 docker ps -a --format '{{.Names}}' | grep -qx "$PGWS-postgres" \
   && fail "the postgres container survived the destroy"
 docker volume ls --format '{{.Name}}' | grep -qx "$PGWS-postgres-data" \

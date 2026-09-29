@@ -34,6 +34,18 @@ satisfy. None of them is an assertion; the assertions are sound and unchanged.
    (`c=` empty, `fail "no container ..."` never reached because the `grep` under
    `set -e` exited first). The DELETE calls have the same defect: the body is
    ignored, so the destroy falls back to the cached run.
+5. **The destroy success check greps for `success`.** The runner's destroy
+   response is `{"status":"destroyed"}`, so `grep -qi success` fails on a
+   successful destroy. The second run of the amended checkpoint died here with
+   `FAIL: destroy after container pre-removal failed ... - {"status":"destroyed",
+   "error":null}` while the runner log showed the destroy had in fact succeeded.
+6. **The positive `state rm` test asserts nothing until S27.** The postgres
+   module creates no `postgresql_*` resources until S27, so the workspace's state
+   holds only `docker_*` entries; the refresh succeeds whether or not the runner
+   runs `state rm`, and the checkpoint's positive side passes vacuously. The
+   checkpoint now injects a `postgresql_database` entry into the workspace's state
+   (a real state entry of the type S27 will manage) before pre-removing the
+   container, and asserts the runner logged `state rm`.
 
 ## Decision
 
@@ -44,6 +56,10 @@ Amend `scripts/checks/S24.sh` for the two setup defects that are the checkpoint'
 - add `"ip":"172.19.0.192"` to the three redis POSTs - the module requires it.
 - add `-H "Content-Type: application/json"` to `post()` and to both DELETE calls -
   the API is JSON, and curl's form default is rejected before the handler.
+- accept `destroyed` as well as `success` in the destroy check, and assert the
+  runner logged `state rm` on the positive side.
+- inject a `postgresql_database` state entry before the positive destroy, so the
+  conditional is actually exercised before S27 creates such resources.
 
 For the third, the implementation adapts rather than the checkpoint: the runner
 accepts arbitrary JSON param values (`Dict[str, Any]`, JSON-encoded into `-var`), and
