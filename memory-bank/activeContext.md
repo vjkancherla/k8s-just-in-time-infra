@@ -51,7 +51,6 @@ destroys `voting-a`, so the post-gate stack is not demo-ready.
   ADR 0023 as a Stage-H-scoped deviation; the S23-S29 boxes stand on it. S22's box is now
   ticked too (its findings say CLEAR; resolved by ADR 0006). A future stage must meet CLEAR
   only or record the same deviation.
-- **S22's `review` box is still unticked** (its findings say CLEAR; it was never in the run).
 - The run's S26-S29 reviews used `deepseek-v4-pro`, now disallowed; the two-model rule
   applies going forward only.
 - **ADR 0007 is binding:** redis `maxmemory` is mutable; an annotation-driven infra change
@@ -64,6 +63,13 @@ destroys `voting-a`, so the post-gate stack is not demo-ready.
 - gnhf was trialled and parked: it drives `opencode serve`, but on a heavy objective the
   worker never emitted the structured JSON gnhf requires ("OpenCode produced no final
   answer"). The shell orchestrator was kept instead.
+- **ponytail** (`@dietrichgebert/ponytail`, configured in `.opencode/opencode.json`) is
+  installed and always-on at level `full` for interactive sessions - a "challenge the
+  requirement before building" ruleset, useful for a simplification pass and risky over a
+  frozen-checkpoint build. `scripts/run-overnight.sh` exports `PONYTAIL_DEFAULT_MODE=off`, so
+  the overnight agents are unaffected. Its audits (`/ponytail-audit`) are candidate lists that
+  still need a human filter - one headline flag, deleting `console/state.py`, conflicts with a
+  deliberate keep-as-reference decision.
 
 ## Carried (still true)
 - Existing namespaces created before Stage H may hold Secrets without the new keys; a pod

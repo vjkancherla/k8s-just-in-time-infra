@@ -52,6 +52,12 @@ MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
 ON_EXHAUST=${ON_EXHAUST:-halt}          # halt | continue  (continue = push past an uncleared step)
 IMPL_EXTRA=${IMPL_EXTRA:-}              # optional human directive appended to every implementer prompt
 
+# The overnight agents are driven by the repo's own rules and prompts (frozen checkpoints, ADRs,
+# one step per session). Keep the ponytail plugin's always-on ruleset out of them: it is a
+# "challenge the requirement before building" mode, which is useful interactively and wrong here.
+# Interactive `opencode` sessions still get ponytail at its default level.
+export PONYTAIL_DEFAULT_MODE=off
+
 EVIDENCE=docs/evidence
 REVIEWS=docs/reviews
 DECISIONS=docs/decisions
