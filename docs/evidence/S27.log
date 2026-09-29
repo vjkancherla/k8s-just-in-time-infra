@@ -1,9 +1,12 @@
 # S27 checkpoint run - captured, never typed
-# started  2026-09-28T19:07:50Z
-# commit   e8ab404
-# pending  8 uncommitted change(s)
+# started  2026-09-29T03:09:25Z
+# commit   eb95115
+# pending  6 uncommitted change(s)
 # host     VJK-MacBook.local as vkancherla
 # command  bash scripts/checks/S27.sh
 # --- raw output follows - do not edit anything below this line ---
-FAIL: runner not up - run 'make jit-up' before this checkpoint
-# exit     1
+2 ok additive databases: in-place, service_url_analytics added, service_url kept
+3 ok settings replace: server replaced, volume and data intact
+4 ok destroy: container and volume both gone, state rm first
+PASS S27: postgres in place, volume-surviving replaces, service_url_<db>, clean destroy
+# exit     0

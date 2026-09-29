@@ -29,8 +29,10 @@ resource "docker_container" "redis" {
 
   command = ["redis-server", "--maxmemory", var.maxmemory, "--maxmemory-policy", "noeviction"]
 
-  ports {
-    internal = 6379
-    external = 0
-  }
+  # Deliberately no `ports` block: `external = 0` records the random host port in
+  # state and the next plan diffs it, forcing a replacement on every apply even
+  # with unchanged params (the side finding carried in ADR 0007). Consumers reach
+  # redis by IP on the Docker network (the app uses the Service+EndpointSlice),
+  # so no host port is needed. The maxmemory change still replaces the container,
+  # which is the intended U1 behaviour.
 }

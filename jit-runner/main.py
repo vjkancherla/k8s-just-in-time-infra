@@ -219,11 +219,59 @@ def _parse_outputs(stdout: str) -> Dict[str, str]:
     return outputs
 
 
+def _flatten_outputs_json(stdout: str) -> Dict[str, str]:
+    """Turn `tofu output -json` into the runner's flat string→string surface.
+
+    Two adaptations the module outputs need:
+    - a sensitive output keeps the pre-existing `<sensitive>` placeholder, so a
+      Secret key that exists today is not seen to change value (S26's
+      `_existing_outputs_changed` would raise `OutputsChanged` on a false alarm);
+    - a map output (the postgres module's `service_urls`, keyed by database) is
+      flattened to `service_url_<db>` string keys. The runner and controller
+      output surface is `Dict[str, str]`, and the design names the Secret keys
+      `service_url_<db>` (declarers-and-consumers.md:172).
+    """
+    import json as _json
+    try:
+        data = _json.loads(_strip_ansi(stdout))
+    except Exception:
+        return {}
+    if not isinstance(data, dict):
+        return {}
+    result: Dict[str, str] = {}
+    for key, meta in data.items():
+        if not isinstance(meta, dict) or "value" not in meta:
+            continue
+        if meta.get("sensitive"):
+            result[key] = "<sensitive>"
+            continue
+        value = meta["value"]
+        if isinstance(value, dict):
+            # The postgres module groups per-database URLs in `service_urls`; the
+            # design names the Secret keys `service_url_<db>`, so that map alone
+            # flattens with the singular prefix. Any other map keeps `key_sub`.
+            prefix = "service_url" if key == "service_urls" else key
+            for sub, sub_value in value.items():
+                result[f"{prefix}_{sub}"] = str(sub_value)
+        else:
+            result[key] = str(value)
+    return result
+
+
 def _get_outputs(work_dir: str, env: dict) -> Dict[str, str]:
-    """Run tofu output to get declared outputs only."""
+    """Run `tofu output -json` to get declared outputs only.
+
+    -json (not plain text) is what makes the map output readable and keeps a
+    sensitive value's placeholder from hiding the map's keys. Older output still
+    falls back to the plain-text parser.
+    """
     env_no_color = dict(env)
     env_no_color["NO_COLOR"] = "1"
-    # Use plain text output — it only includes declared outputs
+    r = _run_tofu(["tofu", "output", "-json", "-no-color"], work_dir, env_no_color)
+    if r.returncode == 0 and r.stdout.strip():
+        flat = _flatten_outputs_json(r.stdout)
+        if flat:
+            return flat
     r = _run_tofu(["tofu", "output", "-no-color"], work_dir, env_no_color)
     if r.returncode == 0 and r.stdout.strip():
         return _parse_outputs(r.stdout)
