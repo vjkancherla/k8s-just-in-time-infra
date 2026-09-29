@@ -1,8 +1,8 @@
 Updated: 2026-09-29
 
 ## Working
-Nothing is being built. Stage H (S23-S29) was implemented by an autonomous overnight run
-and is ticked; the open work is review, not implementation.
+Nothing is being built. Stage H (S23-S29) is implemented, ticked, and accepted by decision
+(`docs/decisions/0023-*`); the open work is the accepted debt, not implementation.
 
 ## Done (verified)
 - S23-S29 done (both boxes ticked). Overnight run exit 0 at 07:56; 49 commits on `main`
@@ -15,6 +15,11 @@ and is ticked; the open work is review, not implementation.
 - Autonomy harness committed: `scripts/run-overnight.sh` (self-`caffeinate`, PASS/verdict
   gating, ADR-checkpoint enforcement, `IMPL_EXTRA` directives, morning report) and the two
   agent definitions.
+- Cumulative stage review by an independent model (Muse Spark): BLOCKED on process only -
+  the tracker ticked `review` boxes on CONCERNS while the plan demands CLEAR. ADR 0023
+  resolves it (records the "no blockers" bar, ticks S22, corrects `build-plan.md:1002`,
+  accepts 12 concerns as debt). The review found no technical blocker and confirmed all 10
+  checkpoint amendments fix real bugs.
 
 ## Broken (confirmed by execution)
 - `scripts/checks/S18.sh:147` - "redis did not stay Ready - worker still references it"
@@ -32,8 +37,6 @@ Nothing.
 
 ## Blocked
 - The S18 redis assertion (see Broken) - awaiting the human.
-- The stage boundary is not open: the cumulative stage review has not run, so Stage H is
-  ticked but not accepted.
 
 ## Learnings
 - An epic can be driven to green overnight by a shell orchestrator that gates on artefacts
@@ -47,6 +50,12 @@ Nothing.
   contract bugs in S22; the run found ~10 more, which says the Stage-H checkpoints were
   under-specified before the code existed.
 - All verdicts were CONCERNS, never CLEAR. CONCERNS-with-no-blockers is a usable pass bar
-  for an experiment but is weaker than the build plan's "CLEAR only".
+  for an experiment but weaker than the build plan's "CLEAR only"; the cumulative stage
+  review blocked on exactly that mismatch until ADR 0023 recorded the deviation. Lowering a
+  gate's accepted verdict is a decision that needs an ADR at the time, not a script change.
+- A cumulative stage review by a model that did neither the implementation nor the per-step
+  reviews found no technical blocker, but caught two things the per-step pass could not: the
+  tracker asserting an unsanctioned state, and a build-plan row inverted against the design
+  (`build-plan.md:1002`). Per-step review cannot see either.
 - gnhf is a good engine but a poor fit here: its per-iteration contract requires a strict
   JSON final message, which a heavy OpenCode objective did not produce.

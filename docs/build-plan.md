@@ -999,7 +999,7 @@ same desired params.
 |---|---|---|
 | `check_param_conflict` first-writer-wins runs on every resync | declarer resolution; `ParamsConflict` lists declarers only | S26 |
 | S14's design line "Conflicting params: first writer wins" | superseded declarer-first; **S14.sh asserts no conflict behaviour, no change needed** — record the supersession | here, one line |
-| `vote` annotates redis and pgadmin, `worker` redis and postgres, `result` postgres — all with `params: {}` | declarers keep params (vote: pgadmin; worker: redis + postgres); consumers lose the key (vote: redis; result: postgres). `softDeleteTTL` stays on every reference | this step |
+| `vote` annotates redis and pgadmin, `worker` redis and postgres, `result` postgres — all with `params: {}` | declarers keep params (vote: redis + pgadmin; worker: postgres); consumers lose the key (worker: redis; result: postgres). `softDeleteTTL` stays on every reference | this step |
 | `voting-b` overlay's pgadmin params patch | unchanged; it declares pgadmin there | keep as-is |
 | `annotation-to-state.md` contradicts itself on whether worker annotates redis | fixed to the checked-real answer (base today: it does) | this step |
 | `jit-infra-flows.md` has no update sequence; its `Failed → Pending: retry with backoff` line describes no behaviour | add the sequence + the state-machine note; delete the retry line | this step |

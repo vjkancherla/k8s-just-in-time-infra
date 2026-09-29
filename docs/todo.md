@@ -119,7 +119,7 @@ Steps: build-plan.md Stage H. Evidence: `docs/evidence/SNN.log` via
 `scripts/checkpoint.sh`. Checkpoints S23-S29 written in S22 and **frozen**;
 runner and guard frozen with them.
 
-- [x] check  - [ ] review  **S22** [build-plan.md](./build-plan.md) Stage H: every Stage-H checkpoint written in one pass, all failing readable *(docs/evidence/s22-all-fail.log — 7 FAIL, 0 syntax errors)*
+- [x] check  - [x] review  **S22** [build-plan.md](./build-plan.md) Stage H: every Stage-H checkpoint written in one pass, all failing readable *(docs/evidence/s22-all-fail.log — 7 FAIL, 0 syntax errors)*
 - [x] check  - [x] review  **S23** Spike: replace timings, vote loss, `call_runner` blocking verdict  ← decides redis `maxmemory` mutability
 - [x] check  - [x] review  **S24** Runner: params-keyed success cache; `tofu state rm postgresql_*` before destroy
 - [x] check  - [x] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server

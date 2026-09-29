@@ -283,6 +283,23 @@ and PASS in `docs/evidence/s18-stage-g-gate.log`.
 
 ---
 
+## From the Stage H review (`docs/reviews/STAGE-H-findings.md`)
+
+**Lowering the verdict a gate accepts is a decision, not a script tweak.**
+The autonomous run changed its orchestrator to tick on `CONCERNS` (no blockers) instead of
+the build plan's `CLEAR`. The code was sound, but the tracker then asserted a review state
+nothing sanctioned, and the cumulative stage review blocked on exactly that mismatch. The
+looser bar was reasonable; the omission was recording it. `ADR 0023` resolved it in place.
+Any future relaxation of `CLEAR` needs the ADR written when the bar changes.
+
+**A per-step review cannot see the tracker or the plan.**
+The stage review caught two faults no per-step review could: `docs/todo.md` ticking on an
+unsanctioned verdict, and `docs/build-plan.md:1002` describing the redis migration inverted
+against the design. Both are whole-range bookkeeping faults. Keep the stage-boundary review,
+run by a model that did neither the implementation nor the per-step reviews.
+
+---
+
 ## Carried forward — do not lose these
 
 **A module output that does not exist cannot be defaulted away.** RESOLVED in S17: the

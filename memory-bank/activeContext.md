@@ -1,8 +1,11 @@
 Updated: 2026-09-29
 
 ## Current focus
-Stage H (S22-S29) is implemented and ticked end-to-end by an autonomous overnight run
-(`scripts/run-overnight.sh`). Awaiting the stage-boundary review, not more building.
+Stage H (S22-S29) is implemented, ticked, and now **accepted**. The cumulative stage review
+(by an independent model, Muse Spark) returned BLOCKED on process only - the tracker ticked
+`review` boxes on CONCERNS while the plan demands CLEAR. `docs/decisions/0023-*` records the
+human's "no blockers" bar, ticks S22, corrects the build-plan redis-declarer row, and accepts
+the review's 12 concerns as debt. The next work is that debt, not new building.
 
 ## Blocked
 - Nothing hard-blocked. The S18 redis assertion carried from S22 is still unamended
@@ -24,24 +27,30 @@ Stage H (S22-S29) is implemented and ticked end-to-end by an autonomous overnigh
 - Model policy: exactly two, no per-step exceptions -
   `opencode-go/deepseek-v4.1-flash` (implementer) and `opencode-go/mimo-v2.6-flash`
   (reviewer); hardcoded at `scripts/run-overnight.sh:49-50`.
+- Cumulative stage review (independent model, Muse Spark): verdict BLOCKED on process only -
+  the tracker ticked `review` boxes on CONCERNS while `docs/build-plan.md` demands CLEAR.
+  `docs/decisions/0023-*` records the human's "no blockers" bar, ticks S22, corrects
+  `build-plan.md:1002`, and accepts the review's 12 concerns as debt. The review confirmed
+  every checkpoint amendment fixed a real bug and the cold S29 gate passed.
 
 ## Checkpoints
 - Stage-H child checkpoints S23-S29 all pass on the current tree; S29's gate is the
   end-to-end one. Nothing pending.
 
 ## Next step
-Run the RUNBOOK stage-boundary (`RUNBOOK.md` "At the stage boundary"): cold teardown
-(`make jit-down`, then the cold order), a cumulative stage review by the strongest model,
-then read one file at random yourself.
+Fix the accepted debt highest-first (`docs/decisions/0023-*`, "Accepted debt"): the runner
+workdir leak and the `state rm` silent-skip. Before any further gate, `make test-up` - U12
+destroys `voting-a`, so the post-gate stack is not demo-ready.
 
 ## Watch out
 - **15 new ADRs, 0008-0022; 10 amend frozen checkpoints.** 6 checkpoints changed
-  (S24-S29, +174/-67). Each amendment has an ADR and was reviewed, but the volume is the
-  thing the stage review must judge - some are harness bugs, some reword an assertion to
-  fit the code.
-- **Every S23-S29 verdict is CONCERNS, never CLEAR.** Per `docs/build-plan.md` only CLEAR
-  counts as done; the tracker is ticked on the experiment's looser "no blockers" bar and so
-  overstates the repo's own standard.
+  (S24-S29, +174/-67). The cumulative stage review judged all 10 amendments: each fixes a
+  genuine harness/contract bug, several strengthen the gate, none rewrites an assertion to
+  fit the code. The volume stands as recorded, not as a defect.
+- **Every S23-S29 verdict is CONCERNS, never CLEAR.** The bar is "no blockers", recorded in
+  ADR 0023 as a Stage-H-scoped deviation; the S23-S29 boxes stand on it. S22's box is now
+  ticked too (its findings say CLEAR; resolved by ADR 0006). A future stage must meet CLEAR
+  only or record the same deviation.
 - **S22's `review` box is still unticked** (its findings say CLEAR; it was never in the run).
 - The run's S26-S29 reviews used `deepseek-v4-pro`, now disallowed; the two-model rule
   applies going forward only.
