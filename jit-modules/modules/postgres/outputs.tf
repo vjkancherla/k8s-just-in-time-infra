@@ -39,6 +39,11 @@ output "service_url" {
 }
 
 output "service_urls" {
-  description = "Service-addressed URL per database, keyed by database name. The runner flattens this to the service_url_<db> Secret keys."
-  value       = { for db in var.databases : db => "postgresql://postgres:${local.pg_password}@${var.service_name}:5432/${db}" }
+  # Additions only, mirroring the postgresql_database resource's setsubtract: the
+  # initial database's key is `service_url` (above), so emitting it here too would
+  # add a redundant `service_url_<postgres_db>` the design does not name. The
+  # runner flattens this map to the `service_url_<db>` Secret keys for the
+  # databases added to `var.databases`.
+  description = "Service-addressed URL for each added database, keyed by database name. The runner flattens this to the service_url_<db> Secret keys."
+  value       = { for db in setsubtract(var.databases, [var.postgres_db]) : db => "postgresql://postgres:${local.pg_password}@${var.service_name}:5432/${db}" }
 }
