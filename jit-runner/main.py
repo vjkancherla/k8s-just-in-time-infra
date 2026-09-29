@@ -358,10 +358,19 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
 
         outputs = _get_outputs(work_dir, env)
 
+        stale_dir = None
         with _runs_lock:
+            previous = _runs.get(key)
+            # A changed-params apply replaces the cached run (the key is workspace+module).
+            # The previous work dir becomes unreachable here, so it is removed below or it
+            # leaks a full copy of the module on every update (ADR 0023, debt 1).
+            if previous and previous.get("dir") and previous["dir"] != work_dir:
+                stale_dir = previous["dir"]
             _runs[key] = {"dir": work_dir, "module": req.module,
                           "status": "success", "outputs": outputs,
                           "params": req.params, "params_hash": params_hash}
+        if stale_dir:
+            shutil.rmtree(stale_dir, ignore_errors=True)
 
         return RunResponse(status="success", outputs=outputs)
 
@@ -421,6 +430,10 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
         return DestroyResponse(status="not_found",
                                error=f"No run found for workspace '{workspace}'")
 
+    # A cached run's work dir is kept on failure so a retry can reuse it. A fresh one (no
+    # cached run) is this call's alone and must not leak when a destroy step fails.
+    cached = entry is not None
+
     try:
         env = _tofu_env()
 
@@ -454,6 +467,8 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             work_dir, env,
         )
         if r.returncode != 0:
+            if not cached:
+                shutil.rmtree(work_dir, ignore_errors=True)
             return DestroyResponse(status="error",
                                    error=f"tofu init failed: {r.stderr.strip()}")
 
@@ -475,12 +490,16 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             rm = await _run_tofu_async(
                 ["tofu", "state", "rm"] + pg_resources, work_dir, env)
             if rm.returncode != 0:
+                if not cached:
+                    shutil.rmtree(work_dir, ignore_errors=True)
                 return DestroyResponse(
                     status="error",
                     error=f"tofu state rm failed: {rm.stderr.strip()}")
 
         r = await _run_tofu_async(["tofu", "destroy", "-auto-approve"] + var_args, work_dir, env)
         if r.returncode != 0:
+            if not cached:
+                shutil.rmtree(work_dir, ignore_errors=True)
             return DestroyResponse(status="error",
                                    error=f"tofu destroy failed: {r.stderr.strip()}")
 
