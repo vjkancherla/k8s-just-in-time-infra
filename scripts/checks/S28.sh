@@ -41,8 +41,8 @@ role voting-app-worker redis | grep -qx noparams \
   || fail "worker must CONSUME redis (no params key) - actual: $(role voting-app-worker redis)"
 role voting-app-worker postgres | grep -qx declarer \
   || fail "worker must DECLARE postgres (params key present) - actual: $(role voting-app-worker postgres)"
-role voting-app-vote redis | grep -qx noparams \
-  || fail "vote must CONSUME redis - actual: $(role voting-app-vote redis)"
+role voting-app-vote redis | grep -qx declarer \
+  || fail "vote must DECLARE redis (params key present) - actual: $(role voting-app-vote redis)"
 role voting-app-vote pgadmin | grep -qx declarer \
   || fail "vote must DECLARE pgadmin - actual: $(role voting-app-vote pgadmin)"
 role voting-app-result postgres | grep -qx noparams \
