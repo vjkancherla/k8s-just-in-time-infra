@@ -7,6 +7,8 @@ Bearer token auth from JIT_RUNNER_TOKEN env var.
 """
 
 import asyncio
+import hashlib
+import json
 import logging
 import os
 import shutil
@@ -75,7 +77,9 @@ class RunRequest(BaseModel):
     module: str
     version: str = "main"
     workspace: str
-    params: Dict[str, str] = {}
+    # Params are arbitrary JSON values: the design's surface includes lists
+    # (`databases`) and objects (`settings`), not only strings.
+    params: Dict[str, Any] = {}
 
 
 class RunResponse(BaseModel):
@@ -111,6 +115,35 @@ def _check_auth(authorization: Optional[str]) -> None:
 
 def _state_key(workspace: str, module: str) -> str:
     return f"ns/{workspace}/{module}/terraform.tfstate"
+
+
+def _params_hash(workspace: str, module: str, params: Dict[str, Any]) -> str:
+    """Hash of module + workspace + params: the success cache's change detector.
+
+    The cache used to key on (workspace, module) alone, so a re-POST with new
+    params returned the old success and the change was recorded as applied
+    without a run. A changed hash is a real run; an identical hash is the cache.
+    """
+    payload = json.dumps(
+        {"module": module, "workspace": workspace, "params": params},
+        sort_keys=True, separators=(",", ":"), default=str)
+    return hashlib.sha256(payload.encode()).hexdigest()
+
+
+def _var_args(params: Dict[str, Any]) -> list:
+    """Build the -var flags for a run.
+
+    Strings pass through as before. Lists, objects and numbers are JSON-encoded,
+    which is valid HCL; a Python repr's single quotes are not, so a list param
+    would otherwise fail the apply with "Invalid expression".
+    """
+    args: list = []
+    for k, v in params.items():
+        if isinstance(v, str):
+            args.extend(["-var", f"{k}={v}"])
+        else:
+            args.extend(["-var", f"{k}={json.dumps(v)}"])
+    return args
 
 
 def _tofu_env() -> dict:
@@ -203,18 +236,22 @@ async def create_run(req: RunRequest, authorization: Optional[str] = Header(defa
     _check_auth(authorization)
 
     key = (req.workspace, req.module)
+    params_hash = _params_hash(req.workspace, req.module, req.params)
     # Serialise per run: kopf fires on.create + on.update for one Deployment, and two
     # Deployments can annotate the same claim, so without this two tofu applies race
     # over the same container name.
     async with _run_lock(key):
         with _runs_lock:
             entry = _runs.get(key)
-            if entry and entry["status"] == "success":
+            # The cache is keyed on the params hash too: identical params are the
+            # cached success, changed params are a real run.
+            if (entry and entry["status"] == "success"
+                    and entry.get("params_hash") == params_hash):
                 return RunResponse(status="success", outputs=entry.get("outputs", {}))
-        return await _apply_run(req, key)
+        return await _apply_run(req, key, params_hash)
 
 
-async def _apply_run(req: RunRequest, key: tuple) -> RunResponse:
+async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunResponse:
     """Run the apply and cache the result. The caller holds the run's lock."""
     work_dir = tempfile.mkdtemp(prefix=f"jit-{req.workspace}-")
     try:
@@ -227,9 +264,7 @@ async def _apply_run(req: RunRequest, key: tuple) -> RunResponse:
         for item in module_src.iterdir():
             shutil.copy2(item, work_dir)
 
-        var_args: list = []
-        for k, v in req.params.items():
-            var_args.extend(["-var", f"{k}={v}"])
+        var_args = _var_args(req.params)
 
         env = _tofu_env()
         r = await _run_tofu_async(
@@ -272,7 +307,7 @@ async def _apply_run(req: RunRequest, key: tuple) -> RunResponse:
         with _runs_lock:
             _runs[key] = {"dir": work_dir, "module": req.module,
                           "status": "success", "outputs": outputs,
-                          "params": req.params}
+                          "params": req.params, "params_hash": params_hash}
 
         return RunResponse(status="success", outputs=outputs)
 
@@ -347,9 +382,7 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
             pass
 
         # Build var args for destroy (same as apply)
-        var_args: list = []
-        for k, v in params.items():
-            var_args.extend(["-var", f"{k}={v}"])
+        var_args = _var_args(params)
 
         # Init backend before destroy (required for fresh work dirs)
         r = await _run_tofu_async(
@@ -369,6 +402,28 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
         if r.returncode != 0:
             return DestroyResponse(status="error",
                                    error=f"tofu init failed: {r.stderr.strip()}")
+
+        # The postgres module manages databases as postgresql_* resources against
+        # the running server. DROP DATABASE fails while connections are open, and a
+        # refresh fails outright if the container is already gone, so drop those
+        # logical resources from state before destroy. The docker_volume resource is
+        # not in this list, so the volume still goes with its container (S17).
+        state = await _run_tofu_async(["tofu", "state", "list"], work_dir, env)
+        pg_resources = [
+            line.strip() for line in state.stdout.splitlines()
+            if line.strip().startswith("postgresql_")
+        ] if state.returncode == 0 else []
+        if pg_resources:
+            logger.info(
+                f"Destroy {workspace}/{module}: running 'tofu state rm' on "
+                f"{len(pg_resources)} postgresql_* resource(s) before destroy: "
+                f"{', '.join(pg_resources)}")
+            rm = await _run_tofu_async(
+                ["tofu", "state", "rm"] + pg_resources, work_dir, env)
+            if rm.returncode != 0:
+                return DestroyResponse(
+                    status="error",
+                    error=f"tofu state rm failed: {rm.stderr.strip()}")
 
         r = await _run_tofu_async(["tofu", "destroy", "-auto-approve"] + var_args, work_dir, env)
         if r.returncode != 0:

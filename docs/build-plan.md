@@ -924,7 +924,9 @@ and validation, the update flow, backfill, stale-`Updating` recovery — proven 
 a wrong state transition costing nothing. **No real module runs here.**
 
 **Read:** design note §Resolution rules, §Mutability contract, §Update flow,
-§Conditions; `jit-controller/main.py` (`ensure_claim`, `check_param_conflict`,
+§Conditions; [ADR 0007](decisions/0007-maxmemory-mutable-despite-replace-cost.md)
+(redis `maxmemory` is mutable; criterion 1's literal "never removes data" reading is
+superseded for it); `jit-controller/main.py` (`ensure_claim`, `check_param_conflict`,
 `list_referencing_deployments_with_params`, `_normalize_params`); build-plan §Unit
 tests (the four fiddly pieces — declarer resolution joins them).
 
@@ -1002,6 +1004,8 @@ same desired params.
 | `annotation-to-state.md` contradicts itself on whether worker annotates redis | fixed to the checked-real answer (base today: it does) | this step |
 | `jit-infra-flows.md` has no update sequence; its `Failed → Pending: retry with backoff` line describes no behaviour | add the sequence + the state-machine note; delete the retry line | this step |
 | `jit-infra-poc.md`'s open question "re-apply or refuse?" and tenant-surface examples with `maxmemory` outside `params` | answer it; move `maxmemory` inside `params` | this step |
+| `declarers-and-consumers.md:100` criterion 1 read literally ("adds or tunes, never removes data") refuses redis `maxmemory` | amended by [ADR 0007](decisions/0007-maxmemory-mutable-despite-replace-cost.md): an annotation-driven change is explicit approval for the downtime it causes; `maxmemory` stays mutable, queue contents lost | here, one line |
+| `declarers-and-consumers.md:161` "(the step 0 spike confirms which case applies)" — stale: the spike is S23, and it confirmed the sync-handler case | the S23 spike measured it; `call_runner` is sync in a sync handler on an executor thread, so `asyncio.to_thread` is not applied; the executor-pool ceiling is S26's | here, one line |
 | claims created pre-change have no `appliedParams` | controller backfill (S26); first resync after upgrade must not replace Redis — U11 | S29 |
 | console page + `make state` | no change: no conditions are displayed and `referencedBy` keeps its meaning. **Deliberately untouched** — a read-model change here is scope creep | record, no edit |
 | `app/scripts/verify.sh` R-checks and `make jit-verify` J-suite | unaffected; both read containers, not annotation params. If one fails, the migration broke something real | S29 re-runs both |

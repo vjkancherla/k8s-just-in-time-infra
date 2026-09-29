@@ -24,3 +24,9 @@ variable "postgres_db" {
   type        = string
   default     = "voting"
 }
+
+variable "databases" {
+  description = "Databases to manage against the running server. Declared from S24 so the runner can pass it; S27 wires it to postgresql_database resources."
+  type        = list(string)
+  default     = []
+}
