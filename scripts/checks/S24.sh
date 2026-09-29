@@ -13,7 +13,7 @@ TOKEN="$(grep -E '^JIT_RUNNER_TOKEN=' deploy/.env 2>/dev/null | cut -d= -f2- || 
 : "${TOKEN:=s6-secret-token-2026}"
 RUNNER=127.0.0.1:8100
 WS=s24-check
-post() { curl -s -X POST "http://$RUNNER/v1/runs" -H "Authorization: Bearer $TOKEN" -d "$1"; }
+post() { curl -s -X POST "http://$RUNNER/v1/runs" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$1"; }
 
 # --- 1. identical params twice: cached success, one container ----------------
 post '{"module":"redis","version":"v1","workspace":"s24-check","params":{"name":"s24-check-redis","network":"k3d-voting-app","ip":"172.19.0.192","maxmemory":"256mb"}}' >/dev/null \
@@ -40,7 +40,7 @@ echo "$cmd" | grep -q -- '--maxmemory 128mb' \
 
 # --- 3. the conditional's negative side: a redis-only destroy runs no state rm
 log_before="$(docker logs jit-runner 2>&1 | wc -l)"
-curl -s -X DELETE "http://$RUNNER/v1/runs/s24-check" -H "Authorization: Bearer $TOKEN" >/dev/null \
+curl -s -X DELETE "http://$RUNNER/v1/runs/s24-check" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" >/dev/null \
   || fail "destroy of s24-check failed"
 docker ps -a --format '{{.Names}}' | grep -qx "$c" \
   && fail "container still exists after destroy"
@@ -58,6 +58,7 @@ resp="$(post "{\"module\":\"postgres\",\"version\":\"v1\",\"workspace\":\"$PGWS\
 docker rm -f "$PGWS-postgres" >/dev/null 2>&1 \
   || fail "pre-removal of the postgres container failed"
 del="$(curl -s -X DELETE "http://$RUNNER/v1/runs/$PGWS" -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
   -d "{\"module\":\"postgres\",\"params\":{\"name\":\"$PGWS\",\"network\":\"k3d-voting-app\",\"postgres_password\":\"s24-probe\"}}")"
 echo "$del" | grep -qi success \
   || fail "destroy after container pre-removal failed (state rm must drop postgresql_* from state first) - $del"

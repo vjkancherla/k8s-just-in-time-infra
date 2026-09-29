@@ -27,6 +27,13 @@ satisfy. None of them is an assertion; the assertions are sound and unchanged.
    `RunRequest.params: Dict[str, str]` rejects a list value with a 422 before any
    apply, and the postgres module does not declare `databases` until S27. The
    checkpoint's positive destroy test needs the create to succeed.
+4. **The POSTs send no `Content-Type`.** `curl -d` defaults to
+   `application/x-www-form-urlencoded`, so FastAPI answers 422
+   (`model_attributes_type`) before the handler runs and no container is ever
+   created. The first run of the amended checkpoint died here with an empty log
+   (`c=` empty, `fail "no container ..."` never reached because the `grep` under
+   `set -e` exited first). The DELETE calls have the same defect: the body is
+   ignored, so the destroy falls back to the cached run.
 
 ## Decision
 
@@ -35,6 +42,8 @@ Amend `scripts/checks/S24.sh` for the two setup defects that are the checkpoint'
 - `RUNNER=127.0.0.1:8100` - the published host port, the same address S06 and the
   leak probes use.
 - add `"ip":"172.19.0.192"` to the three redis POSTs - the module requires it.
+- add `-H "Content-Type: application/json"` to `post()` and to both DELETE calls -
+  the API is JSON, and curl's form default is rejected before the handler.
 
 For the third, the implementation adapts rather than the checkpoint: the runner
 accepts arbitrary JSON param values (`Dict[str, Any]`, JSON-encoded into `-var`), and
