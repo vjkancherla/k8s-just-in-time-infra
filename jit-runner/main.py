@@ -412,29 +412,33 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
                     f"({workspace}/{module}); removing container "
                     f"{workspace}-{module}-{module}")
     elif body and body.module:
-        # No in-memory entry — use provided module/params
+        # No in-memory entry — use provided module/params. The work dir is created inside
+        # the try below so a failed module copy cannot escape as a 500 that leaks it.
         module = body.module
         params = body.params
         logger.info(f"Destroy {workspace}: no cached run for "
                     f"{workspace}/{module}; using the request's params and "
                     f"removing container {workspace}-{module}-{module}")
-        work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
-        module_src = Path(MODULES_ROOT) / module
-        if not module_src.is_dir():
-            shutil.rmtree(work_dir, ignore_errors=True)
-            return DestroyResponse(status="error",
-                                   error=f"Module '{module}' not found")
-        for item in module_src.iterdir():
-            shutil.copy2(item, work_dir)
+        work_dir = None
     else:
         return DestroyResponse(status="not_found",
                                error=f"No run found for workspace '{workspace}'")
 
     # A cached run's work dir is kept on failure so a retry can reuse it. A fresh one (no
-    # cached run) is this call's alone and must not leak when a destroy step fails.
+    # cached run) is this call's alone and must not leak when any step fails.
     cached = entry is not None
 
     try:
+        if not cached:
+            work_dir = tempfile.mkdtemp(prefix=f"jit-destroy-{workspace}-")
+            module_src = Path(MODULES_ROOT) / module
+            if not module_src.is_dir():
+                shutil.rmtree(work_dir, ignore_errors=True)
+                return DestroyResponse(status="error",
+                                       error=f"Module '{module}' not found")
+            for item in module_src.iterdir():
+                shutil.copy2(item, work_dir)
+
         env = _tofu_env()
 
         # Safety: force-remove any existing container before destroy.
@@ -510,7 +514,8 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
         return DestroyResponse(status="destroyed")
 
     except Exception as e:
-        shutil.rmtree(work_dir, ignore_errors=True)
+        if work_dir:
+            shutil.rmtree(work_dir, ignore_errors=True)
         with _runs_lock:
             _runs.pop(key, None)
         return DestroyResponse(status="error", error=str(e))

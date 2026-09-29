@@ -43,12 +43,22 @@ cmd="$(docker inspect -f '{{.Config.Cmd}}' "$c")"
 echo "$cmd" | grep -q -- '--maxmemory 128mb' \
   || fail "replaced container does not run --maxmemory 128mb: $cmd"
 
+# The changed-params re-apply replaces the cached run, so the replaced run's work dir must
+# be gone: exactly one /tmp/jit-s24-check-* remains in the runner. Without this the work dir
+# leaks on every update (ADR 0023 debt 1, ADR 0024) and no other assertion notices, because
+# deleting the removal still passes every check above.
+n_dirs() { docker exec jit-runner sh -c 'ls /tmp 2>/dev/null | grep -c "^jit-s24-check-" || true' | tr -d ' '; }
+[ "$(n_dirs)" -eq 1 ] \
+  || fail "the changed-params re-apply left $(n_dirs) work dir(s) under /tmp/jit-s24-check-*, not 1 - the replaced run's work dir leaked"
+
 # --- 3. the conditional's negative side: a redis-only destroy runs no state rm
 log_before="$(docker logs jit-runner 2>&1 | wc -l)"
 curl -s -X DELETE "http://$RUNNER/v1/runs/s24-check" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" >/dev/null \
   || fail "destroy of s24-check failed"
 docker ps -a --format '{{.Names}}' | grep -qx "$c" \
   && fail "container still exists after destroy"
+[ "$(n_dirs)" -eq 0 ] \
+  || fail "destroy left $(n_dirs) work dir(s) under /tmp/jit-s24-check-* - the work dir must go with the run"
 new_logs="$(docker logs jit-runner 2>&1 | tail -n +$((log_before+1)))"
 echo "$new_logs" | grep -qi 'state rm' \
   && fail "a run whose state holds no postgresql_* resources ran 'tofu state rm' - the design makes it conditional on the state"
