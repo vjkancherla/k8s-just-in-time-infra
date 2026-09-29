@@ -45,7 +45,7 @@ scripts/checks/S26.sh
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S26, its checkpoint, its gate
-- `git diff dd49333..5b973d1` - what was actually done
+- `git diff dd49333..03bbc96` - what was actually done
 - `scripts/checks/S26.sh` - the assertion that passed
 - `docs/decisions/0012-s26-checkpoint-harness-fixes.md` and
   `docs/decisions/0013-s26-group8-second-namespace.md` - the two checkpoint
