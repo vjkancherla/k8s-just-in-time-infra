@@ -768,11 +768,14 @@ _UPDATE_ALLOWED = {
     "redis": {"maxmemory"},
     "postgres": {"databases", "settings"},
 }
-# The create surface: the module's declared inputs, so a brand-new claim may carry
-# them without passing the change contract. It is the update allowlist plus
-# pgadmin's `http_port` - the module-declared port the voting-b overlay pins, the
-# case ADR 0020 hit. A key outside either surface (a typo, an identity key) is
-# refused on create too, so it is never silently recorded as applied.
+# The create surface: the tenant-settable subset of a module's declared inputs,
+# so a brand-new claim may carry them without passing the change contract. It is
+# the update allowlist plus pgadmin's `http_port` - the module-declared port the
+# voting-b overlay pins, the case ADR 0020 hit. It is deliberately not every
+# declared variable: the rest (pgadmin's `share_dir`/`postgres_port`/credentials,
+# postgres's `service_name`) are controller-supplied, not tenant settings. A key
+# outside this surface (a typo, an identity key) is refused on create too, so it
+# is never silently recorded as applied.
 _CREATE_ALLOWED = {
     "redis": {"maxmemory"},
     "postgres": {"databases", "settings"},
@@ -1057,7 +1060,6 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
     # current desired. Adopting the current desired would record an annotation
     # change made during the upgrade window as applied without a runner call.
     spec_params_before = (obj.get("spec", {}) or {}).get("params") or {}
-    _project_spec_params(api, ns, name, desired_norm)
 
     applied_raw = status.get("appliedParams") or {}
     applied_norm = _normalize_params(applied_raw)
@@ -1088,11 +1090,12 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
 
     # Every path is validated: a provisioned claim against the update contract
     # (which params may *change*, design §Mutability contract), a brand-new claim
-    # against the module's declared create surface. Create is not exempt any more
-    # - ADR 0020 left it unvalidated to let pgadmin's module-declared `http_port`
-    # through, and that also let an unknown/typo'd key be recorded as applied; the
-    # create allowlist admits `http_port` while still refusing a key the module
-    # does not declare.
+    # against the tenant-settable create surface (design :112 "a key the module
+    # does not declare -> Refused", :114 "values are validated before any runner
+    # call"). Create is not exempt any more - ADR 0020 left it unvalidated to let
+    # pgadmin's module-declared `http_port` through, and that also let an
+    # unknown/typo'd key be recorded as applied; the create allowlist admits
+    # `http_port` while refusing a key the module does not declare.
     ok, bad_key, reason = validate_params(module, desired_norm, applied_raw,
                                           on_create=not provisioned)
     if not ok:
@@ -1100,6 +1103,12 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
                       f"{bad_key}: {reason}")
         return
     set_condition(ns, name, "UpdateRefused", "False", "Done", "")
+
+    # Project only after validation: a refused desired must not land on
+    # spec.params, or teardown's `appliedParams or spec.params` fallback would
+    # send the refused key to the module, whose destroy then fails and retries
+    # forever (the invariant _project_spec_params' comment states).
+    _project_spec_params(api, ns, name, desired_norm)
 
     h = params_hash(module, ns, desired_norm)
     if (h == status.get("attemptedParamsHash")

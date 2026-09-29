@@ -28,16 +28,25 @@ Change `jit-controller/main.py` only:
   allowlists: the update contract (unchanged: redis `maxmemory`, postgres
   `databases`/`settings`, pgadmin none) and a create surface that is the same plus
   pgadmin's `http_port`. `reconcile_claim` validates on every path, not only when
-  provisioned. Identity/controller-owned keys are still refused everywhere, and
-  `http_port` is validated as a port (integer 1-65535).
+  provisioned, and **before** projecting desired onto `spec.params`, so a refused key never
+  lands there. Identity/controller-owned keys are still refused everywhere, and `http_port`
+  is validated as a port (integer 1-65535).
 - **Deep clearing.** A shared `_merge_patch(old, new)` builds a merge patch that nulls
   removed keys at every depth; `patch_applied_params` and `_project_spec_params` both use
   it.
 
-This supersedes ADR 0020's create-scope consequence ("the mutability contract no longer
-guards the initial application of a new claim's params"). Rule 3's "create behaviour is
-unchanged" is read as "the module's declared params are applied as given on create" - not
-"any key is applied"; the create surface encodes exactly the declared params.
+The authority for create validation is the contract table, not rule 3: design line 112
+("a key the module does not declare | Unknown | Refused; tofu only warns on unknown
+`-var`s, so a typo would be recorded as applied") and line 114 ("values are validated before
+any runner call"). Rule 3's "create behaviour is unchanged" is scoped to *disagreeing
+declarers* and says nothing about which keys are accepted.
+
+This supersedes ADR 0020's Decision bullet "Call `validate_params` only when the claim is
+already provisioned" and its create-scope consequence ("the mutability contract no longer
+guards the initial application of a new claim's params"). The create surface is not every
+declared variable - pgadmin's `share_dir`, `postgres_port`, `pgadmin_email` and
+`pgadmin_password`, and postgres's `service_name`, are controller-supplied rather than
+tenant settings - only the tenant-settable subset.
 
 ## Consequences
 
@@ -45,6 +54,9 @@ unchanged" is read as "the module's declared params are applied as given on crea
   `RefusedKey`) instead of being recorded as applied. pgadmin's `http_port` still
   provisions, so `voting-b` and the J-suite's J8 are unaffected. Changing `http_port` on a
   provisioned pgadmin claim remains refused (the update contract is unchanged).
+- A refused create projects nothing onto `spec.params`, so teardown's `appliedParams or
+  spec.params` fallback cannot send the refused key to the module (which would fail the
+  destroy and retry every tick).
 - A nested `settings` key that is dropped now clears from `appliedParams` and
   `spec.params`, so the resync stops re-applying and a later re-add is a real change.
 - `S26` (controller core, stub runner) is the gate: it creates redis claims with
