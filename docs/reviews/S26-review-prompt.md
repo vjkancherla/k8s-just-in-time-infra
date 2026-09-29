@@ -3,12 +3,13 @@
 Copied from `docs/reviews/REVIEW-PROMPT-TEMPLATE.md` with the six slots substituted
 verbatim: the step (S26), the step number (26), the topic
 (`designs/declarers-and-consumers.md`), the goal (word for word from
-`docs/build-plan.md` S26), the commit range (`dd49333..03bbc96`), and the files the
+`docs/build-plan.md` S26), the commit range (`dd49333..eecc583`), and the files the
 step named as its scope (one path per line), plus the ADR-sanctioned files below.
 Deviations, marked inline: the ADR-0012 and ADR-0013 notes on Q1/Q3/Q4/Q6/Q7 (the
-two checkpoint amendments, with pointers in "What to read"), and ADR 0014, which
-records ADR 0007's delegated executor-pool decision (What to read / Q9). Add
-nothing else.
+two checkpoint amendments, with pointers in "What to read"), ADR 0014, which records
+ADR 0007's delegated executor-pool decision (What to read / Q9), and the pointer to
+the prior BLOCKED review this range answers (`docs/reviews/S26-findings.md`).
+Add nothing else.
 
 === BEGIN REVIEW PROMPT ===
 You are reviewing work you did not do and have no stake in.
@@ -45,8 +46,10 @@ scripts/checks/S26.sh
 
 - `docs/designs/declarers-and-consumers.md` - the design this must conform to
 - `docs/build-plan.md` - step S26, its checkpoint, its gate
-- `git diff dd49333..03bbc96` - what was actually done
+- `git diff dd49333..eecc583` - what was actually done
 - `scripts/checks/S26.sh` - the assertion that passed
+- `docs/reviews/S26-findings.md` - the prior BLOCKED review this range answers; verify
+  each blocker it names is resolved, and judge the new work on its own terms
 - `docs/decisions/0012-s26-checkpoint-harness-fixes.md` and
   `docs/decisions/0013-s26-group8-second-namespace.md` - the two checkpoint
   amendments this review must assess
@@ -72,20 +75,25 @@ scripts/checks/S26.sh
      committed with their edits. No assertion is deleted or weakened: every group's
      `ok:` line and failure message is unchanged, and the assertion text is identical
      apart from the namespace/workspace locators the ADRs enumerate. Judge the ADRs as
-     decisions, not the edit as a violation.
+     decisions, not the edit as a violation. The later `eecc583` commit does **not** edit
+     any checkpoint.
 2. Did it add a dependency the step did not name? Blocker.
 3. Did it delete or weaken an existing test or assertion? Blocker.
    - *S26 note:* `jit-controller/test_declarers.py` is new. No existing test was edited
      or removed. `check_param_conflict` (first-writer-wins) was replaced by declarer
-     resolution, which the design requires; it had no test of its own.
+     resolution, which the design requires; it had no test of its own. The range
+     strengthens `test_postgres_database_removal_is_refused` (it now passes the applied
+     params through `_normalize_params`, the form the controller stores) and adds
+     `_normalize_params` and postgres-additive tests; nothing is weakened or deleted.
 4. Did it create or edit files outside the list above? Blocker.
    - *S26 note:* `docs/decisions/0012-...md`, `docs/decisions/0013-...md`,
      `docs/decisions/0014-...md` and `scripts/checks/S26.sh` are on the list because
      the ADRs put them in S26's scope.
-   - *S26 note:* `docs/reviews/S26-review-prompt.md` is review machinery, present in
-     the range because the prompt was emitted before ADR 0014 was recorded and
-     re-emitted after; it is exempt from rule 4's file list. Every implementation file
-     is on the list.
+   - *S26 note:* `docs/reviews/S26-review-prompt.md` and `docs/reviews/S26-findings.md`
+     are review machinery, present in the range because the prompt was emitted before
+     ADR 0014 was recorded and re-emitted for this re-review, and the findings file is
+     the prior review; both are exempt from rule 4's file list. Every implementation
+     file is on the list.
 5. Did it tick a box in `docs/todo.md`? The review box is not the implementer's to tick.
    Blocker.
 
@@ -111,11 +119,9 @@ scripts/checks/S26.sh
      `appliedParams`/`attemptedParamsHash`/`Updating`, the failure branch keeping `Ready`
      with one attempt, `NoDeclarer`, `AwaitingDeclarer` on a consumer-only new claim, and
      stale-`Updating` recovery. Judge whether those still fail if the logic is absent.
-     Note that the frozen groups never asserted backfill or the new-declarer-after-a-gap
-     path; those are covered by `test_declarers.py` and, live, by S29/U11.
-
-## Then, on substance
-
+     Note that the frozen groups never asserted backfill, the new-declarer-after-a-gap
+     path, or any postgres behaviour; the prior review's postgres-removal blocker is
+     covered now by `test_declarers.py`, and live by S29/U7 and U11.
 8. **Where does the implementation disagree with the design?** Quote both.
 9. **What does the design require that the diff does not do?**
    - *S26 note:* ADR 0007 delegates the executor-pool ceiling to S26; ADR 0014
