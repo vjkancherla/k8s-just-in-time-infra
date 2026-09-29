@@ -21,8 +21,8 @@
 # Models (defaults are the ones chosen for this experiment). Per-step override wins:
 #   IMPL_MODEL=opencode-go/deepseek-v4.1-flash
 #   REVIEW_MODEL=opencode-go/mimo-v2.6-flash
-#   IMPL_MODEL_26=opencode-go/deepseek-v4-pro      # the plan wants the strongest model
-#   REVIEW_MODEL_29=opencode-go/deepseek-v4-pro    # for S26, S28, S29
+#   IMPL_MODEL_26=opencode-go/kimi-k2.7-code       # the plan wants the strongest model
+#   REVIEW_MODEL_29=opencode-go/kimi-k2.7-code     # for S26, S27, S28, S29
 #
 # The machine stays awake for the whole run: the script re-execs itself under
 # caffeinate on macOS, so no wrapper is needed. Optionally still run it in tmux:
@@ -50,6 +50,14 @@ command -v opencode >/dev/null 2>&1 || { echo "FATAL: opencode not on PATH"; exi
 STEPS=${STEPS:-"23 24 25 26 27 28 29"}
 IMPL_MODEL=${IMPL_MODEL:-opencode-go/deepseek-v4.1-flash}
 REVIEW_MODEL=${REVIEW_MODEL:-opencode-go/mimo-v2.6-flash}
+
+# The build plan wants the strongest available reviewer for the controller core, the
+# modules, the migration and the gate (S26-S29). Env still wins if set. kimi-k2.7-code
+# is the strongest model that stays within budget.
+REVIEW_MODEL_26=${REVIEW_MODEL_26:-opencode-go/kimi-k2.7-code}
+REVIEW_MODEL_27=${REVIEW_MODEL_27:-opencode-go/kimi-k2.7-code}
+REVIEW_MODEL_28=${REVIEW_MODEL_28:-opencode-go/kimi-k2.7-code}
+REVIEW_MODEL_29=${REVIEW_MODEL_29:-opencode-go/kimi-k2.7-code}
 MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
 ON_EXHAUST=${ON_EXHAUST:-halt}          # halt | continue  (continue = push past an uncleared step)
 IMPL_EXTRA=${IMPL_EXTRA:-}              # optional human directive appended to every implementer prompt
