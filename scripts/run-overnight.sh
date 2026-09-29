@@ -18,11 +18,9 @@
 #   STEPS="23 24 25 26 27 28 29" scripts/run-overnight.sh
 #   MAX_ATTEMPTS=5 ON_EXHAUST=continue scripts/run-overnight.sh
 #
-# Models (defaults are the ones chosen for this experiment). Per-step override wins:
-#   IMPL_MODEL=opencode-go/deepseek-v4.1-flash
-#   REVIEW_MODEL=opencode-go/mimo-v2.6-flash
-#   IMPL_MODEL_26=opencode-go/kimi-k2.7-code       # the plan wants the strongest model
-#   REVIEW_MODEL_29=opencode-go/kimi-k2.7-code     # for S26, S27, S28, S29
+# Models: exactly two, for every step. No per-step exceptions.
+#   implementer  opencode-go/deepseek-v4.1-flash
+#   reviewer     opencode-go/mimo-v2.6-flash
 #
 # The machine stays awake for the whole run: the script re-execs itself under
 # caffeinate on macOS, so no wrapper is needed. Optionally still run it in tmux:
@@ -48,16 +46,8 @@ cd "$(git rev-parse --show-toplevel 2>/dev/null)" || { echo "FATAL: not inside a
 command -v opencode >/dev/null 2>&1 || { echo "FATAL: opencode not on PATH"; exit 1; }
 
 STEPS=${STEPS:-"23 24 25 26 27 28 29"}
-IMPL_MODEL=${IMPL_MODEL:-opencode-go/deepseek-v4.1-flash}
-REVIEW_MODEL=${REVIEW_MODEL:-opencode-go/mimo-v2.6-flash}
-
-# The build plan wants the strongest available reviewer for the controller core, the
-# modules, the migration and the gate (S26-S29). Env still wins if set. kimi-k2.7-code
-# is the strongest model that stays within budget.
-REVIEW_MODEL_26=${REVIEW_MODEL_26:-opencode-go/kimi-k2.7-code}
-REVIEW_MODEL_27=${REVIEW_MODEL_27:-opencode-go/kimi-k2.7-code}
-REVIEW_MODEL_28=${REVIEW_MODEL_28:-opencode-go/kimi-k2.7-code}
-REVIEW_MODEL_29=${REVIEW_MODEL_29:-opencode-go/kimi-k2.7-code}
+IMPL_MODEL=opencode-go/deepseek-v4.1-flash
+REVIEW_MODEL=opencode-go/mimo-v2.6-flash
 MAX_ATTEMPTS=${MAX_ATTEMPTS:-3}
 ON_EXHAUST=${ON_EXHAUST:-halt}          # halt | continue  (continue = push past an uncleared step)
 IMPL_EXTRA=${IMPL_EXTRA:-}              # optional human directive appended to every implementer prompt
@@ -74,9 +64,6 @@ mkdir -p "$EVIDENCE"
 
 log()  { printf '%s %s\n' "$(date -u +%H:%M:%SZ)" "$*" | tee -a "$RUN_LOG" >&2; }
 note() { printf '%s\n' "$*" >>"$REPORT"; }
-
-impl_model()   { local n="IMPL_MODEL_$1"   v; eval "v=\${$n:-}"; printf '%s' "${v:-$IMPL_MODEL}"; }
-review_model() { local n="REVIEW_MODEL_$1" v; eval "v=\${$n:-}"; printf '%s' "${v:-$REVIEW_MODEL}"; }
 
 new_commits()  { git rev-list --count "$1..HEAD" 2>/dev/null || echo 0; }
 
@@ -161,7 +148,7 @@ run_step() {
 
   backfill_review_only "$n" && return 0
 
-  log "=== S$n begin (implementer=$(impl_model "$n"), reviewer=$(review_model "$n")) ==="
+  log "=== S$n begin (implementer=$IMPL_MODEL, reviewer=$REVIEW_MODEL) ==="
 
   while [ "$attempt" -lt "$MAX_ATTEMPTS" ]; do
     attempt=$((attempt + 1))
@@ -197,7 +184,7 @@ EOF
 Previous attempt feedback:
 $correction"
 
-    opencode run --agent implementer -m "$(impl_model "$n")" --auto "$prompt" 2>&1 | tee -a "$RUN_LOG"
+    opencode run --agent implementer -m "$IMPL_MODEL" --auto "$prompt" 2>&1 | tee -a "$RUN_LOG"
 
     if [ "$(new_commits "$base")" -eq 0 ]; then
       correction="You produced no commit. Do the step's Do list, commit the code and the evidence log, then stop."
@@ -229,9 +216,9 @@ docs/evidence/S$n.log is committed and inside the prompt's commit range."
     fi
 
     local impl_sha; impl_sha="$(git rev-parse --short HEAD)"
-    log "S$n checkpoint PASS at $impl_sha: review (reviewer=$(review_model "$n"))"
+    log "S$n checkpoint PASS at $impl_sha: review (reviewer=$REVIEW_MODEL)"
 
-    opencode run --agent reviewer -m "$(review_model "$n")" --auto \
+    opencode run --agent reviewer -m "$REVIEW_MODEL" --auto \
       "Read and follow docs/reviews/S$n-review-prompt.md. Write docs/reviews/S$n-findings.md in the template's block structure, ending with one Verdict: line. Do not modify any other file. Do not commit. Stop." \
       2>&1 | tee -a "$RUN_LOG"
 
