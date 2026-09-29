@@ -20,6 +20,10 @@ for f in appliedParams attemptedParamsHash declaredBy; do
 done
 for cond in ParamsConflict AwaitingDeclarer NoDeclarer UpdateRefused Updating UpdateFailed OutputsChanged; do
   grep -q "$cond" "$CRD" || fail "condition $cond missing from $CRD"
+  # ADR 0027: the controller refuses a type outside its own list before patching,
+  # so the list and the CRD enum must agree or a valid type would be dropped.
+  grep -q "\"$cond\"" jit-controller/main.py \
+    || fail "condition $cond missing from the controller's _CONDITION_TYPES (ADR 0027)"
 done
 # a printer column, so `kk get infraclaims` shows who declares
 grep -q 'DECLARED' "$CRD" || fail "no DECLARED printer column in $CRD"
@@ -34,6 +38,10 @@ claim_ns="$(kk get infraclaims -A -o jsonpath='{.items[0].metadata.namespace}' 2
 claim_name="${existing##*/}"
 [ -n "$claim_ns" ] && [ -n "$claim_name" ] \
   || fail "could not resolve the namespace/name of the round-trip claim ($existing)"
+# ADR 0027: snapshot the probe fields before the patch so the round-trip can
+# restore them afterwards; the probe replaces the live claim's appliedParams.
+kk get infraclaim "$claim_name" -n "$claim_ns" -o json > /tmp/s25-claim.json \
+  || fail "could not snapshot the round-trip claim (ADR 0027)"
 kk patch infraclaim "$claim_name" -n "$claim_ns" --type=merge --subresource=status -p '
   {"status":{"appliedParams":{"probe":"s25"},"attemptedParamsHash":"s25-probe-hash",
              "declaredBy":["probe-s25"]}}' >/dev/null \
@@ -43,4 +51,20 @@ for f in appliedParams attemptedParamsHash declaredBy; do
   kk get infraclaim "$claim_name" -n "$claim_ns" -o jsonpath="{.status.$f}" | grep -q "probe" \
     || fail "status.$f was pruned by the API server (add it to the CRD schema)"
 done
+# ADR 0027: snapshot the probe fields first and restore them afterwards, so the
+# round-trip leaves the live claim's status exactly as it found it (a probe value
+# left in appliedParams would be treated as that claim's applied result).
+python3 - /tmp/s25-claim.json > /tmp/s25-restore.json <<'PY'
+import json, sys
+status = (json.load(open(sys.argv[1])).get("status") or {})
+applied = status.get("appliedParams")
+restore = {"appliedParams": None if applied is None else dict(applied, probe=None),
+           "attemptedParamsHash": status.get("attemptedParamsHash"),
+           "declaredBy": status.get("declaredBy", [])}
+json.dump({"status": restore}, sys.stdout)
+PY
+kk patch infraclaim "$claim_name" -n "$claim_ns" --type=merge --subresource=status \
+  --patch-file /tmp/s25-restore.json >/dev/null \
+  || fail "could not restore the round-trip claim's status (ADR 0027)"
+rm -f /tmp/s25-claim.json /tmp/s25-restore.json
 echo "PASS S25: schema fields survive pruning; DECLARED printer column present"

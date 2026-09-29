@@ -756,6 +756,15 @@ def resolve_desired(refs):
 
 _IDENTITY_KEYS = ("name", "ip", "network", "postgres_db", "postgres_password",
                   "postgres_user", "postgres_url")
+# The condition types the CRD's `status.conditions.type` enum admits
+# (deploy/crd/infraclaim.yaml). A type outside it makes the API server reject the
+# whole conditions array, so set_condition checks this first rather than let a
+# swallowed ApiException drop every condition write in that call. Keep in step with
+# the CRD; S25 asserts the two lists match.
+_CONDITION_TYPES = (
+    "ParamsConflict", "AwaitingDeclarer", "NoDeclarer", "UpdateRefused",
+    "Updating", "UpdateFailed", "OutputsChanged",
+)
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _MAXMEMORY = re.compile(r"^[0-9]+(kb|mb|gb)$")
 _PG_SIZE = re.compile(r"^[0-9]+(kB|MB|GB|TB)?$")
@@ -1139,6 +1148,13 @@ def reconcile_claim(api, ns, name, module, spec, force=False):
 
 def set_condition(namespace, name, cond_type, status, reason, message):
     """Add or replace one entry in status.conditions, leaving other types alone."""
+    if cond_type not in _CONDITION_TYPES:
+        # The whole array is patched at once, and conditions.type is a closed enum,
+        # so one out-of-enum type would make the API server reject the patch and
+        # drop every condition write in this call. Refuse loudly instead.
+        logger.error(f"Refusing unknown condition type {cond_type!r} on {name}: "
+                     f"not in the CRD enum {_CONDITION_TYPES}")
+        return
     api = client.CustomObjectsApi()
     condition = {
         "type": cond_type,
