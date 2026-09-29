@@ -314,27 +314,11 @@ echo "U13 ok TTL maximum taken from a consumer, no runner call"
 # root or under app/ depending on the target; both are accepted, and a stale artifact is
 # removed first so it cannot pass the gate. Never trust `make verify`'s exit code for the
 # count - verify.sh exits 0 even when checks fail - so parse the summary line.
-# demo-up leaves ALLOW_MULTIPLE_VOTES=true for the click-the-demo mode; R3 asserts
-# the one-vote-per-browser behaviour, so disable it for the R-suite and restore it
-# afterwards (the R-suite is what must survive, not the demo toggle).
-kk set env deploy/voting-app-vote -n voting-a ALLOW_MULTIPLE_VOTES=false >/dev/null \
-  || fail "the S29 gate: could not disable demo mode for the R-suite"
-kk rollout status deploy/voting-app-vote -n voting-a --timeout=180s >/dev/null \
-  || fail "the S29 gate: vote did not roll after disabling demo mode"
-rm -f .workflow/verify.md app/.workflow/verify.md
-if ! make verify NS=voting-a >/tmp/s29-verify.log 2>&1; then
-  tail -5 /tmp/s29-verify.log | sed 's/^/  /'
-  fail "the S29 gate: 'make verify NS=voting-a' failed - the R-suite broke under Stage H"
-fi
-verify_md="$(for f in .workflow/verify.md app/.workflow/verify.md; do [ -f "$f" ] && { echo "$f"; break; }; done)"
-[ -n "$verify_md" ] || fail "the S29 gate: make verify wrote no .workflow/verify.md"
-verify_sum="$(grep -E '^===== [0-9]+ PASS, [0-9]+ FAIL =====$' "$verify_md" | tail -1 || true)"
-[ "$verify_sum" = "===== 17 PASS, 0 FAIL =====" ] \
-  || fail "the S29 gate: make verify did not report '17 PASS, 0 FAIL' (got '${verify_sum:-no summary line}') - see $verify_md"
-echo "gate ok: make verify NS=voting-a reports 17 PASS, 0 FAIL"
-kk set env deploy/voting-app-vote -n voting-a ALLOW_MULTIPLE_VOTES=true >/dev/null 2>&1 || true
-kk rollout status deploy/voting-app-vote -n voting-a --timeout=180s >/dev/null 2>&1 || true
-
+#
+# J-suite first: it resets and redeploys both tenants itself and leaves voting-a freshly
+# applied with the base ALLOW_MULTIPLE_VOTES=false, the one-vote-per-browser mode R3
+# asserts. `make demo-up` leaves the demo toggle on, so running verify first would fail
+# R3 by design (and toggling it mid-run races the vote rollout).
 rm -f .workflow/verify-jit.md app/.workflow/verify-jit.md
 if ! make jit-verify >/tmp/s29-jit.log 2>&1; then
   tail -5 /tmp/s29-jit.log | sed 's/^/  /'
@@ -349,6 +333,18 @@ done
 grep -qE '^J[0-9]+[[:space:]]+FAIL' "$jit_md" \
   && fail "the S29 gate: a J-check reported FAIL in $jit_md"
 echo "gate ok: make jit-verify reports J1-J11 all PASS"
+
+rm -f .workflow/verify.md app/.workflow/verify.md
+if ! make verify NS=voting-a >/tmp/s29-verify.log 2>&1; then
+  tail -5 /tmp/s29-verify.log | sed 's/^/  /'
+  fail "the S29 gate: 'make verify NS=voting-a' failed - the R-suite broke under Stage H"
+fi
+verify_md="$(for f in .workflow/verify.md app/.workflow/verify.md; do [ -f "$f" ] && { echo "$f"; break; }; done)"
+[ -n "$verify_md" ] || fail "the S29 gate: make verify wrote no .workflow/verify.md"
+verify_sum="$(grep -E '^===== [0-9]+ PASS, [0-9]+ FAIL =====$' "$verify_md" | tail -1 || true)"
+[ "$verify_sum" = "===== 17 PASS, 0 FAIL =====" ] \
+  || fail "the S29 gate: make verify did not report '17 PASS, 0 FAIL' (got '${verify_sum:-no summary line}') - see $verify_md"
+echo "gate ok: make verify NS=voting-a reports 17 PASS, 0 FAIL"
 
 # ================================================================== U12 namespace delete after U2
 kk delete ns voting-a --wait=true >/dev/null 2>&1 &
