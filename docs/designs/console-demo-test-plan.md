@@ -557,8 +557,8 @@ Then walk Track B once, click-verify B2–B5, and leave the cluster **up**.
 - Close every other console tab and window (E1).
 - Keep two terminals visible: `docker ps --format '{{.Names}}\t{{.Status}}'` and
   `kubectl get infraclaims -A`.
-- Keep the fallback open in another tab: `docs/how-it-works-presentation.html` and
-  `docs/deletion-lifecycle.html` are single files with no server behind them. If the host
+- Keep the fallback open in another tab: `docs/visual-walkthroughs/how-it-works-presentation-v2.html` and
+  `docs/visual-walkthroughs/deletion-lifecycle.html` are single files with no server behind them. If the host
   misbehaves, you can present the design from the deck and lose nothing.
 
 **During:** Track C. **After:** *Delete everything* if the laptop goes home with you, or leave

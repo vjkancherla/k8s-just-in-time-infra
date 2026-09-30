@@ -72,7 +72,7 @@ in fourteen slides — what the annotations do, how the controller provisions in
 two-speed cleanup, and why the design is split the way it is.
 
 ```bash
-open docs/visual-walkthroughs/how-it-works-presentation.html
+open docs/visual-walkthroughs/how-it-works-presentation-v2.html
 ```
 
 No server, no dependencies, no build step. One HTML file, opens in any browser, arrow
@@ -82,7 +82,7 @@ There is a second deck for the controller on its own — what kind of controller
 four things that trigger it, what it does on each one, and the state machine it keeps:
 
 ```bash
-open docs/visual-walkthroughs/controller-explained.html
+open docs/visual-walkthroughs/controller-explained-v2.html
 ```
 
 Same rules: one file, arrow keys, no dependencies. Read it before changing
@@ -93,7 +93,7 @@ rather than read:
 
 ```bash
 open docs/visual-walkthroughs/deletion-lifecycle.html    # interactive: delete → redeploy → expire, or hard-delete
-open docs/visual-walkthroughs/annotation-to-state.html   # pick a namespace and module; every name in the chain resolves
+open docs/visual-walkthroughs/annotation-to-state-v2.html   # pick a namespace and module; every name in the chain resolves
 ```
 
 The first is an interactive walkthrough of the full deletion lifecycle: the soft-delete
@@ -336,10 +336,10 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 | Document | What it covers | Read when |
 |---|---|---|
 | [`docs/visual-walkthroughs/`](docs/visual-walkthroughs/README.md) | **Start here** — five interactive HTML walkthroughs with a recommended viewing order: the system overview, naming chain, controller, deletion lifecycle, and timeline | You are new to the project and want to see how it works before reading the code |
-| [`docs/visual-walkthroughs/how-it-works-presentation.html`](docs/visual-walkthroughs/how-it-works-presentation.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Fourteen slides, arrow keys, no dependencies |
-| [`docs/visual-walkthroughs/controller-explained.html`](docs/visual-walkthroughs/controller-explained.html) | **Controller deck** — the JIT controller on its own: reconciler vs admission controller, its four kopf triggers, what each one does, the claim state machine, and why the missing Secret is the gate | Reading or changing `jit-controller/main.py`, or when a claim's behaviour surprises you |
+| [`docs/visual-walkthroughs/how-it-works-presentation-v2.html`](docs/visual-walkthroughs/how-it-works-presentation-v2.html) | **Slide deck** — visual walkthrough of the whole system: annotations, provisioning, two-speed cleanup, split-plane design | First thing to open. Fourteen slides, arrow keys, no dependencies |
+| [`docs/visual-walkthroughs/controller-explained-v2.html`](docs/visual-walkthroughs/controller-explained-v2.html) | **Controller deck** — the JIT controller on its own: reconciler vs admission controller, its four kopf triggers, what each one does, the claim state machine, and why the missing Secret is the gate | Reading or changing `jit-controller/main.py`, or when a claim's behaviour surprises you |
 | [`docs/visual-walkthroughs/deletion-lifecycle.html`](docs/visual-walkthroughs/deletion-lifecycle.html) | **Lifecycle page** — the same window as `docs/designs/deletion-lifecycle.md`, made drivable: delete the deployment, redeploy inside the clock, or let it expire, and watch which of the container, IP, Secret, Service and EndpointSlice survive each stage | Understanding the retention window, or when a claim will not go away |
-| [`docs/visual-walkthroughs/annotation-to-state.html`](docs/visual-walkthroughs/annotation-to-state.html) | **Trace resolver** — the same chain as `docs/designs/annotation-to-state.md`, resolved: pick a namespace and module and every name follows | Tracing an app's infrastructure, or working out what a name should be |
+| [`docs/visual-walkthroughs/annotation-to-state-v2.html`](docs/visual-walkthroughs/annotation-to-state-v2.html) | **Trace resolver** — the same chain as `docs/designs/annotation-to-state.md`, resolved: pick a namespace and module and every name follows | Tracing an app's infrastructure, or working out what a name should be |
 | [`docs/visual-walkthroughs/timeline.html`](docs/visual-walkthroughs/timeline.html) | **Timeline viewer** — one real run on five lanes (deployment, controller, runner, container, pod), every event with the source of its timestamp | You want to see what actually happened, in order |
 | [`docs/guides/JIT-MAKEFILE-GUIDE.md`](docs/guides/JIT-MAKEFILE-GUIDE.md) | **Make targets** — what each one runs, its variables, common workflows, the console's allowlist, evidence and exit codes | You want the command, not the reasoning |
 | [`docs/guides/JIT-MANUAL-GUIDE.md`](docs/guides/JIT-MANUAL-GUIDE.md) | **By hand** — fifteen sections, cluster to teardown, one `kubectl` or `docker` command at a time | Reacquainting yourself, or proving a step really happens |
