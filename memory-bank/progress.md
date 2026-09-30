@@ -1,12 +1,13 @@
 # Progress
 
-Updated: 2026-09-29 (HANDOFF debt session)
+Updated: 2026-09-30 (HANDOFF debt session closed; docs propagated; PoC reset)
 
 ## Working
 
 Nothing is being built. The HANDOFF debt list is cleared through P0.5 and the
 runner/controller/S25 parts of P0.6, plus P1 S18; the low-value tail (S26 coverage gaps,
-S27 `service_url`, cumulative review) is deferred by the human's "stop the bleed" call.
+S27 `service_url`) is deferred by the human's "stop the bleed" call. The session closed with
+a docs pass (declarer/consumer propagated; `-v2` walkthroughs) and the stack torn down.
 
 ## Done (verified, on `main` since `a374e21`)
 
@@ -21,6 +22,11 @@ S27 `service_url`, cumulative review) is deferred by the human's "stop the bleed
 - Four different-model reviews, all `CONCERNS` with empty Blockers.
 - Ponytail audit of the diff named four deferrable additions (sweep, condition guard,
   module-qualified regex, create validation).
+- Docs pass: the declarer/consumer model propagated to `README.md` and
+  `docs/designs/demo-voting-app.md`; three `-v2` visual walkthroughs added; both READMEs and
+  `docs/designs/console-demo-test-plan.md` repointed (`07f0afc`, `1cd57b2`).
+- Demo smoke-tested (`make demo-up` 17 PASS; vote/result live; tally written), then
+  destroyed (`make destroy`).
 
 ## Broken (confirmed by execution)
 
@@ -63,3 +69,9 @@ S27 `service_url`, cumulative review) is deferred by the human's "stop the bleed
   uncommitted check, so the amendment commit precedes the evidence commit.
 - **A gate half that cannot fail asserts nothing** (U13's `|| true`); the fix is one
   assertion, and it caught the rule-7 per-claim scoping.
+- **Docs lagged the model.** The S22 declarer/consumer change reached the design notes but
+  not the root README, demo doc, or walkthroughs - they still showed every Deployment
+  carrying full params. Propagating a model change to its docs is part of the change.
+- **A versioned copy beats in-place churn for visual artefacts.** The `-v2` convention
+  (leave the original HTML, add a corrected `-v2`, repoint the references) keeps the v1
+  decks usable while the corrected ones land.
