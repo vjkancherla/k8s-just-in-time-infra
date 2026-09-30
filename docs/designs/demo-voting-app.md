@@ -72,27 +72,33 @@ An annotation is a provisioning request **and** a keep-alive lease, not a list o
 dependencies: the controller reads only Deployment metadata, and `status.referencedBy` is
 recomputed from those annotations alone. Every Deployment that uses a module must therefore
 name it, or the last-reference rule can destroy infrastructure a running pod is still using.
+Only an annotation whose value carries a `params` key **declares** that module's settings;
+an annotation without one is a **consumer** — it holds the lease and has no opinion on the
+settings.
 
-| Deployment | Annotates | Consumes |
+| Deployment | Declares | Consumes |
 |---|---|---|
 | `vote` | `redis`, `pgadmin` | Redis (`REDIS_URL`). pgAdmin has no consumer — it is leased here as the demo's soft-delete subject, and it is the only module with a cross-module dependency |
-| `worker` | `redis`, `postgres` | Redis (the queue) and Postgres (writes the `votes` table) |
-| `result` | `postgres` | Postgres only |
+| `worker` | `postgres` | Redis (the queue) and Postgres (writes the `votes` table) |
+| `result` | — | Postgres only |
+
+Every Deployment above still *annotates* each module it uses — that is the lease. The
+`Declares` column is the subset whose annotation also carries a `params` key.
 
 ```yaml
-# vote
+# vote: declares redis and pgadmin
 annotations:
   jit.infra/redis:   '{"module":"redis",  "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
   jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
 
-# worker
+# worker: declares postgres, consumes redis (no params key)
 annotations:
-  jit.infra/redis:    '{"module":"redis",   "moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
+  jit.infra/redis:    '{"module":"redis",   "moduleVersion":"v1", "softDeleteTTL":"10m"}'
   jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
 
-# result
+# result: consumes postgres (no params key)
 annotations:
-  jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1", "params":{}, "softDeleteTTL":"10m"}'
+  jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1", "softDeleteTTL":"10m"}'
 ```
 
 `redis` is referenced by `vote` and `worker`; `postgres` by `worker` and `result`. The

@@ -108,17 +108,38 @@ pick, and rewrites the lookup commands to match.
 ## What it does
 
 ```yaml
+# vote declares the queue and pgAdmin
 kind: Deployment
 metadata:
   name: vote
   namespace: voting-a
   annotations:
-    jit.infra/redis:    '{"maxmemory":"128mb"}'
-    jit.infra/postgres: '{"db":"voting"}'
-    jit.infra/pgadmin:  '{}'
+    jit.infra/redis:   '{"module":"redis","moduleVersion":"v1","params":{"maxmemory":"128mb"},"softDeleteTTL":"10m"}'
+    jit.infra/pgadmin: '{"module":"pgadmin","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+
+# worker declares the database and consumes the queue
+kind: Deployment
+metadata:
+  name: worker
+  namespace: voting-a
+  annotations:
+    jit.infra/redis:    '{"module":"redis","moduleVersion":"v1","softDeleteTTL":"10m"}'
+    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","params":{},"softDeleteTTL":"10m"}'
+
+# result consumes the database
+kind: Deployment
+metadata:
+  name: result
+  namespace: voting-a
+  annotations:
+    jit.infra/postgres: '{"module":"postgres","moduleVersion":"v1","softDeleteTTL":"10m"}'
 ```
 
-`kubectl apply` and three containers appear on the Docker network. `kubectl delete ns voting-a`
+An annotation whose value carries a `params` key **declares** that module's settings; one
+without it only **consumes** the module and holds its keep-alive lease. Each shared module
+has one declaring Deployment and any number of consumers.
+
+`kubectl apply`, and three containers appear on the Docker network. `kubectl delete ns voting-a`
 and they are gone. The tenant never touches Terraform, a CRD, or a service catalogue.
 
 ## How it works
