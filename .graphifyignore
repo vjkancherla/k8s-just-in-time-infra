@@ -1,0 +1,18 @@
+# Graphify corpus exclusions. gitignore semantics; authoritative on every rebuild
+# (applies even to git-tracked files, unlike .gitignore-driven exclusion).
+#
+# Keep the graph focused on durable architecture so that BFS traversals return
+# design/code nodes instead of per-run scaffolding. Each entry below is either a
+# one-off runtime artifact or a dated session log that is rewritten constantly —
+# high node churn, low query value.
+
+# One-off evidence scripts and captured output from manual test runs.
+# Superseded every session; pure noise in a "how does X work" traversal.
+docs/evidence/
+
+# Numbered checkpoint scripts (S00-S21): session scaffolding, not architecture.
+scripts/checks/
+
+# Dated session journal entries. The durable memory-bank/*.md files stay in the
+# corpus; only the rotated per-day logs are dropped.
+memory-bank/journal/
