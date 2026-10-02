@@ -5,12 +5,14 @@ set -euo pipefail
 # kustomize manifests.
 #
 # Local access notes:
-#   - vote.localhost and result.localhost are routed by the ingress through the k3d
-#     loadbalancer on host ports 8081 (HTTP) and 8082 (HTTPS). The *.localhost TLD
-#     resolves to 127.0.0.1 natively (RFC 6761) — no /etc/hosts entry and no external
-#     DNS (nip.io) required. Just open the URLs below in a browser or curl.
-#   - Then open https://vote.localhost:8082/ and
-#     https://result.localhost:8082/
+#   - The app's hosts are routed by the ingress through the k3d loadbalancer on host
+#     ports 8081 (HTTP) and 8082 (HTTPS). The *.localhost TLD resolves to 127.0.0.1
+#     natively (RFC 6761) — no /etc/hosts entry and no external DNS (nip.io) required.
+#     Just open the URLs printed at the end in a browser or curl.
+#   - The hosts depend on the overlay: voting-a keeps vote.localhost / result.localhost,
+#     voting-b patches them to vote-b.localhost / result-b.localhost (two Ingresses claiming
+#     one host would route unpredictably). They are read back from the ingress rather than
+#     assumed, so the URLs below always match what was actually applied.
 #
 # Registry mode (REGISTRY=1): create the cluster with --registry-create and
 # apply kustomize/overlays/registry, which points image refs at the
@@ -78,7 +80,11 @@ rollout voting-app-vote
 rollout voting-app-worker
 rollout voting-app-result
 
+# Read the hosts back from the ingress just applied. Printing the base names unconditionally
+# handed out a URL that opened a *different* namespace's app for any namespaced overlay.
+read -r vote_host result_host <<<"$(kubectl get ingress voting-app-ingress -n "${NS:-default}" \
+  -o jsonpath='{.spec.rules[*].host}' 2>/dev/null)"
 echo "Deploy complete."
-echo "  vote:   https://vote.localhost:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)"
-echo "  result: https://result.localhost:8082/"
+echo "  vote:   https://${vote_host:-vote.localhost}:8082/   (*.localhost resolves to 127.0.0.1 natively — no /etc/hosts needed)"
+echo "  result: https://${result_host:-result.localhost}:8082/"
 

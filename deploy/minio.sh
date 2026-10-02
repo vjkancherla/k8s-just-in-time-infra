@@ -60,46 +60,20 @@ AWS_ACCESS_KEY_ID="$MINIO_ROOT_USER" \
 AWS_SECRET_ACCESS_KEY="$MINIO_ROOT_PASSWORD" \
 BUCKET="$BUCKET" \
 MINIO_HOST="127.0.0.1:${API_HOST_PORT}" \
+SIGV4_DIR="$SCRIPT_DIR/../scripts" \
 python3 - <<'PY'
-import hashlib, hmac, os, sys, urllib.error, urllib.request
-import datetime
+import os, sys, urllib.error, urllib.request
+
+sys.path.insert(0, os.environ["SIGV4_DIR"])
+from sigv4 import signed_request
 
 endpoint = "http://127.0.0.1:%d" % 9000
 bucket = os.environ["BUCKET"]
-region = "us-east-1"
-service = "s3"
 access = os.environ["AWS_ACCESS_KEY_ID"]
 secret = os.environ["AWS_SECRET_ACCESS_KEY"]
 host = os.environ["MINIO_HOST"]
 
-now = datetime.datetime.now(datetime.timezone.utc)
-ts = now.strftime("%Y%m%dT%H%M%SZ")
-date = now.strftime("%Y%m%d")
-
-def sign(key, msg):
-    return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-canonical_headers = "host:%s\nx-amz-date:%s\n" % (host, ts)
-signed_headers = "host;x-amz-date"
-payload_hash = hashlib.sha256(b"").hexdigest()
-canonical_request = "PUT\n/%s\n\n%s\n%s\n%s" % (bucket, canonical_headers, signed_headers, payload_hash)
-scope = "%s/%s/%s/aws4_request" % (date, region, service)
-string_to_sign = "AWS4-HMAC-SHA256\n%s\n%s\n%s" % (
-    ts, scope, hashlib.sha256(canonical_request.encode("utf-8")).hexdigest())
-k = ("AWS4" + secret).encode("utf-8")
-k_date = sign(k, date)
-k_region = sign(k_date, region)
-k_service = sign(k_region, service)
-k_signing = sign(k_service, "aws4_request")
-signature = hmac.new(k_signing, string_to_sign.encode("utf-8"), hashlib.sha256).hexdigest()
-authorization = "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s" % (
-    access, scope, signed_headers, signature)
-
-req = urllib.request.Request("%s/%s" % (endpoint, bucket), method="PUT", data=b"")
-req.add_header("Host", host)
-req.add_header("x-amz-date", ts)
-req.add_header("x-amz-content-sha256", payload_hash)
-req.add_header("Authorization", authorization)
+req = signed_request(access, secret, host, "PUT", bucket, endpoint=endpoint, payload=b"")
 try:
     code = urllib.request.urlopen(req, timeout=10).getcode()
 except urllib.error.HTTPError as e:

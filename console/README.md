@@ -16,8 +16,6 @@ Ctrl-C stops it. Nothing is left running.
 |---|---|
 | `index.html` | the page. One file, no build step, no dependencies |
 | `serve.py` | serves the page, calls `make state`, runs an allowlist of make targets |
-| `state.py` | the superseded original read model, kept as a reference — `make state` no longer calls it |
-| `state.sh` | the shell read model — used by `make state` and the checkpoints |
 | `test_browser.py` | Playwright browser tests — renders every fixture state, asserts on every tab |
 | `test_console.py` | declaration/contract tests — the page's structural assertions against serve.py |
 | `test_serve.py` | proxy/unit tests — the allowlist, the SAFE regex, the /log tail, /claim |
@@ -82,7 +80,10 @@ If `/state` returns nothing useful, `serve.py` prints the stderr from
           "referencedBy": ["vote","worker"], "expiresAt": null } ],
       "ingresses": [
         { "host": "vote.localhost", "path": "/", "service": "voting-app-vote", "tls": true } ] } ],
-  "containers": [ { "name": "voting-a-redis", "address": "172.19.0.100", "running": true } ],
+  "containers": [ { "name": "voting-a-redis", "address": "172.19.0.100", "running": true,
+                    "image": "redis:7", "created": "2026-09-12T09:40:58Z",
+                    "startedAt": "2026-09-12T09:40:59Z", "restarts": 0,
+                    "ports": "", "volume": "voting-a-redis-data" } ],
   "stateObjects": [ "ns/voting-a/redis/terraform.tfstate" ]
 }
 ```

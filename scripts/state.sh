@@ -48,22 +48,22 @@ MINIO_ROOT_USER="$(env_get MINIO_ROOT_USER)"
 MINIO_ROOT_PASSWORD="$(env_get MINIO_ROOT_PASSWORD)"
 export MINIO_ROOT_USER MINIO_ROOT_PASSWORD
 export CTRL_NS CTRL_DEPLOY LEDGER_CM BUCKET ALLOWED_NS
+# The one SigV4 signer (scripts/sigv4.py), shared with deploy/minio.sh and verify-jit.sh J11.
+export SIGV4_DIR="$ROOT/scripts"
 
 # The shell above is checks and credentials; the read model itself is one program, because
 # it is one JSON object and splitting it across two languages is how the shape drifts.
 python3 - <<'PY'
 import datetime
-import hashlib
-import hmac
 import json
 import os
 import re
 import subprocess
 import sys
 import urllib.error
-import urllib.parse
-import urllib.request
-import xml.etree.ElementTree as ET
+
+sys.path.insert(0, os.environ["SIGV4_DIR"])
+import sigv4
 
 CTRL_NS = os.environ["CTRL_NS"]
 CTRL_DEPLOY = os.environ["CTRL_DEPLOY"]
@@ -133,21 +133,46 @@ def read_ledger():
 
 
 def read_containers():
-    """Every module container on the host, running or not, with the address it holds."""
+    """Every module container on the host, running or not.
+
+    One inspect per container: the fields beyond running/address cost nothing because the
+    call was already being made. They are what the console puts beside a claim - the claim
+    says what was asked for, these say what is actually running, and the only way the page
+    can show the two disagreeing is to have both.
+    """
     proc = run(["docker", "ps", "-a", "--format", "{{.Names}}"])
     if proc.returncode != 0:
         note("note: docker is not answering; no containers reported")
         return []
+
+    # Tab separated so a value containing a space (ports, mounts) survives.
+    fmt = "\t".join([
+        "{{.State.Running}}",
+        "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+        "{{.Config.Image}}",
+        "{{.Created}}",
+        "{{.State.StartedAt}}",
+        "{{.RestartCount}}",
+        "{{range $p, $c := .NetworkSettings.Ports}}{{$p}}"
+        "{{if $c}}->{{(index $c 0).HostPort}}{{end}} {{end}}",
+        "{{range .Mounts}}{{if .Name}}{{.Name}} {{end}}{{end}}",
+    ])
+
     containers = []
     for name in sorted(n for n in proc.stdout.split("\n") if MODULE_CONTAINER.search(n)):
-        inspect = run(["docker", "inspect", "-f",
-                       "{{.State.Running}} {{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
-                       name])
-        fields = inspect.stdout.split()
+        inspect = run(["docker", "inspect", "-f", fmt, name])
+        parts = (inspect.stdout.strip("\n").split("\t") + [""] * 8)[:8]
+        running, address, image, created, started, restarts, ports, volumes = parts
         containers.append({
             "name": name,
-            "address": fields[1] if len(fields) > 1 else "",
-            "running": bool(fields) and fields[0] == "true",
+            "address": address.strip(),
+            "running": running.strip() == "true",
+            "image": image.strip(),
+            "created": created.strip(),
+            "startedAt": started.strip(),
+            "restarts": int(restarts) if restarts.strip().isdigit() else 0,
+            "ports": " ".join(ports.split()),
+            "volume": " ".join(volumes.split()),
         })
     return containers
 
@@ -155,10 +180,9 @@ def read_containers():
 def read_state_objects():
     """Every key under ns/ in the state bucket.
 
-    The listing is a SigV4 GET in stdlib python, mirroring scripts/verify-jit.sh J11: the
-    aws CLI is unusable on this host (its shebang is /usr/bin/python, which does not exist)
-    and `mc` is not installed. Same code path as the frozen check, which is what "the same
-    sources the frozen checks read" means.
+    A SigV4 GET via scripts/sigv4.py - the same signer deploy/minio.sh creates the bucket
+    with and J11 in scripts/verify-jit.sh gates on, so the console and the frozen check
+    cannot read the bucket differently.
     """
     access = os.environ.get("MINIO_ROOT_USER", "")
     secret = os.environ.get("MINIO_ROOT_PASSWORD", "")
@@ -166,46 +190,13 @@ def read_state_objects():
         note("note: deploy/.env has no MINIO_ROOT_USER / MINIO_ROOT_PASSWORD; stateObjects reported empty")
         return []
 
-    now = datetime.datetime.now(datetime.timezone.utc)
-    ts = now.strftime("%Y%m%dT%H%M%SZ")
-    date = now.strftime("%Y%m%d")
-    # S3's canonical query string encodes "/" as %2F; signing the raw prefix and sending it
-    # that way is a SignatureDoesNotMatch (verify-jit.sh J11 found that the hard way).
-    query = "list-type=2&prefix=" + urllib.parse.quote(BLOCK_PREFIX, safe="")
-
-    def sign(key, msg):
-        return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
-
-    ch = "host:%s\nx-amz-date:%s\n" % (HOST, ts)
-    sh = "host;x-amz-date"
-    ph = hashlib.sha256(b"").hexdigest()
-    cr = "GET\n/%s\n%s\n%s\n%s\n%s" % (BUCKET, query, ch, sh, ph)
-    scope = "%s/%s/%s/aws4_request" % (date, "us-east-1", "s3")
-    sts = "AWS4-HMAC-SHA256\n%s\n%s\n%s" % (ts, scope, hashlib.sha256(cr.encode("utf-8")).hexdigest())
-    k = ("AWS4" + secret).encode("utf-8")
-    kd = sign(k, date)
-    kr = sign(kd, "us-east-1")
-    ks = sign(kr, "s3")
-    ksig = sign(ks, "aws4_request")
-    sig = hmac.new(ksig, sts.encode("utf-8"), hashlib.sha256).hexdigest()
-
-    req = urllib.request.Request("%s/%s?%s" % (ENDPOINT, BUCKET, query), method="GET")
-    req.add_header("Host", HOST)
-    req.add_header("x-amz-date", ts)
-    req.add_header("x-amz-content-sha256", ph)
-    req.add_header("Authorization",
-                   "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
-                   % (access, scope, sh, sig))
     try:
-        body = urllib.request.urlopen(req, timeout=10).read()
+        return sigv4.list_keys(access, secret, HOST, BUCKET, prefix=BLOCK_PREFIX,
+                               endpoint=ENDPOINT)
     except (urllib.error.HTTPError, urllib.error.URLError, OSError) as exc:
         note("note: could not list %s at %s (%s); stateObjects reported empty"
              % (BUCKET, ENDPOINT, exc))
         return []
-
-    s3 = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
-    return sorted(c.find("s3:Key", s3).text
-                  for c in ET.fromstring(body).findall("s3:Contents", s3))
 
 
 def read_ingress_ports():

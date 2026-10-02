@@ -24,10 +24,33 @@ RELEASE="${RELEASE:-voting-app}"
 # is the control plane's namespace, and the app lives in the voting-a overlay.
 NS="${NS:-voting-a}"
 KUSTOMIZE_DIR="${KUSTOMIZE_DIR:-./kustomize}"
-VOTE_URL="${VOTE_URL:-https://vote.localhost:8082}"
-RESULT_URL="${RESULT_URL:-https://result.localhost:8082}"
 REGISTRY="${REGISTRY:-0}"
 OUT=".workflow/verify.md"
+
+# The host this namespace's app answers on, read from its Ingress rather than assumed.
+#
+# voting-a keeps the base's vote.localhost / result.localhost; voting-b patches them to
+# vote-b.localhost / result-b.localhost, precisely because two Ingresses claiming one host
+# route unpredictably through Traefik (overlays/voting-b/kustomization.yaml). So the host is
+# a property of the namespace, and hardcoding one here made `NS=voting-b` curl voting-a's
+# app while reading voting-b's containers: R1 passed on the wrong namespace's answer and
+# R2/R6/R8 failed on a queue nothing was writing to.
+#
+# Reading the Ingress keeps this correct for a namespace neither overlay anticipated, and it
+# is the same source the console builds its URLs from (scripts/state.sh). Keyed off the
+# backend service rather than the rule's position, so adding a rule cannot silently swap
+# vote and result. A namespace with no Ingress yet falls back to the base hosts, so the
+# checks below fail on their own terms instead of on a malformed URL.
+ing_host() {  # ing_host vote|result -> the host routing to voting-app-$1
+  kubectl get ingress voting-app-ingress -n "$NS" -o json 2>/dev/null \
+    | jq -r --arg svc "voting-app-$1" \
+        '.spec.rules[] | select(.http.paths[].backend.service.name == $svc) | .host' \
+    | head -n1
+}
+VOTE_HOST="$(ing_host vote)";     VOTE_HOST="${VOTE_HOST:-vote.localhost}"
+RESULT_HOST="$(ing_host result)"; RESULT_HOST="${RESULT_HOST:-result.localhost}"
+VOTE_URL="${VOTE_URL:-https://${VOTE_HOST}:8082}"
+RESULT_URL="${RESULT_URL:-https://${RESULT_HOST}:8082}"
 
 mkdir -p .workflow
 : > "$OUT"
