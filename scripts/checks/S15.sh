@@ -61,7 +61,7 @@ OVERLAY_OUT=""
 cleanup() {
   kubectl delete job s15-e2e -n "$NS" --ignore-not-found --wait=false 2>/dev/null || true
   kubectl delete -n "$NS" -f "$BUILD_OUT" --ignore-not-found --wait=false 2>/dev/null || true
-  docker rm -f "$REDIS_CONTAINER" "$POSTGRES_CONTAINER" "$PGADMIN_CONTAINER" 2>/dev/null || true
+  docker rm -f -v "$REDIS_CONTAINER" "$POSTGRES_CONTAINER" "$PGADMIN_CONTAINER" 2>/dev/null || true
   # Finalizers first, or namespace deletion hangs on live claims.
   for ic in $(kubectl get infraclaims -n "$NS" -o name 2>/dev/null || true); do
     kubectl patch "$ic" -n "$NS" --type=json \

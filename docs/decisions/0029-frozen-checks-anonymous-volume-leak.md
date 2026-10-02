@@ -1,7 +1,7 @@
 # 0029. The frozen checkpoints leak anonymous Docker volumes; `docker rm -f` needs `-v`
 
 Date: 2026-10-02
-Status: proposed
+Status: accepted (2026-10-02)
 
 ## Context
 
@@ -37,23 +37,30 @@ probe containers and reaps them with a bare `docker rm -f`.
 
 Amend the ten sites above to `docker rm -f -v`, sanctioned by this ADR.
 
-`-v` removes **anonymous** volumes only. Named volumes are untouched, so the cold-path rule
-that the captured evidence depends on — the postgres volume must go with its container, and
-must *not* be reattached by a later stack — is unaffected. `S15.sh:64` and `S24.sh:107` remove
-postgres containers; the named `<ns>-postgres-postgres-data` volumes they create are still
-cleared by the explicit `docker volume rm` calls already present in those scripts.
+`-v` removes **anonymous** volumes only. `S15.sh:64` and `S24.sh:107` remove **postgres**
+containers, but `jit-modules/modules/postgres/main.tf:40-41` gives postgres a *named* volume
+(`docker_volume.postgres_data`, `name = "${var.name}-postgres-data"`) mounted by `volume_name`,
+and `-v` does not touch named volumes at all. Those volumes disappear the way they always
+have — `tofu destroy` acting on the `docker_volume` resource — which is exactly what the two
+relevant assertions already test today: `S24.sh:120` and `S27.sh:87` both require
+`<ns>-postgres-postgres-data` to be **absent** after destroy, and both pass without a
+`docker volume rm` anywhere in those scripts. Nothing here changes who removes that volume.
 
 No assertion changes. Every `ok`/`fail` line, every measured value and every assertion in the
-seven checkpoints is untouched; only the cleanup verb changes.
+six checkpoints is untouched; only the cleanup verb changes.
 
 ## Consequences
 
 - Checkpoint runs stop accumulating one anonymous volume per probe container per run.
-- The captured evidence in `docs/evidence/` was produced **before** this amendment and no
-  longer reflects the files that produced it. Each amended checkpoint's log should be
-  re-captured on its next run (`make gate STEP=NN`) so the evidence stays truthful; until
-  then, treat those seven logs as predating the edit, the same caveat ADR 0028 records for
-  S18.
+- Two of the six amended checkpoints have captured evidence: `docs/evidence/S24.log` and
+  `docs/evidence/S27.log`, both ending in PASS. They were produced **before** this amendment
+  and no longer match the files that produced them, so treat those two as predating the edit
+  — the same caveat ADR 0028 records for S18. The other four (`S01`, `S07`, `S14`, `S15`) were
+  never captured, so there is nothing to go stale. Re-capture is deliberately deferred rather
+  than done here: `S14` already fails for a reason unrelated to volumes, so re-running it would
+  overwrite the record with a FAIL that says nothing about this change. No log's PASS/FAIL
+  outcome is actually in doubt either way — `-v` changes only the cleanup verb, and not one
+  assertion in any of the six observes a volume.
 - This does not reclaim the existing backlog. The 238 volumes found on the workstation
   predate every one of these edits and need a separate, deliberate prune — a machine-wide
   `docker volume prune` would also destroy stopped-but-unreferenced volumes belonging to

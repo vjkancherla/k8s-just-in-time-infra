@@ -23,14 +23,14 @@ PHASE="unknown"
 # Always clean up our probe artifacts, on success or failure.
 cleanup() {
   kubectl delete pod probe --ignore-not-found --timeout=10s >/dev/null 2>&1 || true
-  docker rm -f probe-redis >/dev/null 2>&1 || true
+  docker rm -f -v probe-redis >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
 fail() { echo "FAIL: $1"; exit 1; }
 
 # 1. A redis container sitting at the fixed Docker-network IP.
-docker rm -f probe-redis >/dev/null 2>&1 || true
+docker rm -f -v probe-redis >/dev/null 2>&1 || true
 docker run -d --name probe-redis \
   --network "$CLUSTER_NET" --ip "$PROBE_IP" \
   redis:7-alpine >/dev/null 2>&1 \

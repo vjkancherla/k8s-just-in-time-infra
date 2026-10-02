@@ -25,7 +25,7 @@ trap cleanup EXIT
 
 # 0. Clean up any leftover from a previous run
 cleanup
-docker rm -f "$REDIS_CONTAINER" >/dev/null 2>&1 || true
+docker rm -f -v "$REDIS_CONTAINER" >/dev/null 2>&1 || true
 
 # 1. Run a curl pod to reach the runner from inside the cluster
 kubectl run "$POD_NAME" --image=busybox --restart=Never -- sleep 60

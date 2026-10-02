@@ -78,7 +78,7 @@ echo "$data" | grep -q s27_probe \
 echo "3 ok settings replace: server replaced, volume and data intact"
 
 # --- 4. destroy removes container AND volume, even pre-removed --------------------
-docker rm -f "$PG" >/dev/null 2>&1 || true
+docker rm -f -v "$PG" >/dev/null 2>&1 || true
 del="$(curl -s -X DELETE "http://$RUNNER/v1/runs/$WS" -H "Authorization: Bearer $TOKEN")"
 echo "$del" | grep -qiE 'success|destroyed' \
   || fail "destroy after container pre-removal failed (state rm first) - $del"

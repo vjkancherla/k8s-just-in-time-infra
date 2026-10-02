@@ -104,7 +104,7 @@ PY
 tofu state push /tmp/s24-st2.json
 tofu state list | grep -q '^postgresql_' || { echo 'inject failed'; exit 1; }
 " || fail "could not inject a postgresql_* resource into $PGWS state"
-docker rm -f "$PGWS-postgres" >/dev/null 2>&1 \
+docker rm -f -v "$PGWS-postgres" >/dev/null 2>&1 \
   || fail "pre-removal of the postgres container failed"
 log_before="$(docker logs jit-runner 2>&1 | wc -l)"
 del="$(curl -s -X DELETE "http://$RUNNER/v1/runs/$PGWS" -H "Authorization: Bearer $TOKEN" \

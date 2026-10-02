@@ -16,7 +16,7 @@ cleanup() {
   kubectl delete deployment "s14-deploy-b" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
   kubectl delete job "s14-redis-test" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
   # Remove container first (can't be blocked by namespace deletion)
-  docker rm -f "${NAMESPACE}-redis-redis" 2>/dev/null || true
+  docker rm -f -v "${NAMESPACE}-redis-redis" 2>/dev/null || true
   # Remove finalizers from all claims so namespace deletion doesn't block
   for ic in $(kubectl get infraclaims -n "$NAMESPACE" -o name 2>/dev/null || true); do
     kubectl patch "$ic" -n "$NAMESPACE" --type=json \
@@ -62,14 +62,14 @@ if kubectl get ns "$NAMESPACE" >/dev/null 2>&1; then
     sleep 2
   done
 fi
-docker rm -f "${NAMESPACE}-redis-redis" 2>/dev/null || true
+docker rm -f -v "${NAMESPACE}-redis-redis" 2>/dev/null || true
 # Clean MinIO state and existing containers for this workspace
 curl -s -X DELETE "http://127.0.0.1:8100/v1/runs/${NAMESPACE}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer s6-secret-token-2026" \
   -d "{\"module\":\"redis\",\"params\":{\"name\":\"${NAMESPACE}-redis\",\"network\":\"k3d-voting-app\"}}" >/dev/null 2>&1 || true
 # Also remove any leftover container directly
-docker rm -f "${NAMESPACE}-redis-redis" 2>/dev/null || true
+docker rm -f -v "${NAMESPACE}-redis-redis" 2>/dev/null || true
 # Create namespace — controller watches all namespaces, no restart needed
 kubectl create ns "$NAMESPACE" 2>/dev/null || true
 
@@ -280,7 +280,7 @@ curl -s -X DELETE "http://127.0.0.1:8100/v1/runs/${NAMESPACE}" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer s6-secret-token-2026" \
   -d "{\"module\":\"redis\",\"params\":{\"name\":\"${NAMESPACE}-redis\",\"network\":\"k3d-voting-app\"}}" >/dev/null 2>&1 || true
-docker rm -f "${NAMESPACE}-redis-redis" 2>/dev/null || true
+docker rm -f -v "${NAMESPACE}-redis-redis" 2>/dev/null || true
 # Delete old Secret/Service/EndpointSlice so stale detection triggers
 kubectl delete secret "jit-redis" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
 kubectl delete service "jit-redis" -n "$NAMESPACE" --ignore-not-found 2>/dev/null || true
