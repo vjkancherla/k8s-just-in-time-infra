@@ -120,12 +120,20 @@ fi
 #    The volume is "<container>-data": the module names it "<var.name>-postgres-data"
 #    with var.name "<ns>-postgres". redis and pgadmin declare no volume at all, so
 #    the inspect below is what keeps this from guessing.
+#
+#    They do get one anyway, and always did: dpage/pgadmin4 declares VOLUME
+#    /var/lib/pgadmin and redis:7-alpine declares VOLUME /data, so Docker creates an
+#    ANONYMOUS volume per container, and Terraform never records it because no module
+#    declares one. Nothing but `docker rm -v` ever removes those, so every sweep used
+#    to leave one dangling per container. `-v` below takes them; it removes anonymous
+#    volumes ONLY, so the named postgres volume still needs the explicit inspect and
+#    is still safe from the destroy-ordering rule above.
 leftovers="$(docker ps -a --format '{{.Names}}' \
   | grep -E -- '-(redis-redis|postgres-postgres|pgadmin-pgadmin)$' || true)"
 if [[ -n "$leftovers" ]]; then
   while IFS= read -r c; do
     [[ -n "$c" ]] || continue
-    docker rm -f "$c" >/dev/null 2>&1 || true
+    docker rm -f -v "$c" >/dev/null 2>&1 || true
     echo "removed leftover container $c"
     if docker volume inspect "${c}-data" >/dev/null 2>&1; then
       docker volume rm -f "${c}-data" >/dev/null 2>&1 || true
@@ -141,6 +149,11 @@ echo "removed the controller"
 # 4. Runner, then MinIO.
 ./deploy/runner.sh down
 docker rm -f minio >/dev/null 2>&1 || true
+# MinIO's image declares VOLUME /data and deploy/minio.sh mounts a NAMED volume over
+# it (`-v minio-data:/data`), so `-v` on the container would not touch it and the name
+# has to be removed explicitly. It is the only durable MinIO state there is, and this is
+# the documented teardown, so it goes here rather than accumulating one per run.
+docker volume rm -f minio-data >/dev/null 2>&1 || true
 echo "removed the runner and MinIO"
 
 # 5. The IPAM ledger. Every claim was destroyed above and the controller is gone, so

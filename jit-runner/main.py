@@ -404,7 +404,11 @@ async def _apply_run(req: RunRequest, key: tuple, params_hash: str) -> RunRespon
                 container_name = req.params.get("name", "")
                 if container_name:
                     try:
-                        subprocess.run(["docker", "rm", "-f", container_name],
+                        # `-v` drops the anonymous volumes the images declare; see the
+                        # same note on the destroy path. Harmless here: a name conflict
+                        # means the old container is being replaced, and its anonymous
+                        # volume was never going to be read again.
+                        subprocess.run(["docker", "rm", "-f", "-v", container_name],
                                        capture_output=True, timeout=30)
                     except Exception:
                         pass
@@ -523,10 +527,19 @@ async def delete_run(workspace: str, body: DestroyRequest = None,
 
             # Safety: force-remove any existing container before destroy.
             # This handles the case where the container exists but tofu state is stale.
+            #
+            # `-v` takes the ANONYMOUS volumes the images declare - redis's /data and
+            # pgAdmin's /var/lib/pgadmin. Docker creates one per container and no module
+            # declares one, so Terraform never records it and `tofu destroy` cannot
+            # remove it; without `-v` this line orphaned one volume on every hard
+            # delete. `-v` removes anonymous volumes ONLY, so the named postgres volume
+            # (docker_volume.postgres_data) is untouched here and is still destroyed by
+            # `tofu destroy` further down, keeping the "the volume goes with the
+            # container" rule that the cold path depends on.
             container_name = f"{workspace}-{module}-{module}"
             try:
                 subprocess.run(
-                    ["docker", "rm", "-f", container_name],
+                    ["docker", "rm", "-f", "-v", container_name],
                     capture_output=True, timeout=30,
                 )
             except Exception:

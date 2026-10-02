@@ -110,7 +110,11 @@ reset_ns() {  # <ns> - back to "never deployed", for a repeatable run
 
   done
   kubectl delete infraclaim -n "$ns" --all --ignore-not-found --wait=true >/dev/null 2>&1 || true
-  for m in $MODULES; do docker rm -f "${ns}-${m}-${m}" >/dev/null 2>&1 || true; done
+  # `-v` takes the anonymous volumes redis and pgAdmin's images declare (/data and
+  # /var/lib/pgadmin). Docker makes one per container and no module declares one, so
+  # without this every J-suite run left three of them behind. Anonymous volumes only:
+  # the named postgres volume is removed explicitly on the next line, as before.
+  for m in $MODULES; do docker rm -f -v "${ns}-${m}-${m}" >/dev/null 2>&1 || true; done
   # The module names its volume "${var.name}-postgres-data" with var.name "<ns>-postgres",
   # so the volume is "<ns>-postgres-postgres-data" - one "-postgres" more than the container.
   docker volume rm -f "${ns}-postgres-postgres-data" >/dev/null 2>&1 || true
@@ -560,60 +564,26 @@ mp="$(env_get MINIO_ROOT_PASSWORD)"
 keys="$(AWS_ACCESS_KEY_ID="$mu" AWS_SECRET_ACCESS_KEY="$mp" \
   BUCKET="jit-state" PREFIX="ns/" \
   MINIO_ENDPOINT="http://127.0.0.1:9000" MINIO_HOST="127.0.0.1:9000" \
+  SIGV4_DIR="$ROOT/scripts" \
   python3 - <<'PY' || true
-import datetime, hashlib, hmac, os, sys, urllib.error, urllib.parse, urllib.request
-import xml.etree.ElementTree as ET
+import os, sys, urllib.error
 
-endpoint = os.environ["MINIO_ENDPOINT"]
-bucket = os.environ["BUCKET"]
-access = os.environ["AWS_ACCESS_KEY_ID"]
-secret = os.environ["AWS_SECRET_ACCESS_KEY"]
-host = os.environ["MINIO_HOST"]
-prefix = os.environ.get("PREFIX", "")
+sys.path.insert(0, os.environ["SIGV4_DIR"])
+import sigv4
 
-now = datetime.datetime.now(datetime.timezone.utc)
-ts = now.strftime("%Y%m%dT%H%M%SZ")
-date = now.strftime("%Y%m%d")
-
-def sign(k, msg):
-    return hmac.new(k, msg.encode("utf-8"), hashlib.sha256).digest()
-
-query = "list-type=2"
-if prefix:
-    # The canonical query string uses S3's encoding, where "/" is %2F. Signing the
-    # raw "ns/" (safe="/") and then sending it that way made MinIO answer HTTP 403
-    # SignatureDoesNotMatch - J11's first real execution, because no earlier run had
-    # ever reached it with a non-empty prefix. deploy/minio.sh needs no such care:
-    # its PUT has no query string at all.
-    query += "&prefix=" + urllib.parse.quote(prefix, safe="")
-
-ch = "host:%s\nx-amz-date:%s\n" % (host, ts)
-sh = "host;x-amz-date"
-ph = hashlib.sha256(b"").hexdigest()
-cr = "GET\n/%s\n%s\n%s\n%s\n%s" % (bucket, query, ch, sh, ph)
-scope = "%s/%s/%s/aws4_request" % (date, "us-east-1", "s3")
-sts = "AWS4-HMAC-SHA256\n%s\n%s\n%s" % (ts, scope, hashlib.sha256(cr.encode("utf-8")).hexdigest())
-k = ("AWS4" + secret).encode("utf-8")
-kd = sign(k, date); kr = sign(kd, "us-east-1"); ks = sign(kr, "s3")
-ksig = sign(ks, "aws4_request")
-sig = hmac.new(ksig, sts.encode("utf-8"), hashlib.sha256).hexdigest()
-auth = "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s" % (access, scope, sh, sig)
-
-req = urllib.request.Request("%s/%s?%s" % (endpoint, bucket, query), method="GET")
-req.add_header("Host", host)
-req.add_header("x-amz-date", ts)
-req.add_header("x-amz-content-sha256", ph)
-req.add_header("Authorization", auth)
 try:
-    body = urllib.request.urlopen(req, timeout=10).read()
+    for key in sigv4.list_keys(
+            os.environ["AWS_ACCESS_KEY_ID"],
+            os.environ["AWS_SECRET_ACCESS_KEY"],
+            os.environ["MINIO_HOST"],
+            os.environ["BUCKET"],
+            prefix=os.environ.get("PREFIX", ""),
+            endpoint=os.environ["MINIO_ENDPOINT"]):
+        print(key)
 except urllib.error.HTTPError as e:
     print("MinIO list failed: HTTP %s %s" % (e.code, e.read().decode("utf-8", "replace")[:200]),
           file=sys.stderr)
     sys.exit(1)
-
-ns = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
-for c in ET.fromstring(body).findall("s3:Contents", ns):
-    print(c.find("s3:Key", ns).text)
 PY
 )"
 
