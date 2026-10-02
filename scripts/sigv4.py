@@ -15,8 +15,8 @@ Callers pass SIGV4_DIR (the absolute path to scripts/) on the environment and do
     from sigv4 import signed_request
 
 S3's canonical query string encodes "/" as %2F: signing a raw "ns/" and sending it that
-way is a SignatureDoesNotMatch. Use `quote_query` for the prefix, or pass a query that
-is already encoded.
+way is a SignatureDoesNotMatch. So `query` is always already-encoded, and `list_keys`
+below percent-encodes the prefix before building it.
 """
 
 import datetime
@@ -33,17 +33,12 @@ def _sign(key, msg):
     return hmac.new(key, msg.encode("utf-8"), hashlib.sha256).digest()
 
 
-def quote_query(prefix):
-    """S3's encoding for a query-string value: "/" becomes %2F."""
-    return urllib.parse.quote(prefix, safe="")
-
-
 def signed_request(access, secret, host, method, path, query="",
-                   endpoint="", payload=b"", timeout=10):
+                   endpoint="", payload=b""):
     """-> an unsigned-body urllib Request carrying a valid SigV4 Authorization header.
 
-    `path` is the bucket, `query` an already-encoded query string (see quote_query),
-    `host` the "127.0.0.1:9000" form the signature covers.
+    `path` is the bucket, `query` an already-encoded query string, `host` the
+    "127.0.0.1:9000" form the signature covers. The caller owns the timeout.
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     ts = now.strftime("%Y%m%dT%H%M%SZ")
@@ -72,7 +67,6 @@ def signed_request(access, secret, host, method, path, query="",
     req.add_header("Authorization",
                    "AWS4-HMAC-SHA256 Credential=%s/%s, SignedHeaders=%s, Signature=%s"
                    % (access, scope, signed_headers, signature))
-    req.timeout = timeout
     return req
 
 
@@ -82,9 +76,9 @@ def list_keys(access, secret, host, bucket, prefix="", endpoint="", timeout=10):
 
     query = "list-type=2"
     if prefix:
-        query += "&prefix=" + quote_query(prefix)
+        query += "&prefix=" + urllib.parse.quote(prefix, safe="")
     req = signed_request(access, secret, host, "GET", bucket, query=query,
-                         endpoint=endpoint, timeout=timeout)
+                         endpoint=endpoint)
     body = urllib.request.urlopen(req, timeout=timeout).read()
     ns = {"s3": "http://s3.amazonaws.com/doc/2006-03-01/"}
     return sorted(c.find("s3:Key", ns).text
