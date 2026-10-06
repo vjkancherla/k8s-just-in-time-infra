@@ -43,7 +43,7 @@ for c in kubectl docker python3; do
 done
 
 # The MinIO credentials come from the same place scripts/verify-jit.sh J11 reads them.
-env_get() { grep -E "^$1=" deploy/.env 2>/dev/null | head -n1 | cut -d= -f2-; }
+env_get() { grep -E "^$1=" deploy/.env 2>/dev/null | head -n1 | cut -d= -f2- || true; }
 MINIO_ROOT_USER="$(env_get MINIO_ROOT_USER)"
 MINIO_ROOT_PASSWORD="$(env_get MINIO_ROOT_PASSWORD)"
 export MINIO_ROOT_USER MINIO_ROOT_PASSWORD

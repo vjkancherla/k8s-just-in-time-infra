@@ -1,179 +1,44 @@
-# JIT Infra PoC - Tracker
+# CI Pipeline — Tracker
 
-Design: [jit-infra-poc.md](./jit-infra-poc.md)
-Steps: [build-plan.md](./build-plan.md)
-Reviews: [reviews/](./reviews/)
+Design: [./designs/ci-pipeline.md](./designs/ci-pipeline.md) ·
+Plan: [./build-plan.md](./build-plan.md) ·
+Rules: [../.opencode/rules/ci-pipeline.md](../.opencode/rules/ci-pipeline.md) ·
+Runbook: [../RUNBOOK.md](../RUNBOOK.md)
 
-Each step has **two** boxes. Tick `check` when the checkpoint printed `PASS`; tick
-`review` when a different model wrote `CLEAR` in `docs/reviews/SNN-findings.md`.
+One box per step. Tick it when `scripts/ci-checkpoint.sh CI<NN>` passes. Run logs live in
+`docs/evidence/CI<NN>.log`; a step's outcome in `docs/steps/CI<NN>.md`; the stage's state
+in `docs/stages/<stage>.md`.
 
-A step with one box ticked is not done. One step per session.
+## Stage A — The pipeline skeleton and the risky substrate
 
-This file is a tracker, not a record. Keep it to boxes and links: run logs live in
-`docs/evidence/`, a step's outcome in `docs/reviews/SNN-findings.md`, the rules a rework
-produced in `docs/lessons.md`, and the state of play in `memory-bank/`.
+- [x] **CI01** — the fast half is green locally, and the runner can be dispatched — [plan](./build-plan.md#ci01-the-fast-half-is-green-locally-and-the-runner-can-be-dispatched)
+- [x] **CI02** — a stock `ubuntu-24.04` runner can host the cluster's fixed network — [plan](./build-plan.md#ci02-a-stock-ubuntu-2404-runner-can-host-the-clusters-fixed-network)
+
+## Stage B — Portability migration
+
+- [ ] **CI03** — the repo builds and the R-suite can pass on amd64 — [plan](./build-plan.md#ci03-the-repo-builds-and-the-r-suite-can-pass-on-amd64)
+
+## Stage C — The full e2e job
+
+- [ ] **CI04** — the e2e job runs the cold path — [plan](./build-plan.md#ci04-the-e2e-job-runs-the-cold-path)
+- [ ] **CI05** — the e2e job runs the console and J suites — [plan](./build-plan.md#ci05-the-e2e-job-runs-the-console-and-j-suites)
+
+## Stage D — Report-only, hardened, documented
+
+- [ ] **CI06** — the pipeline is report-only, hardened and written down — [plan](./build-plan.md#ci06-the-pipeline-is-report-only-hardened-and-written-down)
+
+## Stage reports
+
+- [ ] [Stage A](./stages/A.md)
+- [ ] [Stage B](./stages/B.md)
+- [ ] [Stage C](./stages/C.md)
+- [ ] [Stage D](./stages/D.md)
 
 ## Decisions (settled)
 
-- [x] Annotation on the **Deployment** - tenants cannot edit namespaces
-- [x] Claim owned by the **Namespace** - survives Deployment churn; one ns per app
-- [x] **Two-speed cleanup** - Deployment delete starts a TTL; Namespace delete destroys now
-- [x] Redis, Postgres and pgAdmin all on the annotation path; no manual tier
-- [x] No snapshot guardrail in the PoC - soft delete covers the accident that matters
-- [x] All work in `k8s-just-in-time-infra/`; the voting app is copied into `app/`, never edited in place
-- [x] **Tenants never run in `default`** - the demo lives in `voting-a`/`voting-b`, and `default` holds the
-      control plane (the controller and its `jit-ipam` ledger). `app/Makefile` defaults `NS` and
-      `KUSTOMIZE_DIR` to the `voting-a` overlay, so a bare `make all` cannot land elsewhere.
-      *(docs/evidence/s17-cold-path-order.log)*
-- [x] **A container removal takes its volume** - `tofu destroy` always did it; `jit-down`'s by-name sweep
-      now does too. A Postgres data directory carries its own password, so a volume outliving its container
-      makes the next stack's fresh password unusable. *(docs/evidence/s17-cold-path-green.log)*
-- [x] **The console owns no behaviour** - every action it can take is a single make target from
-      `make targets`, and everything it displays comes from `make state`, which reads the same
-      sources the frozen checks do. A page that computes its own phase or expiry would disagree
-      with `make jit-verify` eventually, and the disagreement would be the thing you debug.
-- [x] **The timeline is a read model, not a controller change** - every timestamp it needs already
-      exists: object `creationTimestamp`s, `docker inspect`, the runner's access log, and the
-      controller's own `--timestamps` log, which is the only record of when a claim became Ready
-      (no phase transition is timestamped and the claims carry no conditions).
-- [x] **The timeline is a target of its own, not a key in `make state`** - it reads a log and
-      inspects containers, and `make state` is polled every two seconds. Putting it in that
-      document would make the console's own poll the expensive part of the demo.
-
-## The boxes
-
-`check` is the checkpoint: the step's script ran and passed, and the run that justified it is named in the line
-or kept in `docs/evidence/`. `review` is the frozen-checkpoint review, and only the human ticks it.
-
-The nine steps S-1 and S0-S7 hold unticked `review` boxes, and S-1 an unticked `check` box, on purpose: those
-reviews were never run, and no findings file exists below `docs/reviews/S08-findings.md`. What they cover is
-evidenced at the stage level instead - the S08-S21 findings are on disk, the cold path is green in
-`docs/evidence/s17-cold-path-green.log`, and Stage G's gate re-ran on a live cluster. Ticking them here would
-invent an audit trail that does not exist.
-
-## Stage Z - Before anything
-
-- [ ] check  - [ ] review  **S-1** All 18 checkpoint scripts written, all 18 failing, none erroring  ← **then frozen**
-
-## Stage A - Baseline
-
-- [x] check  - [ ] review  **S0** Copy the app, `make destroy`, add `--subnet 172.19.0.0/16`, `make all` = 17 PASS
-- [x] check  - [ ] review  **S1** Pod reaches a container by Docker-network IP  ← **hard gate**
-
-## Stage B - Provisioning plane, no Kubernetes
-
-- [x] check  - [ ] review  **S2** MinIO at `.11`, bucket `jit-state`
-- [x] check  - [ ] review  **S3** `modules/redis` applies and destroys, state in MinIO
-- [x] check  - [ ] review  **S4** `modules/postgres`, data survives container removal
-- [x] check  - [ ] review  **S5** `modules/pgadmin` reachable, connects to Postgres
-- [x] check  - [ ] review  **S6** `jit-runner` as a local process, idempotent create, auth enforced
-- [x] check  - [ ] review  **S7** Runner containerised at `.10`, driven from inside the cluster
-
-## Stage C - Control plane, fake provisioner
-
-- [x] check  - [x] review  **S8** CRD + claim creation, ownerRef → Namespace, finalizer
-- [x] check  - [x] review  **S9** Resync computes `referencedBy`
-- [x] check  - [x] review  **S10** Soft delete: orphan, expiry, resurrection
-- [x] check  - [x] review  **S11** Hard delete: namespace destroys immediately
-- [x] check  - [x] review  **S12** Controller restart still detects the orphan  ← the one most designs skip
-
-## Stage D - Join the planes
-
-- [x] check  - [x] review  **S13** IPAM: a block of 10 per namespace
-- [x] check  - [x] review  **S14** Real provisioning via the runner; Secret + Service + EndpointSlice
-
-## Stage E - The app
-
-- [x] check  - [x] review  **S15** Voting app migrated; no PVC or StatefulSet; both kustomize overlays build
-- [x] check  - [x] review  **S16** Six R-checks reworked (R2, R8, R9, R10, R11, R16, R17); `make verify` = 17 PASS
-- [x] check  - [x] review  **S17** Two namespaces, `make jit-verify` J1-J11 pass, Makefile targets added
-
-## Stage F - The console
-
-- [x] check  - [x] review  **S18** Every console action is one make target; `make state` is the read model
-
-## Stage G - The console, checkpointed
-
-The page and the proxy were built outside the plan, so S19 and S20 are retro-checkpoints:
-written from `build-plan.md`'s Goal, then run against the code as it stands.
-
-- [x] check  - [x] review  **S19** The page reads `make state` and the proxy, and offers no button the allowlist cannot run
-- [x] check  - [x] review  **S20** The proxy runs the allowlist, never a shell, one run at a time
-- [x] check  - [x] review  **S21** `make timeline`: every event with a time and a source
-
-### Playwright browser tests (added outside the plan)
-
-`console/test_browser.py` exercises the console UI with Playwright against fixture data
-(no cluster needed). It was built ad-hoc after S21 — not gated by a checkpoint or reviewed
-as a step. Coverage includes: the Setup, Infrastructure, App, Timeline and Guide tabs;
-Demo vs Testing mode switching; action confirm dialogs; claim-object panel; LED status
-indicator; container and state-object strips; app iframes and URLs; and a full-fixture
-JavaScript error sweep. `--shots` renders numbered PNGs to `console/shots/` for visual
-review. `console/test_console.py` (declaration/contract suite) and `console/test_serve.py`
-(proxy/unit tests) are the other two console test files.
-
-## Stage H — S22: declarers and consumers (settings changes)
-
-Design: [designs/declarers-and-consumers.md](./designs/declarers-and-consumers.md)
-Steps: build-plan.md Stage H. Evidence: `docs/evidence/SNN.log` via
-`scripts/checkpoint.sh`. Checkpoints S23-S29 written in S22 and **frozen**;
-runner and guard frozen with them.
-
-- [x] check  - [x] review  **S22** [build-plan.md](./build-plan.md) Stage H: every Stage-H checkpoint written in one pass, all failing readable *(docs/evidence/s22-all-fail.log — 7 FAIL, 0 syntax errors)*
-- [x] check  - [x] review  **S23** Spike: replace timings, vote loss, `call_runner` blocking verdict  ← decides redis `maxmemory` mutability
-- [x] check  - [x] review  **S24** Runner: params-keyed success cache; `tofu state rm postgresql_*` before destroy
-- [x] check  - [x] review  **S25** CRD: `appliedParams`/`attemptedParamsHash`/`declaredBy` survive the API server
-- [x] check  - [x] review  **S26** Controller core against the stub runner: resolution, contract, update flow, backfill, stale `Updating`  ← strongest model
-- [x] check  - [x] review  **S27** Postgres `databases` in place, settings allowlist, `service_url_<db>`; redis via contract
-- [x] check  - [x] review  **S28** Tenant migration (declarers/consumers) + the three design-doc amendments  ← strongest model
-- [x] check  - [x] review  **S29** The gate: U1-U13 live, plus `make verify` 17 PASS and `make jit-verify` 11 PASS  ← strongest model
-
-## Notes carried from the app's own docs
-
-- Checkpoint scripts use `set -euo pipefail` and **must** exit non-zero. `verify.sh`
-  deliberately omits `-e` and returns 0 even when checks fail (SCRIPTS-GUIDE §12) -
-  parse `.workflow/verify.md` for the count, never trust its exit code.
-- Scripts live in `app/scripts/`, driven by the root `Makefile`.
-- Database name is `voting`. `votingdb` was the never-populated placeholder.
-- Avoid host port 5000 (AirPlay).
-
-## Review
-
-What changed from the design, and why. The verdicts are in `docs/reviews/`; the
-failure-by-failure detail is in `docs/lessons.md`.
-
-- **S15 - the migration.** Postgres and Redis left `app/kustomize/` for the JIT containers: no PVC, no
-  StatefulSet, and pgAdmin's host port per claim. The design's two-speed cleanup is implemented as the
-  infra *running* through the retention window rather than stopped - a production answer, noted not built.
-- **S16 - the R-checks.** Reworking the six checks the plan named also invalidated R3, R4, R6 and R7,
-  which read the containers through the shared `psql_q` / `redis_q` helpers. The helpers and R7 changed;
-  the four assertions did not.
-- **S17 - the demo and the J-suite.** The design specified no serialisation for the IPAM address pick, and
-  two claims could take the same address - fixed with a per-namespace lock around read-pick-patch. J11 had
-  to be repaired before it could assert anything (prefix encoding, and a missing `pass` line). `voting-b`
-  patches the shared base rather than the base being parameterised, because two namespaces cannot share an
-  Ingress host or a pgAdmin host port.
-
-- **S18 - the allowlist Stage G extended.** Four amendments to the frozen checkpoint, all header notes with
-  their own evidence logs: two mechanics no implementation could satisfy (a `make -pRrq` pipeline that
-  `pipefail` failed on even when it matched, and a herestring applied after a heredoc so `python3 -` read the
-  read model as its script), the rename to the console's own `demo-undeploy`/`demo-redeploy` labels, `destroy`
-  joining at 11 names to 12, and `claim` + `timeline` at 12 names to 14 when the console's two reads arrived.
-  The assertion code and every `ok:` line's meaning are unchanged.
-- **S19 - the page.** The checkpoint was written against a snapshot mode that was later cut, so the page is
-  always live and reads only `make state` through the proxy. That is why assertion 3 is vacuous by design - the
-  page names no make target in prose at all - and its teeth show only against a copy that names `make console`
-  again. The review carried two notes and no blocker: that vacuity, and a `console/README.md` correction
-  ("Three endpoints" to "Four") the design's "Do" list did not name.
-- **S20 - the proxy.** Design unchanged. The reviewed diff is one file - the checkpoint's own evidence log, 7
-  insertions - because a retro-checkpoint has no implementation commit to review; its record commit is the diff.
-  The fence is `ALLOWED` rather than `make targets`, so `POST /run/state` and `POST /run/targets` answer 404.
-- **S21 - the timeline.** The plan's own "Not in this step" was held: the live sequence (Kubernetes Events and
-  `docker events` as a stream, with `kopf.info()` in the controller) is deferred to S22, so nothing here claims
-  to be live. `timeline` joined `CONSOLE_TARGETS` in the same amendment that added `claim` - 12 names to 14 -
-  which is why the console reads it on demand and never on the 2s poll.
-
-## Lessons
-
-Rules that prevent a repeat live in [lessons.md](./lessons.md) - from S15, S16, the S16
-review, S17 and Stage G. Anything reworked belongs there, not here.
+- [x] One workflow file, two parallel jobs — `.github/workflows/ci.yml`
+- [x] `ubuntu-24.04` pinned, not `ubuntu-latest`
+- [x] Report-only: no required checks
+- [x] The existing `make` suites are the checks; the pipeline wraps, never rewrites
+- [x] Step ids `CI01`–`CI06` — outside the frozen Stage-H `S00`–`S29` range
+- [x] The CI runner is `scripts/ci-checkpoint.sh`; the frozen `scripts/checkpoint.sh` is untouched

@@ -1,0 +1,20 @@
+# CI01 checkpoint run
+# started  2026-10-06T16:48:49Z
+# commit   4bf350a
+# check    24815142d7a16970756aa42ad02b3dc8e4a9a244
+# ---
+== CI01  The fast half is green locally, and the runner can be dispatched
+   Proves: the four pytest suites and the lint pass from a clean install, and gh can dispatch a run.
+   How:    builds a throwaway venv from jit-controller/requirements.txt plus pytest, runs each
+           suite in it, runs lint-helpers.sh, and asks gh for its token scopes.
+   Needs:  python3 with venv, network for pip, gh logged in.
+
+  [1] ok    throwaway venv has pytest and requests
+  [2] ok    test_ipam.py exits 0
+  [3] ok    test_declarers.py exits 0 with requests installed
+  [4] ok    test_serve.py and test_console.py exit 0
+  [5] ok    scripts/checks/lint-helpers.sh prints PASS
+  [6] ok    gh auth status names the workflow scope
+
+PASS: CI01 - 6 of 6 checks passed
+# exit     0
