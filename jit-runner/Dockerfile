@@ -4,7 +4,7 @@ WORKDIR /opt/jit-runner
 
 RUN apt-get update && apt-get install -y wget unzip python3 python3-pip python3-venv curl jq bash && rm -rf /var/lib/apt/lists/*
 
-RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_arm64.zip && \
+RUN wget -qO /tmp/tofu.zip https://github.com/opentofu/opentofu/releases/download/v1.8.1/tofu_1.8.1_linux_$(dpkg --print-architecture).zip && \
     unzip -q /tmp/tofu.zip -d /usr/local/bin && rm /tmp/tofu.zip && \
     chmod +x /usr/local/bin/tofu
 

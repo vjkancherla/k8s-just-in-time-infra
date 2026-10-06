@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Build the three application images (vote, worker, result) for linux/arm64 and
-# load them into the k3d cluster.
+# Build the three application images (vote, worker, result) natively for the
+# host architecture and load them into the k3d cluster.
 #
 # Primary workflow (default): tag images plainly and `k3d image import` them
 # directly into the cluster's containerd. No registry, no push, no `.local` DNS.
@@ -19,13 +19,13 @@ SERVICES=(vote worker result)
 
 if [[ "$REGISTRY" == "1" ]]; then
   for svc in "${SERVICES[@]}"; do
-    docker build --platform linux/arm64 -t "localhost:${REGISTRY_PORT}/${svc}:latest" "./${svc}"
+    docker build -t "localhost:${REGISTRY_PORT}/${svc}:latest" "./${svc}"
     docker push "localhost:${REGISTRY_PORT}/${svc}:latest"
   done
   echo "Pushed images to registry localhost:${REGISTRY_PORT}. Deploy with REGISTRY=1."
 else
   for svc in "${SERVICES[@]}"; do
-    docker build --platform linux/arm64 -t "${svc}:latest" "./${svc}"
+    docker build -t "${svc}:latest" "./${svc}"
     k3d image import "${svc}:latest" -c "$CLUSTER"
   done
   echo "Imported ${SERVICES[*]} into k3d cluster '${CLUSTER}'."

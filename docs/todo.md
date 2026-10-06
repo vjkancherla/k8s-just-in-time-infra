@@ -16,7 +16,7 @@ in `docs/stages/<stage>.md`.
 
 ## Stage B — Portability migration
 
-- [ ] **CI03** — the repo builds and the R-suite can pass on amd64 — [plan](./build-plan.md#ci03-the-repo-builds-and-the-r-suite-can-pass-on-amd64)
+- [x] **CI03** — the repo builds and the R-suite can pass on amd64 — [plan](./build-plan.md#ci03-the-repo-builds-and-the-r-suite-can-pass-on-amd64)
 
 ## Stage C — The full e2e job
 
