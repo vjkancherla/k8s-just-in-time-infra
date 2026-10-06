@@ -37,6 +37,8 @@ export AWS_DEFAULT_REGION="us-east-1"
 # Recreate so the IP is pinned and state is clean per run.
 docker rm -f minio >/dev/null 2>&1 || true
 
+# minio/minio is gone from every anonymous registry (CI04); the actively
+# maintained sourcemation mirror replaces the archived upstream below.
 docker run -d --name minio \
   --network "$NET" --ip "$MINIO_IP" \
   -v minio-data:/data \
@@ -44,7 +46,7 @@ docker run -d --name minio \
   -e "MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}" \
   -p "${API_HOST_PORT}:${API_PORT}" \
   -p "${CONSOLE_HOST_PORT}:9001" \
-  minio/minio server /data \
+  sourcemation/minio server /data \
   --address ":${API_PORT}" --console-address ":9001" >/dev/null
 
 # Wait for the API to become ready.

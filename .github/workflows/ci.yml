@@ -31,16 +31,32 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install make
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq make
       - name: Install pinned k3d
         run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
-      - name: Probe the fixed subnet
+      - name: Write throwaway deploy/.env
         run: |
-          k3d cluster create ci-probe --subnet 172.19.0.0/16
-          docker network inspect k3d-ci-probe --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | grep -q 172.19.0.0/16
-          docker run -d --name probe --network k3d-ci-probe --ip 172.19.0.10 \
-            busybox sh -c "echo ok > ./index.html && httpd -f -p 8080 -h ."
-          for i in $(seq 1 30); do
-            if curl -fsS http://172.19.0.10:8080/; then break; fi
-            sleep 2
-          done
-          curl -fsS http://172.19.0.10:8080/
+          printf '%s\n' "MINIO_ROOT_USER=ci-minio" "MINIO_ROOT_PASSWORD=ci-minio-password-2026" > deploy/.env
+      - name: Build jit-controller:latest
+        run: docker build -t jit-controller:latest jit-controller/
+      - name: Cold path
+        run: make test-up
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          mkdir -p docs/evidence/ci-debug
+          kubectl get pods -A -o wide > docs/evidence/ci-debug/pods.txt 2>&1 || true
+          kubectl get infraclaims -A -o yaml > docs/evidence/ci-debug/infraclaims.yaml 2>&1 || true
+          kubectl describe pods -n voting-a > docs/evidence/ci-debug/describe-voting-a.txt 2>&1 || true
+          kubectl describe pods -n voting-b > docs/evidence/ci-debug/describe-voting-b.txt 2>&1 || true
+          docker logs jit-runner > docs/evidence/ci-debug/runner.log 2>&1 || true
+          kubectl logs -n default -l app=jit-controller > docs/evidence/ci-debug/controller.log 2>&1 || true
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence
+          path: |
+            docs/evidence/
+            app/.workflow/

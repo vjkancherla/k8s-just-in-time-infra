@@ -31,10 +31,19 @@ if [[ -f "$SCRIPT_DIR/deploy/.env" ]]; then
   JIT_RUNNER_TOKEN="$(grep -E '^JIT_RUNNER_TOKEN=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
   MINIO_ENDPOINT="$(grep -E '^MINIO_ENDPOINT=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
   MINIO_BUCKET="$(grep -E '^MINIO_BUCKET=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
+  # The runner's S3 backend login must be MinIO's root credentials (CI04): without
+  # this the container falls back to its baked-in defaults, which match only a
+  # .env that happens to repeat them.
+  MINIO_ROOT_USER="$(grep -E '^MINIO_ROOT_USER=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
+  MINIO_ROOT_PASSWORD="$(grep -E '^MINIO_ROOT_PASSWORD=' "$SCRIPT_DIR/deploy/.env" | head -n1 | cut -d= -f2- || true)"
 fi
 : "${JIT_RUNNER_TOKEN:=s6-secret-token-2026}"
 : "${MINIO_ENDPOINT:=http://172.19.0.11:9000}"
 : "${MINIO_BUCKET:=jit-state}"
+# Same fallback as the runner's own defaults: an empty MINIO_ACCESS_KEY would
+# override them with nothing, so never pass one through.
+: "${MINIO_ROOT_USER:=jit-state}"
+: "${MINIO_ROOT_PASSWORD:=jit-state-secret-2026}"
 
 case "${1:-}" in
   build)
@@ -62,6 +71,8 @@ case "${1:-}" in
       -e "DOCKER_HOST=unix:///var/run/docker.sock" \
       -e "MINIO_ENDPOINT=$MINIO_ENDPOINT" \
       -e "MINIO_BUCKET=$MINIO_BUCKET" \
+      -e "MINIO_ACCESS_KEY=$MINIO_ROOT_USER" \
+      -e "MINIO_SECRET_KEY=$MINIO_ROOT_PASSWORD" \
       -e "JIT_SHARE_DIR=$SHARE_DIR" \
       -p 8100:8080 \
       "$IMAGE"
