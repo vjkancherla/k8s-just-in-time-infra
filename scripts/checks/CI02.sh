@@ -40,14 +40,14 @@ note "watching run $RUN to completion (several minutes)"
 check "the watched run finishes green" "gh run view $RUN" \
   gh run watch "$RUN" --exit-status
 
-check_eq "run conclusion is SUCCESS, not skipped" "gh run view $RUN --json conclusion" \
-  "SUCCESS" "$(gh run view "$RUN" --json conclusion --jq .conclusion)"
+check_eq "run conclusion is success, not skipped" "gh run view $RUN --json conclusion" \
+  "success" "$(gh run view "$RUN" --json conclusion --jq .conclusion)"
 
 check_eq "fast job ran and succeeded on the runner" "gh run view $RUN --json jobs" \
-  "SUCCESS" "$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name=="fast") | .conclusion')"
+  "success" "$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name=="fast") | .conclusion')"
 
 check_eq "e2e probe ran and succeeded on the runner" "gh run view $RUN --json jobs" \
-  "SUCCESS" "$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name=="e2e") | .conclusion')"
+  "success" "$(gh run view "$RUN" --json jobs --jq '.jobs[] | select(.name=="e2e") | .conclusion')"
 
 check_eq "the green run sits on the PR head, before main" "gh pr view $BRANCH --json headRefOid" \
   "$(gh pr view "$BRANCH" --json headRefOid --jq .headRefOid)" "$(gh run view "$RUN" --json headSha --jq .headSha)"

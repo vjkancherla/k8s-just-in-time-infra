@@ -12,7 +12,7 @@ in `docs/stages/<stage>.md`.
 ## Stage A — The pipeline skeleton and the risky substrate
 
 - [x] **CI01** — the fast half is green locally, and the runner can be dispatched — [plan](./build-plan.md#ci01-the-fast-half-is-green-locally-and-the-runner-can-be-dispatched)
-- [ ] **CI02** — a stock `ubuntu-24.04` runner can host the cluster's fixed network — [plan](./build-plan.md#ci02-a-stock-ubuntu-2404-runner-can-host-the-clusters-fixed-network)
+- [x] **CI02** — a stock `ubuntu-24.04` runner can host the cluster's fixed network — [plan](./build-plan.md#ci02-a-stock-ubuntu-2404-runner-can-host-the-clusters-fixed-network)
 
 ## Stage B — Portability migration
 
