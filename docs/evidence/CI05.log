@@ -1,0 +1,30 @@
+# CI05 checkpoint run
+# started  2026-10-06T21:05:09Z
+# commit   545865e
+# check    7c61da14f353304d5b596d8d49814c8a17e8fe54
+# ---
+== CI05  The e2e job runs the console and J suites
+   Proves: after make test-up, the e2e job runs make console-test (server and
+           contract pass, browser skips) and make jit-verify (11 PASS, 0 FAIL),
+           finishing inside the 45-minute ceiling - all on the PR before main.
+   How:    checks the step order and the timeout in ci.yml locally; then watches
+           the branch's latest run, asserts both steps succeeded, and greps the
+           logs for the skip message and the 11 PASS literal.
+   Needs:  the ci/CI05 branch pushed with ci.yml, a PR open, gh logged in.
+           The live half takes up to ~45 minutes while a run is in flight.
+
+  [1] ok    ci.yml parses as YAML
+  [2] ok    e2e runs test-up, then console-test, then jit-verify
+  [3] ok    the e2e job carries the 45-minute ceiling
+  [4] ok    this branch has a CI run
+  -- using latest run 37529186442 (watching if still in flight)
+  [5] ok    the latest run finishes green inside the ceiling
+  [6] ok    e2e job ran and succeeded on the runner
+  [7] ok    the console-test step succeeded
+  [8] ok    the jit-verify step succeeded
+  [9] ok    the browser suite skipped on the runner
+  [10] ok    jit-verify reached 11 PASS, 0 FAIL in the run logs
+  [11] ok    the green run sits on the PR head, before main
+
+PASS: CI05 - 11 of 11 checks passed
+# exit     0
