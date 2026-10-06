@@ -31,16 +31,22 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      - name: Install make
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq make
       - name: Install pinned k3d
         run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
-      - name: Probe the fixed subnet
+      - name: Write throwaway deploy/.env
         run: |
-          k3d cluster create ci-probe --subnet 172.19.0.0/16
-          docker network inspect k3d-ci-probe --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | grep -q 172.19.0.0/16
-          docker run -d --name probe --network k3d-ci-probe --ip 172.19.0.10 \
-            busybox sh -c "echo ok > ./index.html && httpd -f -p 8080 -h ."
-          for i in $(seq 1 30); do
-            if curl -fsS http://172.19.0.10:8080/; then break; fi
-            sleep 2
-          done
-          curl -fsS http://172.19.0.10:8080/
+          printf '%s\n' "MINIO_ROOT_USER=ci-minio" "MINIO_ROOT_PASSWORD=ci-minio-password-2026" > deploy/.env
+      - name: Build jit-controller:latest
+        run: docker build -t jit-controller:latest jit-controller/
+      - name: Cold path
+        run: make test-up
+      - name: Upload failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-evidence
+          path: |
+            docs/evidence/
+            app/.workflow/
