@@ -29,6 +29,8 @@ jobs:
 
   e2e:
     runs-on: ubuntu-24.04
+    # A ceiling, not a measurement: bound the cost of the long job.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - name: Install make
@@ -42,6 +44,10 @@ jobs:
         run: docker build -t jit-controller:latest jit-controller/
       - name: Cold path
         run: make test-up
+      - name: Console suites (make console-test)
+        run: make console-test
+      - name: Lifecycle suite (make jit-verify)
+        run: make jit-verify
       - name: Dump cluster state on failure
         if: failure()
         run: |
