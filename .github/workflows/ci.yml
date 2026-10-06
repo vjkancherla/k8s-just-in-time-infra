@@ -42,6 +42,16 @@ jobs:
         run: docker build -t jit-controller:latest jit-controller/
       - name: Cold path
         run: make test-up
+      - name: Dump cluster state on failure
+        if: failure()
+        run: |
+          mkdir -p docs/evidence/ci-debug
+          kubectl get pods -A -o wide > docs/evidence/ci-debug/pods.txt 2>&1 || true
+          kubectl get infraclaims -A -o yaml > docs/evidence/ci-debug/infraclaims.yaml 2>&1 || true
+          kubectl describe pods -n voting-a > docs/evidence/ci-debug/describe-voting-a.txt 2>&1 || true
+          kubectl describe pods -n voting-b > docs/evidence/ci-debug/describe-voting-b.txt 2>&1 || true
+          docker logs jit-runner > docs/evidence/ci-debug/runner.log 2>&1 || true
+          kubectl logs -n default -l app=jit-controller > docs/evidence/ci-debug/controller.log 2>&1 || true
       - name: Upload failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
