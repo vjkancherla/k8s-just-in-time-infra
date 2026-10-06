@@ -296,7 +296,7 @@ fi
 
 # ---- R12: Single kustomize config; registry image override supported ----
 if kubectl kustomize "$KUSTOMIZE_DIR" >/dev/null 2>&1 \
-  && kubectl kustomize "$KUSTOMIZE_DIR" | sed 's|vote:latest|k3d-voting-app-registry.localhost:5000/vote:latest|g; s|worker:latest|k3d-voting-app-registry.localhost:5000/worker:latest|g; s|result:latest|k3d-voting-app-registry.localhost:5000/result:latest|g' | grep -q 'k3d-voting-app-registry.localhost:5000/vote'; then
+  && kubectl kustomize "$KUSTOMIZE_DIR" | sed 's|vote:latest|k3d-voting-app-registry.localhost:5000/vote:latest|g; s|worker:latest|k3d-voting-app-registry.localhost:5000/worker:latest|g; s|result:latest|k3d-voting-app-registry.localhost:5000/result:latest|g' | grep 'k3d-voting-app-registry.localhost:5000/vote' >/dev/null; then
   pass "R12" "kustomize base + registry image override"
 else
   fail "R12" "kustomize build or overlay override failed"
