@@ -1,0 +1,44 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  fast:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fast suites (pass counts from the CI01 baseline)
+        run: |
+          python3 -m venv /tmp/ci-venv
+          /tmp/ci-venv/bin/pip install -q -r jit-controller/requirements.txt pytest
+          V=/tmp/ci-venv/bin/python
+          $V -m pytest jit-controller/test_ipam.py -q | tee /tmp/ipam.log | tail -1
+          grep -q "27 passed" /tmp/ipam.log
+          $V -m pytest jit-controller/test_declarers.py -q | tee /tmp/declarers.log | tail -1
+          grep -q "23 passed" /tmp/declarers.log
+          $V -m pytest console/test_serve.py console/test_console.py -q | tee /tmp/console.log | tail -1
+          grep -q "32 passed" /tmp/console.log
+          bash scripts/checks/lint-helpers.sh | tee /tmp/lint.log | tail -1
+          grep -q PASS /tmp/lint.log
+
+  e2e:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned k3d
+        run: curl -s https://raw.githubusercontent.com/k3d-io/k3d/main/install.sh | TAG=v5.9.0 bash
+      - name: Probe the fixed subnet
+        run: |
+          k3d cluster create ci-probe --subnet 172.19.0.0/16
+          docker network inspect k3d-ci-probe --format '{{range .IPAM.Config}}{{.Subnet}}{{end}}' | grep -q 172.19.0.0/16
+          docker run -d --name probe --network k3d-ci-probe --ip 172.19.0.10 \
+            busybox sh -c "echo ok > ./index.html && httpd -f -p 8080 -h ."
+          for i in $(seq 1 30); do
+            if curl -fsS http://172.19.0.10:8080/; then break; fi
+            sleep 2
+          done
+          curl -fsS http://172.19.0.10:8080/
