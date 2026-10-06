@@ -349,6 +349,7 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 | [`docs/designs/demo-voting-app.md`](docs/designs/demo-voting-app.md) | **The voting app** — what it is, how the JIT project modified it, Kustomize layout, how it consumes JIT infrastructure | Understanding the tenant workload the PoC deploys |
 | [`docs/designs/annotation-to-state.md`](docs/designs/annotation-to-state.md) | **Annotation → State mapping** — the full chain from Deployment annotation to InfraClaim to MinIO state, with lookup commands | Tracing an app's infrastructure or debugging a provisioning issue |
 | [`docs/designs/deletion-lifecycle.md`](docs/designs/deletion-lifecycle.md) | **Deletion lifecycle** — what happens when you delete the app: the clock, the window, resurrection, the two speeds of cleanup, and how the controller's timer works | Understanding the retention window and why rollouts don't destroy data |
+| [`.github/workflows/ci.yml`](.github/workflows/ci.yml) | **CI pipeline** — report-only checks on every push and pull request: the fast suites beside the full cold path, console and lifecycle suites; design in [`docs/designs/ci-pipeline.md`](docs/designs/ci-pipeline.md) | A check failed on a run and you want to know what it proves, or you are changing what the pipeline runs |
 
 ### Design & architecture
 
@@ -360,14 +361,17 @@ make jit-verify                   # 7. 11 PASS, 0 FAIL
 | [`docs/decisions/0002-*.md`](docs/decisions/) | **ADR 0002** — why the runner is a separate HTTP service | Understanding the split-plane design |
 | [`docs/decisions/0003-*.md`](docs/decisions/) | **ADR 0003** — IPAM block allocation (172.19.0.100-199, blocks of 10) | Understanding IP addressing or extending the range |
 | [`docs/decisions/0004-*.md`](docs/decisions/) | **ADR 0004** — console as a stateless page behind a make-target allowlist | Understanding why the console works this way |
-| [`.clinerules/01-jit-poc.md`](.clinerules/01-jit-poc.md) | **Working rules** — scope, method, code conventions for agent-driven implementation | Starting a new AI coding session |
+| [`docs/archive/jit-poc/s22-declarers.md`](docs/archive/jit-poc/s22-declarers.md) | **Archived working rules** — the retired Stage-H scope, method and code conventions | Reading the finished JIT PoC process |
 
 ### Implementation & tracking
 
+The JIT PoC build is complete; its plan, tracker and runbook are retired under
+[`docs/archive/jit-poc/`](docs/archive/jit-poc/).
+
 | Document | What it covers | Read when |
 |---|---|---|
-| [`docs/build-plan.md`](docs/build-plan.md) | **The steps** — each with scope, checkpoints, and acceptance criteria | Checking what a step involves |
-| [`docs/todo.md`](docs/todo.md) | **Tracker** — check and review boxes per step, settled decisions | Seeing where things stand |
+| [`docs/archive/jit-poc/build-plan.md`](docs/archive/jit-poc/build-plan.md) | **Archived steps** — the finished JIT PoC plan | Checking what a step involved |
+| [`docs/archive/jit-poc/todo.md`](docs/archive/jit-poc/todo.md) | **Archived tracker** — how the finished PoC stood | Seeing where things ended |
 
 ### Learning & evidence
 
