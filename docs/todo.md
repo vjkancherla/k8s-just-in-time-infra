@@ -25,7 +25,7 @@ in `docs/stages/<stage>.md`.
 
 ## Stage D — Report-only, hardened, documented
 
-- [ ] **CI06** — the pipeline is report-only, hardened and written down — [plan](./build-plan.md#ci06-the-pipeline-is-report-only-hardened-and-written-down)
+- [x] **CI06** — the pipeline is report-only, hardened and written down — [plan](./build-plan.md#ci06-the-pipeline-is-report-only-hardened-and-written-down)
 
 ## Stage reports
 
