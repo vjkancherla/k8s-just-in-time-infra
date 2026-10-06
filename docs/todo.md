@@ -20,7 +20,7 @@ in `docs/stages/<stage>.md`.
 
 ## Stage C — The full e2e job
 
-- [ ] **CI04** — the e2e job runs the cold path — [plan](./build-plan.md#ci04-the-e2e-job-runs-the-cold-path)
+- [x] **CI04** — the e2e job runs the cold path — [plan](./build-plan.md#ci04-the-e2e-job-runs-the-cold-path)
 - [ ] **CI05** — the e2e job runs the console and J suites — [plan](./build-plan.md#ci05-the-e2e-job-runs-the-console-and-j-suites)
 
 ## Stage D — Report-only, hardened, documented

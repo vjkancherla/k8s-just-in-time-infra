@@ -1,0 +1,29 @@
+# CI04 checkpoint run
+# started  2026-10-06T19:05:34Z
+# commit   831ee1e
+# check    cca8032c3379093806113b045f70c0182beebee9
+# ---
+== CI04  The e2e job runs the cold path
+   Proves: the e2e job writes the throwaway credentials, builds the controller,
+           runs make test-up to 17 PASS on the runner, and uploads evidence when
+           a run fails - all visible on the PR before main.
+   How:    checks the step order in ci.yml locally; then watches the branch's
+           latest run, greps its logs for the 17 PASS literal, ties it to the PR
+           head, and finds a failed run carrying the evidence artifact.
+   Needs:  the ci/CI04 branch pushed with ci.yml, a PR open, one green and one
+           deliberately failed run on the branch, gh logged in. The live half
+           takes up to ~45 minutes while a run is in flight.
+
+  [1] ok    ci.yml parses as YAML
+  [2] ok    e2e writes .env, then builds, then runs test-up
+  [3] ok    evidence uploads on failure, covering both evidence dirs
+  [4] ok    this branch has a CI run
+  -- using latest run 37515385803 (watching if still in flight)
+  [5] ok    the latest run finishes green
+  [6] ok    e2e job ran and succeeded on the runner
+  [7] ok    make verify reached 17 PASS, 0 FAIL in the run logs
+  [8] ok    the green run sits on the PR head, before main
+  [9] ok    a deliberately failed run uploaded the evidence artifact
+
+PASS: CI04 - 9 of 9 checks passed
+# exit     0
