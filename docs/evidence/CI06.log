@@ -1,0 +1,30 @@
+# CI06 checkpoint run
+# started  2026-10-07T12:53:24Z
+# commit   31034bb
+# check    f57bd78e108a0f8b9dad811ac4732013357cb8f5
+# ---
+== CI06  The pipeline is report-only, hardened and written down
+   Proves: a newer push cancels its superseded run, main asks for no checks, the
+           final run is green in both jobs with every suite literal present, and
+           the README plus the design note describe the pipeline.
+   How:    checks the queue rule in ci.yml locally; asks the API about main's
+           protection; watches the branch's latest run to green and an earlier
+           run to cancelled; greps the logs and the docs.
+   Needs:  the ci/CI06 branch pushed with ci.yml, a PR open, two quick pushes so
+           the first run is superseded, gh logged in. The live half takes up to
+           ~45 minutes while the final run is in flight.
+
+  [1] ok    ci.yml parses as YAML
+  [2] ok    one queue rule cancels superseded runs on the same ref
+  [3] ok    main asks for no checks, so red never blocks a merge
+  [4] ok    this branch has a CI run
+  -- using latest run 37536250795 (watching if still in flight)
+  [5] ok    the latest run finishes green in both jobs
+  [6] ok    the final run reached every suite literal
+  [7] ok    the green run sits on the PR head, before main
+  [8] ok    an earlier run on the branch was cancelled by supersede
+  [9] ok    the README points at the pipeline
+  [10] ok    the design note records the required-checks decision
+
+PASS: CI06 - 10 of 10 checks passed
+# exit     0

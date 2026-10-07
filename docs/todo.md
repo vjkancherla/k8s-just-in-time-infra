@@ -25,13 +25,13 @@ in `docs/stages/<stage>.md`.
 
 ## Stage D — Report-only, hardened, documented
 
-- [ ] **CI06** — the pipeline is report-only, hardened and written down — [plan](./build-plan.md#ci06-the-pipeline-is-report-only-hardened-and-written-down)
+- [x] **CI06** — the pipeline is report-only, hardened and written down — [plan](./build-plan.md#ci06-the-pipeline-is-report-only-hardened-and-written-down)
 
 ## Stage reports
 
-- [ ] [Stage A](./stages/A.md)
-- [ ] [Stage B](./stages/B.md)
-- [ ] [Stage C](./stages/C.md)
+- [x] [Stage A](./stages/A.md)
+- [x] [Stage B](./stages/B.md)
+- [x] [Stage C](./stages/C.md)
 - [ ] [Stage D](./stages/D.md)
 
 ## Decisions (settled)

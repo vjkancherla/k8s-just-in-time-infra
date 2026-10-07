@@ -6,6 +6,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push on the same ref cancels the run it supersedes, so only the
+# newest commit ever finishes. Report-only: nothing here blocks a merge.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   fast:
     runs-on: ubuntu-24.04
