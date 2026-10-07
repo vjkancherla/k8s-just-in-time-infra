@@ -1,5 +1,11 @@
 # JIT Infra PoC
 
+<p align="center">
+  <a href="https://github.com/vjkancherla/k8s-just-in-time-infra/actions/workflows/ci.yml"
+    ><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/vjkancherla/k8s-just-in-time-infra/ci.yml?style=flat-square&label=ci"
+  /></a>
+</p>
+
 **Infrastructure that appears when an app deploys and goes away when the app does.**
 
 A tenant annotates a Deployment; a controller provisions real infrastructure outside the
