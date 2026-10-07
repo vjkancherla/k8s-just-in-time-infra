@@ -29,9 +29,9 @@ in `docs/stages/<stage>.md`.
 
 ## Stage reports
 
-- [ ] [Stage A](./stages/A.md)
-- [ ] [Stage B](./stages/B.md)
-- [ ] [Stage C](./stages/C.md)
+- [x] [Stage A](./stages/A.md)
+- [x] [Stage B](./stages/B.md)
+- [x] [Stage C](./stages/C.md)
 - [ ] [Stage D](./stages/D.md)
 
 ## Decisions (settled)

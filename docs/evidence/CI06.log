@@ -1,6 +1,6 @@
 # CI06 checkpoint run
-# started  2026-10-06T21:46:03Z
-# commit   38f5f20
+# started  2026-10-07T12:53:24Z
+# commit   31034bb
 # check    f57bd78e108a0f8b9dad811ac4732013357cb8f5
 # ---
 == CI06  The pipeline is report-only, hardened and written down
@@ -18,7 +18,7 @@
   [2] ok    one queue rule cancels superseded runs on the same ref
   [3] ok    main asks for no checks, so red never blocks a merge
   [4] ok    this branch has a CI run
-  -- using latest run 37533896053 (watching if still in flight)
+  -- using latest run 37536250795 (watching if still in flight)
   [5] ok    the latest run finishes green in both jobs
   [6] ok    the final run reached every suite literal
   [7] ok    the green run sits on the PR head, before main
