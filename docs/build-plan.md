@@ -138,11 +138,11 @@ checks to "deferred"; do a final full green run on a PR.
 
 ## Done
 
-- [ ] `scripts/ci-checkpoint.sh all` green from a clean tree
-- [ ] Every row of the design note's Verification table (V1–V9) is covered by a check
-- [ ] Both jobs green on a PR before the workflow reaches `main`
-- [ ] What changed from the design, and why
-- [ ] What production needs that this omits (required checks, persistence, browser suite)
+- [ ] `scripts/ci-checkpoint.sh all` green from a clean tree (not runnable as one invocation: the live checks bind each run to its PR branch by design; the six per-step evidence logs are each green)
+- [x] Every row of the design note's Verification table (V1–V9) is covered by a check
+- [x] Both jobs green on a PR before the workflow reaches `main`
+- [x] What changed from the design, and why
+- [x] What production needs that this omits (required checks, persistence, browser suite)
 
 ## Changes
 

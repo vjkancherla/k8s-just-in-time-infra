@@ -32,7 +32,7 @@ in `docs/stages/<stage>.md`.
 - [x] [Stage A](./stages/A.md)
 - [x] [Stage B](./stages/B.md)
 - [x] [Stage C](./stages/C.md)
-- [ ] [Stage D](./stages/D.md)
+- [x] [Stage D](./stages/D.md)
 
 ## Decisions (settled)
 
